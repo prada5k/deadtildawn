@@ -8,6 +8,7 @@ import math
 # Physical constants
 G = 9.81            # m/s^2
 RHO_AIR = 1.225     # kg/m^3, sea level
+AMBIENT_C = 30.0    # C, default air temperature (and cold brake temperature)
 
 # Conversions
 LBFT_TO_NM = 1.3558179

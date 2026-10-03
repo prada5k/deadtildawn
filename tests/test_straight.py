@@ -122,7 +122,7 @@ def test_tire_force_below_traction_with_inertia(car):
     #   absorbed = (18.0 + 235.1 kg) * 3.78 = ~957 N
     #   tire force = 5437 - 957 = ~4480 N < 5177 N traction limit
     from sim.powertrain import speed_from_rpm, wheel_force
-    from sim.straight import spin_absorption
+    from sim.dynamics import spin_absorption
     from sim.powertrain import effective_mass
     v = speed_from_rpm(car, 4600, 1)
     f_engine = wheel_force(car, v, 1)

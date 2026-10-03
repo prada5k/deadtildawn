@@ -20,6 +20,9 @@ class Car:
     wheelbase: float       # m
     weight_front: float    # fraction of static weight on front axle
     cg_height: float       # m
+    track_front: float     # m, left-right wheel spacing
+    track_rear: float      # m
+    roll_front: float      # fraction of roll stiffness (lateral load transfer) on the front axle
     torque_rpm: tuple      # rpm points of the torque curve
     torque_nm: tuple       # torque (N*m) at those points
     redline: float         # rpm, where the driver shifts
@@ -38,6 +41,15 @@ class Car:
     cd: float              # drag coefficient
     frontal_area: float    # m^2
     cla: float             # downforce area, m^2
+    rotor_mass: float      # kg, per front rotor
+    rotor_c: float         # J/(kg*K), rotor specific heat
+    pad_mu: float          # pad friction, cold
+    pad_fade_temp: float   # C, fade onset
+    pad_fade_rate: float   # pad mu lost per C above onset
+    pad_mu_min: float      # floor for a fully cooked pad
+    brake_capacity: float  # cold front brake force / front grip at max braking
+    cool_h0: float         # W/K per rotor, still air
+    cool_h1: float         # W/K per rotor per m/s of speed
 
 
 def load_car(path):
@@ -45,7 +57,7 @@ def load_car(path):
         d = json.load(f)
 
     m, geo, eng = d["mass"], d["geometry"], d["engine"]
-    tr, ti, aero = d["transmission"], d["tires"], d["aero"]
+    tr, ti, aero, br = d["transmission"], d["tires"], d["aero"], d["brakes"]
     rpm, tq = zip(*eng["torque_curve"]["points"])
 
     car = Car(
@@ -55,6 +67,9 @@ def load_car(path):
         wheelbase=_v(geo["wheelbase"]),
         weight_front=_v(geo["weight_front_fraction"]),
         cg_height=_v(geo["cg_height"]),
+        track_front=_v(geo["track_front"]),
+        track_rear=_v(geo["track_rear"]),
+        roll_front=_v(geo["roll_stiffness_front"]),
         torque_rpm=tuple(rpm),
         torque_nm=tuple(tq),
         redline=_v(eng["redline"]),
@@ -73,6 +88,15 @@ def load_car(path):
         cd=_v(aero["cd"]),
         frontal_area=_v(aero["frontal_area"]),
         cla=_v(aero["cla"]),
+        rotor_mass=_v(br["front_rotor_mass"]),
+        rotor_c=_v(br["rotor_specific_heat"]),
+        pad_mu=_v(br["pad_mu"]),
+        pad_fade_temp=_v(br["pad_fade_temp"]),
+        pad_fade_rate=_v(br["pad_fade_rate"]),
+        pad_mu_min=_v(br["pad_mu_min"]),
+        brake_capacity=_v(br["capacity_ratio"]),
+        cool_h0=_v(br["cooling_h0"]),
+        cool_h1=_v(br["cooling_h1"]),
     )
     _check(car)
     return car
@@ -88,3 +112,5 @@ def _check(car):
         raise ValueError("gear ratios must decrease from 1st to top gear")
     if not 0 < car.weight_front < 1:
         raise ValueError("weight_front must be a fraction between 0 and 1")
+    if car.brake_capacity < 1:
+        raise ValueError("brake capacity ratio below 1 means cold brakes can't reach grip")

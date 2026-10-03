@@ -2,80 +2,372 @@
   "id": "ej6_dx_coupe_1996",
   "name": "1996 Honda Civic DX Coupe",
   "chassis": "EJ6",
-  "engine": "D16Y7",
-  "transmission": "S40 5-speed manual",
-  "drivetrain": "FWD",
-  "notes": "Inputs only. Derived values (gear top speeds, power-to-weight, etc.) are computed by code, never stored here. All values SI unless noted.",
-
-  "mass": {
-    "curb": { "value": 1026, "unit": "kg", "source": "Wikipedia (1996 DX coupe 5MT)", "confidence": "spec-secondary" },
-    "driver": { "value": 70, "unit": "kg", "source": "assumed", "confidence": "estimate" },
-    "fuel": { "value": 16, "unit": "kg", "source": "~45 L tank x 0.74 kg/L, half tank", "confidence": "estimate" }
-  },
-
-  "geometry": {
-    "wheelbase": { "value": 2.621, "unit": "m", "source": "auto data site (URL TBD)", "confidence": "spec-unverified" },
-    "weight_front_fraction": { "value": 0.61, "unit": "-", "source": "enthusiast forum (URL TBD)", "confidence": "low" },
-    "cg_height": { "value": 0.50, "unit": "m", "source": "typical compact car", "confidence": "estimate" }
-  },
-
   "engine": {
-    "peak_torque": { "value": 139.6, "unit": "N*m", "rpm": 4600, "original": "103 lb-ft", "source": "Honda spec via Honda-Tech", "confidence": "spec-secondary" },
-    "peak_power": { "value": 79.0, "unit": "kW", "rpm": 6200, "original": "106 hp", "source": "Honda spec via Honda-Tech", "confidence": "spec-secondary" },
-    "redline": { "value": 6500, "unit": "rpm", "source": "enthusiast forum (URL TBD)", "confidence": "low" },
-    "fuel_cut": { "value": 6800, "unit": "rpm", "source": "enthusiast forum (URL TBD)", "confidence": "low" },
+    "peak_torque": {
+      "value": 139.6,
+      "unit": "N*m",
+      "rpm": 4600,
+      "original": "103 lb-ft",
+      "source": "Honda spec via Honda-Tech",
+      "confidence": "spec-secondary"
+    },
+    "peak_power": {
+      "value": 79.0,
+      "unit": "kW",
+      "rpm": 6200,
+      "original": "106 hp",
+      "source": "Honda spec via Honda-Tech",
+      "confidence": "spec-secondary"
+    },
+    "redline": {
+      "value": 6500,
+      "unit": "rpm",
+      "source": "enthusiast forum (URL TBD)",
+      "confidence": "low"
+    },
+    "fuel_cut": {
+      "value": 6800,
+      "unit": "rpm",
+      "source": "enthusiast forum (URL TBD)",
+      "confidence": "low"
+    },
     "torque_curve": {
       "unit_rpm": "rpm",
       "unit_torque": "N*m",
-      "points": [[1000, 64], [1500, 100], [2000, 114], [2500, 122], [3000, 127],
-                 [3500, 134], [4000, 137], [4500, 140], [5000, 138], [5500, 132],
-                 [6000, 125], [6500, 114], [6700, 101]],
+      "points": [
+        [
+          1000,
+          64
+        ],
+        [
+          1500,
+          100
+        ],
+        [
+          2000,
+          114
+        ],
+        [
+          2500,
+          122
+        ],
+        [
+          3000,
+          127
+        ],
+        [
+          3500,
+          134
+        ],
+        [
+          4000,
+          137
+        ],
+        [
+          4500,
+          140
+        ],
+        [
+          5000,
+          138
+        ],
+        [
+          5500,
+          132
+        ],
+        [
+          6000,
+          125
+        ],
+        [
+          6500,
+          114
+        ],
+        [
+          6700,
+          101
+        ]
+      ],
       "source": "automobile-catalog.com ProfessCars approximation (1996 DX hatch, D16Y7), digitized by eye; re-digitize with WebPlotDigitizer",
       "confidence": "modeled-estimate",
       "notes": "Code extrapolates the last segment from 6700 to the 6800 fuel cut."
     }
   },
-
   "transmission": {
-    "gear_ratios": { "value": [3.250, 1.782, 1.172, 0.909, 0.702], "unit": "-", "source": "enthusiast forum / auto data site (URL TBD)", "confidence": "spec-unverified" },
-    "final_drive": { "value": 4.058, "unit": "-", "source": "enthusiast forum / auto data site (URL TBD)", "confidence": "spec-unverified" },
-    "efficiency": { "value": 0.88, "unit": "-", "source": "typical FWD manual", "confidence": "estimate" },
-    "shift_time": { "value": 0.4, "unit": "s", "source": "typical road-test shift, zero drive force", "confidence": "estimate" },
-    "launch_rpm": { "value": 3000, "unit": "rpm", "source": "assumed road-test launch with clutch slip", "confidence": "estimate" },
-    "engine_inertia": { "value": 0.12, "unit": "kg*m^2", "source": "typical 1.6 L crank + flywheel + clutch (range 0.10-0.15)", "confidence": "estimate" }
+    "gear_ratios": {
+      "value": [
+        3.25,
+        1.782,
+        1.172,
+        0.909,
+        0.702
+      ],
+      "unit": "-",
+      "source": "enthusiast forum / auto data site (URL TBD)",
+      "confidence": "spec-unverified"
+    },
+    "final_drive": {
+      "value": 4.058,
+      "unit": "-",
+      "source": "enthusiast forum / auto data site (URL TBD)",
+      "confidence": "spec-unverified"
+    },
+    "efficiency": {
+      "value": 0.88,
+      "unit": "-",
+      "source": "typical FWD manual",
+      "confidence": "estimate"
+    },
+    "shift_time": {
+      "value": 0.4,
+      "unit": "s",
+      "source": "typical road-test shift, zero drive force",
+      "confidence": "estimate"
+    },
+    "launch_rpm": {
+      "value": 3000,
+      "unit": "rpm",
+      "source": "assumed road-test launch with clutch slip",
+      "confidence": "estimate"
+    },
+    "engine_inertia": {
+      "value": 0.12,
+      "unit": "kg*m^2",
+      "source": "typical 1.6 L crank + flywheel + clutch (range 0.10-0.15)",
+      "confidence": "estimate"
+    }
   },
-
+  "drivetrain": "FWD",
+  "notes": "Inputs only. Derived values (gear top speeds, power-to-weight, etc.) are computed by code, never stored here. All values SI unless noted.",
+  "mass": {
+    "curb": {
+      "value": 1026,
+      "unit": "kg",
+      "source": "Wikipedia (1996 DX coupe 5MT)",
+      "confidence": "spec-secondary"
+    },
+    "driver": {
+      "value": 70,
+      "unit": "kg",
+      "source": "assumed",
+      "confidence": "estimate"
+    },
+    "fuel": {
+      "value": 16,
+      "unit": "kg",
+      "source": "~45 L tank x 0.74 kg/L, half tank",
+      "confidence": "estimate"
+    }
+  },
+  "geometry": {
+    "wheelbase": {
+      "value": 2.621,
+      "unit": "m",
+      "source": "auto data site (URL TBD)",
+      "confidence": "spec-unverified"
+    },
+    "weight_front_fraction": {
+      "value": 0.61,
+      "unit": "-",
+      "source": "enthusiast forum (URL TBD)",
+      "confidence": "low"
+    },
+    "cg_height": {
+      "value": 0.5,
+      "unit": "m",
+      "source": "typical compact car",
+      "confidence": "estimate"
+    },
+    "track_front": {
+      "value": 1.47,
+      "unit": "m",
+      "source": "6th-gen Civic coupe, approximate (URL TBD)",
+      "confidence": "spec-unverified"
+    },
+    "track_rear": {
+      "value": 1.47,
+      "unit": "m",
+      "source": "6th-gen Civic coupe, approximate (URL TBD)",
+      "confidence": "spec-unverified"
+    },
+    "roll_stiffness_front": {
+      "value": 0.6,
+      "unit": "-",
+      "source": "typical FWD economy car (front-biased roll stiffness for understeer)",
+      "confidence": "estimate"
+    }
+  },
   "tires": {
     "size": "185/65R14",
-    "radius": { "value": 0.298, "unit": "m", "source": "calculated from tire size (unloaded)", "confidence": "calculated" },
-    "mu_0": { "value": 1.05, "unit": "-", "source": "illustrative load-sensitivity model", "confidence": "estimate", "todo": "calibrate vs 60-0 braking target" },
-    "load_sensitivity_k": { "value": 0.05, "unit": "1/kN", "source": "illustrative load-sensitivity model", "confidence": "estimate", "todo": "calibrate vs 60-0 braking target" },
-    "rolling_resistance": { "value": 0.015, "unit": "-", "source": "typical passenger tire", "confidence": "estimate" },
-    "wheel_inertia": { "value": 0.8, "unit": "kg*m^2", "source": "typical 14 in steel wheel + 185/65R14 tire, per wheel (range 0.7-0.9)", "confidence": "estimate" }
+    "radius": {
+      "value": 0.298,
+      "unit": "m",
+      "source": "calculated from tire size (unloaded)",
+      "confidence": "calculated"
+    },
+    "mu_0": {
+      "value": 1.05,
+      "unit": "-",
+      "source": "illustrative load-sensitivity model",
+      "confidence": "estimate",
+      "todo": "calibrate vs 60-0 braking target"
+    },
+    "load_sensitivity_k": {
+      "value": 0.05,
+      "unit": "1/kN",
+      "source": "illustrative load-sensitivity model",
+      "confidence": "estimate",
+      "todo": "calibrate vs 60-0 braking target"
+    },
+    "rolling_resistance": {
+      "value": 0.015,
+      "unit": "-",
+      "source": "typical passenger tire",
+      "confidence": "estimate"
+    },
+    "wheel_inertia": {
+      "value": 0.8,
+      "unit": "kg*m^2",
+      "source": "typical 14 in steel wheel + 185/65R14 tire, per wheel (range 0.7-0.9)",
+      "confidence": "estimate"
+    }
   },
-
   "aero": {
-    "cd": { "value": 0.32, "unit": "-", "source": "auto data site (URL TBD)", "confidence": "spec-unverified" },
-    "frontal_area": { "value": 1.90, "unit": "m^2", "source": "approximation", "confidence": "estimate" },
-    "cla": { "value": 0.0, "unit": "m^2", "source": "stock car makes slight lift; assumed 0 for v0.9", "confidence": "placeholder" }
+    "cd": {
+      "value": 0.32,
+      "unit": "-",
+      "source": "auto data site (URL TBD)",
+      "confidence": "spec-unverified"
+    },
+    "frontal_area": {
+      "value": 1.9,
+      "unit": "m^2",
+      "source": "approximation",
+      "confidence": "estimate"
+    },
+    "cla": {
+      "value": 0.0,
+      "unit": "m^2",
+      "source": "stock car makes slight lift; assumed 0 for v0.9",
+      "confidence": "placeholder"
+    }
   },
-
   "brakes": {
-    "front_type": { "value": "disc", "source": "enthusiast forum (URL TBD)", "confidence": "low" },
-    "rear_type": { "value": "drum", "size_mm": 180, "source": "enthusiast forum (URL TBD)", "confidence": "low" },
-    "abs": { "value": false, "source": "enthusiast forum (URL TBD)", "confidence": "low" },
-    "front_rotor_mass": { "value": 5.0, "unit": "kg", "source": "typical cast iron rotor this size", "confidence": "estimate" },
-    "front_heat_fraction": { "value": 0.70, "unit": "-", "source": "typical front-biased split", "confidence": "estimate" },
-    "bias": { "value": "ideal", "source": "v0.9 assumption", "confidence": "placeholder" },
-    "pad_mu": { "value": null, "unit": "-", "todo": "estimate street pad friction (~0.35-0.45)" },
-    "pad_fade_temp": { "value": null, "unit": "C", "todo": "estimate street pad fade onset" }
+    "front_type": {
+      "value": "disc",
+      "source": "enthusiast forum (URL TBD)",
+      "confidence": "low"
+    },
+    "rear_type": {
+      "value": "drum",
+      "size_mm": 180,
+      "source": "enthusiast forum (URL TBD)",
+      "confidence": "low"
+    },
+    "abs": {
+      "value": false,
+      "source": "enthusiast forum (URL TBD)",
+      "confidence": "low"
+    },
+    "bias": {
+      "value": "ideal",
+      "source": "v0.9 assumption",
+      "confidence": "placeholder"
+    },
+    "front_rotor_mass": {
+      "value": 5.0,
+      "unit": "kg",
+      "source": "typical solid cast-iron front rotor this size",
+      "confidence": "estimate"
+    },
+    "rotor_specific_heat": {
+      "value": 460,
+      "unit": "J/(kg*K)",
+      "source": "cast iron",
+      "confidence": "material property"
+    },
+    "pad_mu": {
+      "value": 0.4,
+      "unit": "-",
+      "source": "typical OEM organic street pad, cold",
+      "confidence": "estimate"
+    },
+    "pad_fade_temp": {
+      "value": 350,
+      "unit": "C",
+      "source": "typical OEM organic pad fade onset",
+      "confidence": "estimate"
+    },
+    "pad_fade_rate": {
+      "value": 0.001,
+      "unit": "1/C",
+      "source": "pad mu lost per degree above fade onset (0.40 -> 0.20 by 550 C)",
+      "confidence": "estimate"
+    },
+    "pad_mu_min": {
+      "value": 0.1,
+      "unit": "-",
+      "source": "floor so a cooked pad still does something",
+      "confidence": "placeholder"
+    },
+    "capacity_ratio": {
+      "value": 1.3,
+      "unit": "-",
+      "source": "cold front brakes can make 1.3x the force needed to reach front grip (can lock wheels)",
+      "confidence": "estimate"
+    },
+    "cooling_h0": {
+      "value": 4.0,
+      "unit": "W/K",
+      "source": "per rotor, still air; gives ~10 min cool-down time constant",
+      "confidence": "estimate"
+    },
+    "cooling_h1": {
+      "value": 1.15,
+      "unit": "W/K per m/s",
+      "source": "per rotor; gives ~60 s time constant at 30 m/s",
+      "confidence": "estimate"
+    },
+    "notes": "Front heat share is computed from the braking model (load transfer), not stored. Rear drums assumed non-fading in v0.9."
   },
-
   "validation_targets": {
-    "zero_to_60_mph": { "value": 9.9, "unit": "s", "source": "auto data site (URL TBD)" },
-    "quarter_mile_time": { "min": 17.4, "max": 17.7, "unit": "s", "source": "auto data site (URL TBD)" },
-    "quarter_mile_trap": { "min": 78, "max": 80, "unit": "mph", "source": "auto data site (URL TBD)" },
-    "top_speed": { "value": 112, "unit": "mph", "source": "auto data site (URL TBD)", "confidence": "low", "notes": "Conflicts with ~120 mph drag estimate and forum limiter reports. Report only; not a pass/fail target." },
-    "sixty_to_zero": { "min": 135, "max": 142, "unit": "ft", "source": "auto data site (URL TBD)", "notes": "No ABS: treat as skilled driver near lockup." }
+    "zero_to_60_mph": {
+      "value": 9.9,
+      "unit": "s",
+      "source": "auto data site (URL TBD)"
+    },
+    "quarter_mile_time": {
+      "min": 17.4,
+      "max": 17.7,
+      "unit": "s",
+      "source": "auto data site (URL TBD)"
+    },
+    "quarter_mile_trap": {
+      "min": 78,
+      "max": 80,
+      "unit": "mph",
+      "source": "auto data site (URL TBD)"
+    },
+    "top_speed": {
+      "value": 112,
+      "unit": "mph",
+      "source": "auto data site (URL TBD)",
+      "confidence": "low",
+      "notes": "Conflicts with ~120 mph drag estimate and forum limiter reports. Report only; not a pass/fail target."
+    },
+    "sixty_to_zero": {
+      "min": 135,
+      "max": 142,
+      "unit": "ft",
+      "source": "auto data site (URL TBD)",
+      "notes": "No ABS: treat as skilled driver near lockup."
+    },
+    "skidpad_g": {
+      "min": 0.75,
+      "max": 0.85,
+      "unit": "g",
+      "confidence": "low",
+      "notes": "Plausibility band for economy cars of the era on all-season tires (general knowledge, not a measured DX figure). Report only, not graded."
+    }
   }
 }

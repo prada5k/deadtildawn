@@ -1,0 +1,4 @@
+# Test track v0.9 (designed by Spire). Standing start, flat, ~1070 m.
+# Format: S <length_m> | <L|R><severity 1-10> <angle_deg>, comma-separated.
+# v2: hairpin changed R1 -> L1 so the road no longer crosses itself.
+S 200, R7 65, S 40, L6 25, S 120, R3 90, S 90, L1 180, S 200, L5 45, S 40

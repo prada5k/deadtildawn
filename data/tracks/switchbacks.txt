@@ -1,0 +1,4 @@
+# Switchbacks: long straights into alternating hairpins. Flat, ~3.5 km.
+# Brake-heavy test track for fade (PHYSICS.md 5.3-5.4).
+S 400, L1 180, S 400, R1 180, S 400, L1 180, S 400, R1 180,
+S 400, L1 180, S 400, R1 180, S 400, L1 180, S 400
