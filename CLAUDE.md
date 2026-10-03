@@ -34,10 +34,13 @@ runs/         generated reports (gitignored)
 
 ```
 .venv\Scripts\activate
-python -m pytest -v                                   # ~104 tests, ~50 s
+python -m pytest -v                                   # ~127 tests, ~50 s
 python tools/run_all.py [--track FILE] [--mass -100] [--runs 4]
 python tools/validate_straight.py                     # validation table only
 python tools/export_replay.py [track]                 # -> godot/replays/latest.json
+python tools/run_all.py --push hard --seed 7 --rival 49.55   # driven run + odds
+python tools/driver_study.py --rival 49.55            # push-level odds only
+python tools/sensitivity.py                           # tornado charts
 ```
 Godot viewer: open `godot/project.godot` in Godot 4.5+, press F5. Headless check: `godot --headless --path godot -- --selftest`. Stills: `-- --shots=<folder>` (needs a display).
 
@@ -63,7 +66,8 @@ Windows laptop (ASUS Vivobook S14), VS Code, Python 3.14, Git + GitHub.
 - Shifting: sequential only; downshift only if the engine lands at or below redline (no money shifts); no mid-corner shifts
 - Cornering: lateral load transfer (roll stiffness split, wheel lift), per-tire load sensitivity, axle-limited (stock car understeers at 0.832 g)
 - Braking: forward load transfer + load sensitivity, ideal bias; brake capacity ratio 1.3; rotor thermal model (Newton cooling), pad fade above 350 C; fixed-point iteration over the lap; back-to-back runs carry rotor temperature
-- Not yet: driver model, friction circle, elevation, aero balance, suspension dynamics
+- Driver: push level sets f; attempt ~ N(f, sigma) per corner; attempt > 1 = mistake (runs wide, scrubs speed); slow in / fast out; brakes at f of max; seeded runs
+- Not yet: friction circle, elevation, aero balance, suspension dynamics
 
 ## Car: 1996 Honda Civic DX coupe (EJ6, D16Y7, S40 5MT, FWD)
 
@@ -77,8 +81,9 @@ Sim mass 1112 kg. Redline 6500, fuel cut 6800. Rear drums, no ABS. All graded va
 - [x] Milestone B: track parser, lap solver, braking validation, sequential shifting, maps, comparison tool, run_all reports
 - [x] Milestone C: brake heat and fade; cornering load transfer + load sensitivity
 - [x] Godot replay viewer (3 cameras, analog gauges)
-- [ ] Phase 2 exit: sensitivity studies (does every stat have a distinct, explainable effect?)
-- [ ] Milestone D: driver model (push levels, sigma, mistakes, Monte Carlo)
+- [x] Phase 2 exit: sensitivity study (mass > grip ~ power >> rest; brakes zero on flat roads)
+- [x] Milestone D: driver model (push levels, sigma 0.02, physical mistakes, slow in / fast out, Monte Carlo odds)
+- [ ] Vertical slice: Godot game screens calling the Python sim on the laptop (garage, briefing, wager + push, Send It, replay, results); GDScript port later
 - [ ] Showcase materials (poster/slides, demo)
 - [ ] Phase 3: game systems design; Phase 4: Godot game + GDScript port; Phase 5: iPhone
 
@@ -92,4 +97,4 @@ Sim mass 1112 kg. Redline 6500, fuel cut 6800. Rear drums, no ABS. All graded va
 
 **Later:** crashes and repairs, surface bumps (suspension dynamics), turbo lag (boost model), merch.
 
-Design notes: tuning keys (better parts unlock more sliders); show odds before pink-slip races; watch for rep farming via snuffed events.
+Design notes: tuning keys (better parts unlock more sliders); show odds before pink-slip races; watch for rep farming via snuffed events. Brake parts do nothing on flat roads (no fade, tire-limited stops): they need elevation, faster cars, or back-to-back runs to matter. Aero matters only at speed. Push level is a variance choice: favorites play safe, underdogs push.

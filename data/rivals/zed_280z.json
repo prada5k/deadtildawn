@@ -1,0 +1,11 @@
+{
+  "id": "zed_280z",
+  "name": "Zed",
+  "car": "1977 Nissan 280Z",
+  "club": "Nissan club, rung 1",
+  "track": "data/tracks/test_track.txt",
+  "best_push_odds": 0.45,
+  "nightly_spread_s": 0.10,
+  "payout": "even",
+  "notes": "Placeholder name: rename freely. Posted time = the time your best push level beats 45% of the time, plus nightly randomness."
+}

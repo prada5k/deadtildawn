@@ -33,8 +33,16 @@ const PEDAL_TOP := 52.0          # pedal bars inside the dash
 const PEDAL_H := 160.0
 const GaugeScript := preload("res://gauge.gd")
 
+signal finished_viewing     # embedded mode: player pressed Continue after the finish
+
 enum CamMode { OVERVIEW, FOLLOW, TRACKSIDE }
 const CAM_NAMES := ["Overview", "Follow", "Trackside"]
+
+# Set these before adding the viewer to the tree (game.gd does); defaults = standalone
+var replay_path := REPLAY_PATH
+var rival_name := ""
+var rival_time := -1.0      # posted time to beat; < 0 = no rival
+var embedded := false       # inside the game: Continue button, broadcast cameras
 
 var replay: Dictionary = {}
 var samples: Dictionary = {}
@@ -62,7 +70,8 @@ var marker: Node2D
 # ------------------------------------------------------------------ setup
 
 func _ready() -> void:
-	var err := load_replay(REPLAY_PATH)
+	RenderingServer.set_default_clear_color(Color(0.16, 0.2, 0.15))   # grass
+	var err := load_replay(replay_path)
 	if err != "":
 		show_message(err)
 		return
@@ -70,7 +79,7 @@ func _ready() -> void:
 	build_car()
 	build_camera()
 	build_hud()
-	set_cam_mode(CamMode.OVERVIEW)
+	set_cam_mode(CamMode.TRACKSIDE if embedded else CamMode.OVERVIEW)
 	var args := OS.get_cmdline_user_args()
 	if "--selftest" in args:
 		self_test()
@@ -312,8 +321,22 @@ func build_hud() -> void:
 	hud["throttle"] = add_bar(dash, Vector2(388, PEDAL_TOP), Vector2(18, PEDAL_H), Color(0.2, 0.75, 0.3))
 	hud["brake"] = add_bar(dash, Vector2(410, PEDAL_TOP), Vector2(18, PEDAL_H), Color(0.9, 0.15, 0.15))
 
-	hud["banner"] = add_label(layer, Vector2.ZERO, 46, Color(1.0, 0.9, 0.4))
+	hud["banner"] = add_label(layer, Vector2.ZERO, 40, Color(1.0, 0.9, 0.4))
 	hud["mistake"] = add_label(layer, Vector2.ZERO, 30, Color(1.0, 0.55, 0.1))
+	if embedded:
+		var cont := Button.new()
+		cont.text = "  Continue  >  "
+		cont.add_theme_font_size_override("font_size", 24)
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color(0.65, 0.36, 0.06)
+		style.set_corner_radius_all(6)
+		style.set_content_margin_all(10)
+		cont.add_theme_stylebox_override("normal", style)
+		cont.add_theme_stylebox_override("hover", style)
+		cont.visible = false
+		cont.pressed.connect(func(): finished_viewing.emit())
+		layer.add_child(cont)
+		hud["continue"] = cont
 
 
 func update_hud() -> void:
@@ -321,11 +344,14 @@ func update_hud() -> void:
 	hud["dash"].position = Vector2(12, vp.y - 238)
 
 	hud["clock"].text = "%6.2f s  /  %.2f s" % [t, lap_time]
+	var rival_text := ""
+	if rival_time > 0:
+		rival_text = "   |   Rival %s: %.2f s" % [rival_name, rival_time]
 	var push_text := "Theoretical limit"
 	if driver != null:
 		push_text = "Push: %s (seed %d)" % [str(driver["push"]).replace("_", " ").to_upper(), int(driver["seed"])]
-	hud["status"].text = "%s\nCamera: %s   Speed: %sx%s" \
-		% [push_text, CAM_NAMES[cam_mode], str(SPEEDS[speed_i]), "" if playing else "   (paused)"]
+	hud["status"].text = "%s%s\nCamera: %s   Speed: %sx%s" \
+		% [push_text, rival_text, CAM_NAMES[cam_mode], str(SPEEDS[speed_i]), "" if playing else "   (paused)"]
 
 	# Mistake callout: from the apex of a mistaken corner until shortly after it
 	var mistake: Label = hud["mistake"]
@@ -360,8 +386,22 @@ func update_hud() -> void:
 	var banner: Label = hud["banner"]
 	banner.visible = t >= lap_time
 	banner.text = "FINISH  %.2f s" % lap_time
+	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	if rival_time > 0:
+		var gap := absf(lap_time - rival_time)
+		if lap_time < rival_time:
+			banner.text += "\nBEAT %s by %.2f s" % [rival_name, gap]
+			banner.add_theme_color_override("font_color", Color(0.46, 0.77, 0.4))
+		else:
+			banner.text += "\nLOST to %s by %.2f s" % [rival_name, gap]
+			banner.add_theme_color_override("font_color", Color(0.93, 0.17, 0.24))
 	banner.reset_size()
-	banner.position = Vector2((vp.x - banner.size.x) / 2, 40)
+	banner.position = Vector2((vp.x - banner.size.x) / 2 + HUD_LEFT_PX / 2, 70)
+	if hud.has("continue"):
+		var cont: Button = hud["continue"]
+		cont.visible = t >= lap_time
+		cont.reset_size()
+		cont.position = Vector2((vp.x - cont.size.x) / 2 + HUD_LEFT_PX / 2, 190)
 
 
 func set_pedal(fill: ColorRect, amount: float, base: Vector2) -> void:
@@ -511,6 +551,9 @@ func _unhandled_input(event: InputEvent) -> void:
 				playing = not playing
 		KEY_R:
 			restart()
+		KEY_ENTER, KEY_KP_ENTER:
+			if embedded and t >= lap_time:
+				finished_viewing.emit()
 		KEY_UP:
 			speed_i = mini(speed_i + 1, SPEEDS.size() - 1)
 		KEY_DOWN:

@@ -1,12 +1,12 @@
 ; Engine configuration file.
-; deadtildawn replay viewer (Godot 4.5+). Opens main.tscn.
+; deadtildawn (Godot 4.5+). game.tscn = the game; main.tscn = standalone replay viewer.
 
 config_version=5
 
 [application]
 
 config/name="deadtildawn viewer"
-run/main_scene="res://main.tscn"
+run/main_scene="res://game.tscn"
 config/features=PackedStringArray("4.5")
 
 [display]
