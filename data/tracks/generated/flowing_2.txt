@@ -1,0 +1,2 @@
+# Generated: style flowing, seed 2 (sim/trackgen.py)
+S 186, L7 40, S 165, R6 115, S 132, L8 35, S 150, R5 90, S 141, R7 60, S 218, L7 15, S 198, L9 65, S 275

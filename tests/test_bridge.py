@@ -124,3 +124,15 @@ def test_parts_change_practice_but_not_the_rival():
     r1 = call("rival", "--rival", RIVAL, "--seed", "5")
     r2 = call("rival", "--rival", RIVAL, "--seed", "5")
     assert r1["base_time"] == r2["base_time"]
+
+
+def test_pull_contract():
+    r = call("pull", "--source", "junkyard", "--seed", "1", "--pity", "{}")
+    assert r["ok"] and 0.0 <= r["quality"] <= 0.7 and r["effects_text"]
+    assert "junkyard" in r["pity"]
+
+
+def test_rolled_parts_reach_the_sim():
+    worn = call("car_stats", "--parts", "interior_strip@0.0")["weight_kg"]
+    mint = call("car_stats", "--parts", "interior_strip@1.0")["weight_kg"]
+    assert mint < worn < call("car_stats")["weight_kg"]

@@ -1,0 +1,2 @@
+# Generated: style balanced, seed 1 (sim/trackgen.py)
+S 127, L4 100, S 66, R2 145, S 41, L7 65, L6 75, S 126, L8 45, S 32, R7 65, S 120, L4 65, S 79, R6 70, S 172

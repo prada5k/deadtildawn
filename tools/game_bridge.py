@@ -6,6 +6,8 @@ and reads ONE JSON object from stdout. Every reply has "bridge_version" and
 
 Commands:
   parts                                   the parts catalog, with each part's exact effects
+  pull      --source S --pity JSON --seed N   one pull: part, quality roll, effects, new pity
+                                          (--parts entries may carry a quality: cams_race@0.83)
   car_stats [--parts a,b]                 stat sheet + dyno for the car with these parts
   track     --track FILE                  layout for the briefing (no car)
   rival     --rival FILE --seed N         rival card + tonight's posted time
@@ -41,11 +43,20 @@ CAR_FILE = ROOT / "data" / "cars" / "ej6_dx_coupe_1996.json"
 
 
 def player_car(part_ids):
-    """The DX with these parts installed (stock if none)."""
+    """The DX with these parts installed (stock if none). Entries are part ids,
+    optionally with a quality roll: "cams_race@0.83" (default 0.5 = catalog)."""
     from sim.car import load_car
+    from sim.gacha import instance_part
     from sim.parts import apply_parts, parts_by_ids
     car = load_car(CAR_FILE)
-    return apply_parts(car, parts_by_ids(part_ids)) if part_ids else car
+    if not part_ids:
+        return car
+    ids, qs = [], []
+    for entry in part_ids:
+        pid, _, q = entry.partition("@")
+        ids.append(pid)
+        qs.append(float(q) if q else 0.5)
+    return apply_parts(car, [instance_part(t, q) for t, q in zip(parts_by_ids(ids), qs)])
 
 
 def parse_parts(text):
@@ -147,6 +158,24 @@ def parts_catalog():
     slots, parts = load_catalog()
     car = load_car(CAR_FILE)
     reply(slots=slots, parts=[{**p, "effects_text": part_effects(car, p)} for p in parts.values()])
+
+
+def do_pull(source, pity_json, seed):
+    """One pull from an in-world source, with the effects of the rolled part."""
+    import random
+    from sim.car import load_car
+    from sim.gacha import instance_part, load_pulls, pull
+    from sim.parts import load_catalog
+    sources = load_pulls()
+    if source not in sources:
+        raise ValueError(f"unknown source {source!r}")
+    _, parts = load_catalog()
+    pity = json.loads(pity_json or "{}")
+    pid, q, new_pity = pull(source, sources, parts, pity, random.Random(seed))
+    car = load_car(CAR_FILE)
+    reply(source=source, price=sources[source]["price"], part=pid, quality=q,
+          rarity=parts[pid]["rarity"], name=parts[pid]["name"], slot=parts[pid]["slot"],
+          effects_text=part_effects(car, instance_part(parts[pid], q)), pity=new_pity)
 
 
 def track(track_file):
@@ -271,7 +300,9 @@ def race(track_file, push, seed, out_file, part_ids=()):
 
 def main():
     ap = argparse.ArgumentParser(description="deadtildawn game bridge")
-    ap.add_argument("command", choices=["parts", "car_stats", "track", "rival", "practice", "odds", "race"])
+    ap.add_argument("command", choices=["parts", "pull", "car_stats", "track", "rival", "practice", "odds", "race"])
+    ap.add_argument("--source")
+    ap.add_argument("--pity", default="{}")
     ap.add_argument("--parts", default="", help="installed part ids, comma-separated")
     ap.add_argument("--track")
     ap.add_argument("--rival")
@@ -284,6 +315,8 @@ def main():
         part_ids = parse_parts(a.parts)
         if a.command == "parts":
             parts_catalog()
+        elif a.command == "pull":
+            do_pull(a.source, a.pity, a.seed)
         elif a.command == "car_stats":
             car_stats(part_ids)
         elif a.command == "track":
