@@ -10,7 +10,7 @@ const ORDER := ["safe", "normal", "hard", "flat_out"]
 const NAMES := {"safe": "SAFE", "normal": "NORMAL", "hard": "HARD", "flat_out": "FLAT OUT"}
 const LABEL_W := 112.0
 const AXIS_H := 46.0
-const ACCENT := Color(1.0, 0.55, 0.1)
+const ACCENT := Color(0.976, 0.957, 0.961)   # #F9F4F5: selection is light; red means danger here
 const RIVAL := Color(0.93, 0.2, 0.26)
 
 var practice := {}        # push -> {"times": [...], "mistakes": [...]}

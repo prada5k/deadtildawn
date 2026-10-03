@@ -6,8 +6,8 @@ extends RefCounted
 ##   Labels:  TitleLabel, HeadingLabel, MutedLabel, BigNumberLabel
 ##   Buttons: AccentButton (orange), DangerButton (red, SEND IT), SelectedButton
 
-const BG := Color(0.07, 0.075, 0.085)
-const ACCENT := Color(1.0, 0.55, 0.1)       # deadtildawn orange
+const BG := Color(0.102, 0.059, 0.063)    # #1A0F10 (instead of black)
+const ACCENT := Color(0.839, 0.251, 0.271)  # #D64045 deadtildawn red
 const GOOD := Color(0.46, 0.77, 0.4)
 const BAD := Color(0.93, 0.17, 0.24)
 const MUTED := Color(0.6, 0.61, 0.66)

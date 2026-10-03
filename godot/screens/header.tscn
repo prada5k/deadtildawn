@@ -20,4 +20,5 @@ text = "$250"
 [node name="Rep" type="Label" parent="."]
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
+theme_override_colors/font_color = Color(0.976, 0.957, 0.961, 1)
 text = "REP 0"

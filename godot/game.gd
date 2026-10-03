@@ -28,6 +28,7 @@ const START_CASH := 250
 const MIN_BUY_IN := 100
 const WAGER_STEP := 10
 const REP_WIN := 10
+const SKIP_REP_COST := 5 * REP_WIN   # chicken-out fee: five wins' worth of rep
 const RIVAL_FILE := "data/rivals/zed_280z.json"
 const PUSH_ORDER := ["safe", "normal", "hard", "flat_out"]
 
@@ -306,8 +307,11 @@ func show_calendar() -> void:
 	var hist: Array = state["history"]
 	for i in range(hist.size() - 1, maxi(hist.size() - 6, -1), -1):
 		var r: Dictionary = hist[i]
-		past.append([r.get("when", "-"), "vs %s" % r["rival"],
-			"%s  %+d" % ["W" if r["won"] else "L", int(r["cash_change"])]])
+		if r.get("skipped", false):
+			past.append([r.get("when", "-"), "vs %s" % r["rival"], "SKIPPED  %d rep" % int(r["rep_change"])])
+		else:
+			past.append([r.get("when", "-"), "vs %s" % r["rival"],
+				"%s  %+d" % ["W" if r["won"] else "L", int(r["cash_change"])]])
 	info["past"] = past
 	open_scene(CalendarScene).setup(info)
 
@@ -316,6 +320,8 @@ func wins_losses() -> Vector2i:
 	var w := 0
 	var l := 0
 	for r in state["history"]:
+		if r.get("skipped", false):
+			continue
 		if r["won"]:
 			w += 1
 		else:
@@ -391,14 +397,24 @@ func show_meeting() -> void:
 
 	var actions := UI.hbox(footer, 10)
 	UI.button(actions, "Back", show_warehouse)
-	UI.button(actions, "Skip", skip_night)
+	var skip := UI.button(actions, "Skip\n-%d rep" % SKIP_REP_COST, skip_night)
+	if int(state["rep"]) < SKIP_REP_COST:
+		skip.disabled = true
+		skip.tooltip_text = "Chickening out costs %d rep. You have %d." % [SKIP_REP_COST, int(state["rep"])]
 	var go := UI.button(actions, "SEND IT", send_it, "DangerButton")
 	go.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 
-## Sit this race night out: no money changes hands, time moves on.
+## Chicken out of this race night: no money changes hands, but the scene
+## notices. Costs SKIP_REP_COST rep; with less than that, you have to race.
 func skip_night() -> void:
-	advance_past(next_event())
+	if int(state["rep"]) < SKIP_REP_COST:
+		return
+	state["rep"] = int(state["rep"]) - SKIP_REP_COST
+	var ev := next_event()
+	state["history"].append({"when": when(ev["week"], ev["day"]), "rival": state["night"].get("name", "Zed"),
+		"won": false, "skipped": true, "cash_change": 0, "rep_change": -SKIP_REP_COST})
+	advance_past(ev)
 	state["night"] = {}
 	save_game()
 	show_warehouse()
@@ -546,6 +562,12 @@ func game_test() -> void:
 		result["time"], result["posted"], "WIN" if result["won"] else "LOSS", state["cash"],
 		result["practice_beat"], result["practice_runs"]])
 	print("GAMETEST calendar after race: %s" % when(state["week"], state["day"]))
+	state["rep"] = 10
+	skip_night()
+	print("GAMETEST skip with 10 rep: rep %d, %s (blocked)" % [state["rep"], when(state["week"], state["day"])])
+	state["rep"] = 60
+	skip_night()
+	print("GAMETEST skip with 60 rep: rep %d, %s" % [state["rep"], when(state["week"], state["day"])])
 	print("GAMETEST OK")
 	get_tree().quit()
 

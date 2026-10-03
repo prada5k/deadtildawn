@@ -6,8 +6,9 @@ extends Control
 
 signal finished
 
-const NORMAL_BG := Color(0.03, 0.03, 0.035)
-const CRASH_BG := Color(0.32, 0.03, 0.04)
+const STORY_BG := Color(0.475, 0.502, 0.443)    # #798071
+const STORY_TEXT := Color(0.102, 0.059, 0.063)  # #1A0F10
+const ACCENT := Color(0.839, 0.251, 0.271)      # #D64045 (kickers, title)
 const FADE_S := 0.6
 
 const SLIDES := [
@@ -32,6 +33,7 @@ const SLIDES := [
 @onready var body: Label = $Margin/Column/Body
 @onready var hint: Label = $Hint
 @onready var background: ColorRect = $Background
+@onready var splatter: Control = $Splatter
 
 var index := -1
 
@@ -70,7 +72,8 @@ func show_slide(slide: Dictionary) -> void:
 	var is_title: bool = slide.get("title", false)
 	body.add_theme_font_size_override("font_size", 96 if is_title else 46)
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if is_title else HORIZONTAL_ALIGNMENT_LEFT
-	body.add_theme_color_override("font_color", UI_ACCENT if is_title else Color.WHITE)
+	body.add_theme_color_override("font_color", ACCENT if is_title else STORY_TEXT)
+	kicker.add_theme_color_override("font_color", ACCENT)
 	hint.text = "tap to start" if index == SLIDES.size() - 1 else "tap to continue"
 
 	# Fade the text in; shift the background for the crash slides
@@ -79,8 +82,10 @@ func show_slide(slide: Dictionary) -> void:
 	var tween := create_tween().set_parallel(true)
 	tween.tween_property(kicker, "modulate:a", 1.0, FADE_S)
 	tween.tween_property(body, "modulate:a", 1.0, FADE_S).set_delay(0.15)
-	var target := CRASH_BG if slide.get("bg", "") == "crash" else NORMAL_BG
-	tween.tween_property(background, "color", target, 0.35)
+	background.color = STORY_BG
+	# Crash slides: the splatter fades in over the background
+	var crash: bool = slide.get("bg", "") == "crash"
+	tween.tween_property(splatter, "modulate:a", 1.0 if crash else 0.0, 0.25)
 
 
-const UI_ACCENT := Color(1.0, 0.55, 0.1)
+

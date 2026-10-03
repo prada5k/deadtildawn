@@ -21,7 +21,9 @@ const REPLAY_FORMAT := "deadtildawn-replay"
 const SUPPORTED_VERSION := 1
 
 const PX_PER_M := 4.0            # world scale: 1 m = 4 px
-const ROAD_WIDTH_M := 8.0        # two-lane mountain road
+const ROAD_WIDTH_M := 8.0        # two-lane mountain road (two 4 m lanes)
+const LANE_OFFSET_M := 2.0       # car drives the center of the right-hand lane
+const RoadScript := preload("res://widgets/road.gd")
 const CAR_LENGTH_M := 4.45       # 6th-gen Civic coupe, roughly
 const CAR_WIDTH_M := 1.70
 const FOLLOW_VIEW_M := 140.0     # meters of road across the screen in follow mode
@@ -148,22 +150,16 @@ func build_track() -> void:
 	track_center = rect.get_center()
 	track_size = rect.size
 
-	# Road: light edge line under a slightly narrower asphalt line
-	add_child(make_line(pts, (ROAD_WIDTH_M + 1.2) * PX_PER_M, Color(0.86, 0.86, 0.8)))
-	add_child(make_line(pts, ROAD_WIDTH_M * PX_PER_M, Color(0.23, 0.23, 0.25)))
+	# Road: asphalt, edge lines, dashed center line, severity-colored curbs
+	var road: Node2D = RoadScript.new()
+	road.points = pts
+	road.corners = corners
+	road.px_per_m = PX_PER_M
+	road.severity_color = severity_color
+	add_child(road)
 
-	# Corners: severity-colored stripe down the middle, plus a label outside
+	# Corner labels (kept outside the road and curbs; see rescale_overlays)
 	for c in corners:
-		var arc := PackedVector2Array()
-		var i0 := int(floor(float(c["s_start"])))
-		var i1 := mini(int(ceil(float(c["s_end"]))), centerline.size() - 1)
-		for i in range(i0, i1 + 1):   # centerline points are 1 m apart
-			arc.append(pts[i])
-		var stripe := make_line(arc, 1.0 * PX_PER_M, severity_color(int(c["severity"])))
-		stripe.begin_cap_mode = Line2D.LINE_CAP_NONE
-		stripe.end_cap_mode = Line2D.LINE_CAP_NONE
-		add_child(stripe)
-
 		var label := Label.new()
 		label.text = "%s\nR %d m" % [c["text"], int(c["radius"])]
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -488,10 +484,14 @@ func value_at(key: String) -> float:
 
 func update_car() -> void:
 	find_index()
-	car.position = to_world(value_at("x"), value_at("y"))
 	var h0 := float(samples["heading"][idx])
 	var h1 := float(samples["heading"][idx + 1])
-	car.rotation = -lerp_angle(h0, h1, frac())        # flip: Godot rotates clockwise
+	var h := lerp_angle(h0, h1, frac())
+	# Right-hand lane: shift the centerline point toward the right of travel.
+	# (Visual only: the physics uses the centerline radius.)
+	car.position = to_world(value_at("x") + sin(h) * LANE_OFFSET_M,
+		value_at("y") - cos(h) * LANE_OFFSET_M)
+	car.rotation = -h                                 # flip: Godot rotates clockwise
 	var braking := value_at("brake") > 0.0
 	brake_lights.color = Color(1.0, 0.1, 0.1) if braking else Color(0.35, 0.0, 0.0)
 
@@ -586,7 +586,7 @@ func rescale_overlays() -> void:
 		label.rotation = camera.rotation
 		var half := label.size * label.scale / 2.0
 		var reach := maxf(half.x, half.y)
-		var center := mid + out_dir * (ROAD_WIDTH_M * PX_PER_M / 2.0 + 10.0 * inv + reach)
+		var center := mid + out_dir * ((ROAD_WIDTH_M / 2.0 + 1.2) * PX_PER_M + 10.0 * inv + reach)
 		label.position = center - label.size / 2.0
 	marker.position = car.position
 	marker.scale = Vector2.ONE * inv
