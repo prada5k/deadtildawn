@@ -19,15 +19,22 @@ CAR_FILE = ROOT / "data" / "cars" / "ej6_dx_coupe_1996.json"
 QUARTER_MILE = 402.336
 
 
-def row(name, sim, lo, hi, unit):
+# Acceptance criteria (set before tuning; see docs/VALIDATION_LOG.md)
+TOL_QUARTER = 0.015   # +/-1.5% outside the measured range
+TOL_ZERO_60 = 0.05    # +/-5%
+
+
+def row(name, sim, lo, hi, unit, tol):
+    """Error is measured from the nearest edge of the target range."""
     target = f"{lo}" if lo == hi else f"{lo}-{hi}"
     if lo <= sim <= hi:
-        err, verdict = 0.0, "PASS"
+        err = 0.0
     else:
         ref = lo if sim < lo else hi
         err = (sim - ref) / ref * 100
-        verdict = "FAIL"
-    print(f"{name:<22}{sim:>8.2f} {unit:<4}{target:>12} {unit:<4}{err:>+7.1f}%  {verdict}")
+    verdict = "PASS" if abs(err) <= tol * 100 else "FAIL"
+    print(f"{name:<22}{sim:>8.2f} {unit:<4}{target:>12} {unit:<4}"
+          f"{err:>+7.1f}%  {verdict} (tol +/-{tol * 100:.1f}%)")
 
 
 def main():
@@ -41,12 +48,13 @@ def main():
     print(f"{'Test':<22}{'Sim':>8}      {'Target':>12}      {'Error':>7}")
     print("-" * 66)
     z60 = targets["zero_to_60_mph"]["value"]
-    row("0-60 mph", time_to_speed(q, 60 * MPH_TO_MS), z60, z60, "s")
+    row("0-60 mph", time_to_speed(q, 60 * MPH_TO_MS), z60, z60, "s", TOL_ZERO_60)
     qt = targets["quarter_mile_time"]
-    row("Quarter mile time", time_at_distance(q, QUARTER_MILE), qt["min"], qt["max"], "s")
+    row("Quarter mile time", time_at_distance(q, QUARTER_MILE), qt["min"], qt["max"], "s",
+        TOL_QUARTER)
     tr = targets["quarter_mile_trap"]
     row("Quarter mile trap", speed_at_distance(q, QUARTER_MILE) / MPH_TO_MS,
-        tr["min"], tr["max"], "mph")
+        tr["min"], tr["max"], "mph", TOL_QUARTER)
     ts = targets["top_speed"]["value"]
     print(f"{'Top speed (report)':<22}{top_speed(long) / MPH_TO_MS:>8.2f} mph"
           f"{ts:>12} mph   low-confidence target, not graded")

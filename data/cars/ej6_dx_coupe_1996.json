@@ -41,7 +41,8 @@
     "final_drive": { "value": 4.058, "unit": "-", "source": "enthusiast forum / auto data site (URL TBD)", "confidence": "spec-unverified" },
     "efficiency": { "value": 0.88, "unit": "-", "source": "typical FWD manual", "confidence": "estimate" },
     "shift_time": { "value": 0.4, "unit": "s", "source": "typical road-test shift, zero drive force", "confidence": "estimate" },
-    "launch_rpm": { "value": 3000, "unit": "rpm", "source": "assumed road-test launch with clutch slip", "confidence": "estimate" }
+    "launch_rpm": { "value": 3000, "unit": "rpm", "source": "assumed road-test launch with clutch slip", "confidence": "estimate" },
+    "engine_inertia": { "value": 0.12, "unit": "kg*m^2", "source": "typical 1.6 L crank + flywheel + clutch (range 0.10-0.15)", "confidence": "estimate" }
   },
 
   "tires": {
@@ -49,7 +50,8 @@
     "radius": { "value": 0.298, "unit": "m", "source": "calculated from tire size (unloaded)", "confidence": "calculated" },
     "mu_0": { "value": 1.05, "unit": "-", "source": "illustrative load-sensitivity model", "confidence": "estimate", "todo": "calibrate vs 60-0 braking target" },
     "load_sensitivity_k": { "value": 0.05, "unit": "1/kN", "source": "illustrative load-sensitivity model", "confidence": "estimate", "todo": "calibrate vs 60-0 braking target" },
-    "rolling_resistance": { "value": 0.015, "unit": "-", "source": "typical passenger tire", "confidence": "estimate" }
+    "rolling_resistance": { "value": 0.015, "unit": "-", "source": "typical passenger tire", "confidence": "estimate" },
+    "wheel_inertia": { "value": 0.8, "unit": "kg*m^2", "source": "typical 14 in steel wheel + 185/65R14 tire, per wheel (range 0.7-0.9)", "confidence": "estimate" }
   },
 
   "aero": {

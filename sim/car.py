@@ -29,6 +29,8 @@ class Car:
     final_drive: float
     drivetrain_eff: float
     shift_time: float      # s of zero drive force per shift
+    engine_inertia: float  # kg*m^2, crank + flywheel + clutch
+    wheel_inertia: float   # kg*m^2, per wheel + tire
     wheel_radius: float    # m
     mu_0: float            # tire grip at zero load
     load_k: float          # grip lost per kN of tire load
@@ -62,6 +64,8 @@ def load_car(path):
         final_drive=_v(tr["final_drive"]),
         drivetrain_eff=_v(tr["efficiency"]),
         shift_time=_v(tr["shift_time"]),
+        engine_inertia=_v(tr["engine_inertia"]),
+        wheel_inertia=_v(ti["wheel_inertia"]),
         wheel_radius=_v(ti["radius"]),
         mu_0=_v(ti["mu_0"]),
         load_k=_v(ti["load_sensitivity_k"]),

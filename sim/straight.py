@@ -6,13 +6,16 @@ kinematics:
     v_new^2 = v^2 + 2 * a * ds        (no division by v, so it works from rest)
     dt      = 2 * ds / (v + v_new)    (exact for constant acceleration)
 
-Drive force each step = min(engine wheel force, traction limit), or zero
-while a shift is in progress. See docs/PHYSICS.md section 4.
+Acceleration each step comes from one of three cases (PHYSICS.md 4.5):
+  - shifting:  no drive force, engine decoupled
+  - grip OK:   a = (F_engine - resistance) / m_eff
+  - wheelspin: tires at the traction limit, engine and driven wheels decoupled
 """
 from dataclasses import dataclass, field
 
 from .forces import drag, rolling_resistance, static_mu, traction_limit_fwd
-from .powertrain import engine_rpm, rpm_from_speed, wheel_force
+from .powertrain import (effective_mass, engine_rpm, is_clutch_slipping,
+                         overall_ratio, rpm_from_speed, wheel_force)
 
 
 @dataclass
@@ -31,6 +34,7 @@ class Telemetry:
     gear: list = field(default_factory=list)   # 0 = mid-shift
     rpm: list = field(default_factory=list)
     accel: list = field(default_factory=list)  # m/s^2
+    limit: list = field(default_factory=list)  # "power", "traction", or "shift"
     shifts: list = field(default_factory=list)
 
 
@@ -43,24 +47,38 @@ def should_upshift(car, v, gear):
     return wheel_force(car, v, gear + 1) > wheel_force(car, v, gear)
 
 
+def spin_absorption(car, gear, engine_coupled):
+    """Equivalent mass [kg] of the parts spun up by the driven wheels:
+    the two driven wheels, plus the engine if the clutch is locked.
+    Force absorbed = this x a, so the tires transmit F_engine - this x a."""
+    r2 = car.wheel_radius ** 2
+    m = 2 * car.wheel_inertia / r2
+    if engine_coupled:
+        m += car.engine_inertia * overall_ratio(car, gear) ** 2 / r2
+    return m
+
+
 def run_straight(car, distance, ds=0.1):
     """Full-throttle run from a standstill over `distance` meters."""
     mu = static_mu(car)
     f_traction = traction_limit_fwd(car, mu)
     f_roll = rolling_resistance(car)
+    # Mass the car has when the driven side is decoupled: body + 2 free-rolling wheels
+    m_free = car.mass + 2 * car.wheel_inertia / car.wheel_radius ** 2
 
     s = t = v = 0.0
     gear = 1
     shift_left = 0.0          # seconds remaining in the current shift
     tel = Telemetry()
 
-    def record(a):
+    def record(a, limit):
         tel.s.append(s)
         tel.t.append(t)
         tel.v.append(v)
         tel.gear.append(0 if shift_left > 0 else gear)
         tel.rpm.append(engine_rpm(car, v, gear))
         tel.accel.append(a)
+        tel.limit.append(limit)
 
     while s < distance:
         # Start a shift? Drive force drops to zero for shift_time seconds.
@@ -69,13 +87,23 @@ def run_straight(car, distance, ds=0.1):
             gear += 1
             shift_left = car.shift_time
 
-        if shift_left > 0:
-            f_drive = 0.0
-        else:
-            f_drive = min(wheel_force(car, v, gear), f_traction)
+        resist = drag(car, v) + f_roll
 
-        a = (f_drive - drag(car, v) - f_roll) / car.mass
-        record(a)
+        if shift_left > 0:
+            a = -resist / effective_mass(car, gear, engine_coupled=False)
+            limit = "shift"
+        else:
+            coupled = not is_clutch_slipping(car, v, gear)
+            f_engine = wheel_force(car, v, gear)
+            a = (f_engine - resist) / effective_mass(car, gear, engine_coupled=coupled)
+            f_tire = f_engine - spin_absorption(car, gear, coupled) * a
+            if f_tire > f_traction:
+                a = (f_traction - resist) / m_free
+                limit = "traction"
+            else:
+                limit = "power"
+
+        record(a, limit)
 
         v2 = v * v + 2 * a * ds
         if v2 <= 0:
@@ -89,5 +117,5 @@ def run_straight(car, distance, ds=0.1):
         if shift_left > 0:
             shift_left -= dt
 
-    record(0.0)
+    record(0.0, "end")
     return tel

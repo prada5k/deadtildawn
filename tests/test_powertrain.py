@@ -104,8 +104,31 @@ def test_wheel_force_first_gear_at_peak_torque(car):
     assert wheel_force(car, v, 1) == pytest.approx(5437, rel=0.002)
 
 
-def test_first_gear_exceeds_fwd_traction_limit(car):
-    # PHYSICS.md 4.3: FWD traction limit is ~5111 N, so 1st gear at peak
-    # torque should overpower the tires (wheelspin)
+def test_first_gear_engine_force_exceeds_fwd_traction_limit(car):
+    # PHYSICS.md 4.3: raw engine wheel force in 1st at peak torque (~5437 N)
+    # exceeds the ~5111 N traction limit. With rotating inertia (4.5) the
+    # tires actually transmit less; see test_straight.py.
     v = speed_from_rpm(car, 4600, 1)
     assert wheel_force(car, v, 1) > 5111
+
+
+# ---------- rotational inertia (PHYSICS.md 4.5) ----------
+
+def test_effective_mass_first_gear(car):
+    # Hand calc: 1112 + 4*0.8/0.298^2 + 0.12*13.19^2/0.298^2
+    #          = 1112 + 36.0 + 235.1 = ~1383 kg
+    from sim.powertrain import effective_mass
+    assert effective_mass(car, 1) == pytest.approx(1383.1, abs=0.5)
+
+
+def test_effective_mass_second_gear(car):
+    # Hand calc: 1112 + 36.0 + 0.12*7.231^2/0.298^2 = ~1218.7 kg
+    from sim.powertrain import effective_mass
+    assert effective_mass(car, 2) == pytest.approx(1218.7, abs=0.5)
+
+
+def test_effective_mass_decoupled_engine(car):
+    # Clutch open (shift or launch slip): wheels only, same in every gear
+    from sim.powertrain import effective_mass
+    assert effective_mass(car, 1, engine_coupled=False) == pytest.approx(1148.0, abs=0.5)
+    assert effective_mass(car, 3, engine_coupled=False) == pytest.approx(1148.0, abs=0.5)

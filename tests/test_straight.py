@@ -103,3 +103,28 @@ def test_converged_in_step_size(car):
         time_to_speed(b, 60 * MPH_TO_MS), abs=0.01)
     assert time_at_distance(a, QUARTER_MILE) == pytest.approx(
         time_at_distance(b, QUARTER_MILE), abs=0.01)
+
+
+# ---------- rotating inertia (PHYSICS.md 4.5) ----------
+
+def test_tire_force_below_traction_with_inertia(car):
+    # Hand calc, 1st gear at 4600 rpm (10.88 m/s):
+    #   a = (5437 - 208) / 1383 = 3.78 m/s^2
+    #   absorbed = (18.0 + 235.1 kg) * 3.78 = ~957 N
+    #   tire force = 5437 - 957 = ~4480 N < 5177 N traction limit
+    from sim.powertrain import speed_from_rpm, wheel_force
+    from sim.straight import spin_absorption
+    from sim.powertrain import effective_mass
+    v = speed_from_rpm(car, 4600, 1)
+    f_engine = wheel_force(car, v, 1)
+    resist = drag(car, v) + rolling_resistance(car)
+    a = (f_engine - resist) / effective_mass(car, 1)
+    f_tire = f_engine - spin_absorption(car, 1, True) * a
+    assert f_tire == pytest.approx(4480, rel=0.005)
+    assert f_tire < traction_limit_fwd(car, static_mu(car))
+
+
+def test_stock_car_never_traction_limited(quarter):
+    # Regression check of a model finding (not a hand calc): the stock D16Y7
+    # can't overpower its tires once inertia is included.
+    assert "traction" not in quarter.limit

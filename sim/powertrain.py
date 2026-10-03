@@ -62,3 +62,23 @@ def wheel_force(car, v, gear):
     rpm = engine_rpm(car, v, gear)
     return (torque_at(car, rpm) * overall_ratio(car, gear)
             * car.drivetrain_eff / car.wheel_radius)
+
+
+def is_clutch_slipping(car, v, gear):
+    """True while launching in 1st with the clutch slipping (PHYSICS.md 4.5)."""
+    return gear == 1 and rpm_from_speed(car, v, gear) < car.launch_rpm
+
+
+def effective_mass(car, gear, engine_coupled=True):
+    """Mass the drive force has to accelerate, including spinning parts [kg].
+
+    m_eff = m + 4*I_w/r_w^2 + I_e*G^2/r_w^2        (PHYSICS.md 4.5)
+
+    The engine term only applies when the engine is rigidly coupled to the
+    wheels. During a shift or launch clutch slip, it is decoupled.
+    """
+    r2 = car.wheel_radius ** 2
+    m_eff = car.mass + 4 * car.wheel_inertia / r2
+    if engine_coupled:
+        m_eff += car.engine_inertia * overall_ratio(car, gear) ** 2 / r2
+    return m_eff
