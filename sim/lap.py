@@ -116,11 +116,12 @@ def _forward_pass(car, k, grid, v_limit, env, temp_start, ambient):
             gear, shift_left = st.gear, max(st.shift_left - dt, 0.0)
             resist = drag(car, st.v) + k.f_roll
 
-            if v_next < st.v - 1e-9:
+            coast = resist / k.m_brake           # decel from drag + rolling alone
+            if v_next < st.v - 1e-9 and -a > coast:
+                # Slowing faster than coasting: brakes
                 limit, throttle = "brake", 0.0
                 a_max, f_front, f_rear = brake_forces(car, k, st.v, temp)
                 # Fraction of max braking: (needed - coasting) / (max - coasting)
-                coast = resist / k.m_brake
                 brake = min(max((-a - coast) / (a_max - coast), 0.0), 1.0)
                 # Brake force actually used, split front/rear like at the limit
                 f_used = max(k.m_brake * -a - resist, 0.0)
@@ -131,8 +132,9 @@ def _forward_pass(car, k, grid, v_limit, env, temp_start, ambient):
                                                  rpm_from_speed(car, v_next, gear)))
                     gear, shift_left = gear - 1, car.shift_time
             else:
+                # Holding or gently changing speed: partial throttle (feathering).
+                # Gentle slowing (less than coasting) still needs SOME throttle.
                 limit, brake = "corner", 0.0
-                # Partial throttle: force needed to hold speed / force available
                 f_needed = effective_mass(car, gear) * a + resist
                 f_avail = 0.0 if shift_left > 0 else wheel_force(car, st.v, gear)
                 throttle = min(max(f_needed / f_avail, 0.0), 1.0) if f_avail > 0 else 0.0

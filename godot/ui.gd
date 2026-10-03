@@ -1,65 +1,57 @@
 extends RefCounted
-## Shared UI helpers so every screen has the same look.
+## Shared UI helpers. Every look (colors, fonts, button styles) comes from
+## res://theme.tres, so restyle the game there, not here.
+##
+## Type variations defined in the theme:
+##   Labels:  TitleLabel, HeadingLabel, MutedLabel, BigNumberLabel
+##   Buttons: AccentButton (orange), DangerButton (red, SEND IT), SelectedButton
 
-const BG := Color(0.09, 0.1, 0.11)
-const PANEL := Color(0.14, 0.15, 0.17)
+const BG := Color(0.07, 0.075, 0.085)
 const ACCENT := Color(1.0, 0.55, 0.1)       # deadtildawn orange
 const GOOD := Color(0.46, 0.77, 0.4)
 const BAD := Color(0.93, 0.17, 0.24)
-const MUTED := Color(0.65, 0.66, 0.7)
+const MUTED := Color(0.6, 0.61, 0.66)
 
 
-static func label(parent: Node, text: String, size := 18, color := Color.WHITE) -> Label:
+static func label(parent: Node, text: String, variation := "", color = null) -> Label:
 	var l := Label.new()
 	l.text = text
-	l.add_theme_font_size_override("font_size", size)
-	l.add_theme_color_override("font_color", color)
+	l.theme_type_variation = variation
+	# Wrap only inside columns. A wrapping label has no natural width, so in a
+	# row (HBoxContainer) nothing gives it one and it collapses to one
+	# character per line. In a column it wraps to the column's width.
+	if not parent is HBoxContainer:
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if color != null:
+		l.add_theme_color_override("font_color", color)
 	parent.add_child(l)
 	return l
 
 
-static func panel(parent: Node, color := PANEL) -> PanelContainer:
+static func panel(parent: Node) -> PanelContainer:
 	var p := PanelContainer.new()
-	var style := StyleBoxFlat.new()
-	style.bg_color = color
-	style.set_corner_radius_all(6)
-	style.set_content_margin_all(16)
-	p.add_theme_stylebox_override("panel", style)
 	parent.add_child(p)
 	return p
 
 
-static func vbox(parent: Node, gap := 8) -> VBoxContainer:
+static func vbox(parent: Node, gap := 10) -> VBoxContainer:
 	var b := VBoxContainer.new()
 	b.add_theme_constant_override("separation", gap)
 	parent.add_child(b)
 	return b
 
 
-static func hbox(parent: Node, gap := 8) -> HBoxContainer:
+static func hbox(parent: Node, gap := 10) -> HBoxContainer:
 	var b := HBoxContainer.new()
 	b.add_theme_constant_override("separation", gap)
 	parent.add_child(b)
 	return b
 
 
-static func button(parent: Node, text: String, on_press: Callable, size := 20,
-		color := ACCENT) -> Button:
+static func button(parent: Node, text: String, on_press: Callable, variation := "") -> Button:
 	var b := Button.new()
 	b.text = text
-	b.add_theme_font_size_override("font_size", size)
-	var normal := StyleBoxFlat.new()
-	normal.bg_color = color.darkened(0.35)
-	normal.set_corner_radius_all(6)
-	normal.set_content_margin_all(12)
-	var hover := normal.duplicate()
-	hover.bg_color = color.darkened(0.15)
-	var pressed := normal.duplicate()
-	pressed.bg_color = color
-	b.add_theme_stylebox_override("normal", normal)
-	b.add_theme_stylebox_override("hover", hover)
-	b.add_theme_stylebox_override("pressed", pressed)
-	b.add_theme_stylebox_override("focus", hover)
+	b.theme_type_variation = variation
 	b.pressed.connect(on_press)
 	parent.add_child(b)
 	return b
@@ -67,9 +59,18 @@ static func button(parent: Node, text: String, on_press: Callable, size := 20,
 
 static func stat_row(parent: Node, name: String, value: String) -> void:
 	var row := hbox(parent, 12)
-	var n := label(row, name, 17, MUTED)
-	n.custom_minimum_size.x = 200
-	label(row, value, 17)
+	var n := label(row, name, "MutedLabel")
+	n.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var v := label(row, value)
+	v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+
+
+static func spacer(parent: Node, expand := true) -> Control:
+	var c := Control.new()
+	if expand:
+		c.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	parent.add_child(c)
+	return c
 
 
 static func money(x: float) -> String:

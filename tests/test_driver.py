@@ -61,10 +61,19 @@ def test_more_consistent_driver_makes_fewer_mistakes():
 
 # ---------- corner technique ----------
 
-def test_slow_in_fast_out_factor():
-    # Clean corner at c = 0.96: entry sqrt(0.96) = 0.980, exit back to 1.0
-    assert corner_speed_factor(0.96, 0.2) == pytest.approx(0.9798, abs=1e-4)
+def test_corner_technique_factor():
+    # Clean corner at c = 0.96: entry grip 0.96 + 0.5 * 0.04 = 0.98 -> sqrt = 0.990,
+    # trail-brake to the apex sqrt(0.96) = 0.980, roll on to the exit 1.0
+    assert corner_speed_factor(0.96, 0.0) == pytest.approx(0.98995, abs=1e-4)
+    assert corner_speed_factor(0.96, 0.5) == pytest.approx(0.97980, abs=1e-4)
     assert corner_speed_factor(0.96, 1.0) == pytest.approx(1.0)
+
+
+def test_apex_is_the_slowest_point():
+    f = [corner_speed_factor(0.96, u / 20) for u in range(21)]
+    assert min(f) == pytest.approx(f[10])
+    assert all(b <= a for a, b in zip(f[:10], f[1:11]))     # slowing to the apex
+    assert all(b >= a for a, b in zip(f[10:], f[11:]))      # speeding up after
 
 
 def test_mistake_factor():
@@ -123,3 +132,70 @@ def test_mistake_costs_time(car, grid):
     t_clean = run_lap(car, grid, driver=d, plan=clean).lap_time
     t_messy = run_lap(car, grid, driver=d, plan=messy).lap_time
     assert t_messy > t_clean + 0.2
+
+
+
+# ---------- driver corrections (Spire: throttle should never hold steady) ----------
+
+def test_throttle_never_holds_steady_in_any_corner(car, grid):
+    lap = run_lap(car, grid, driver=Driver(push="normal"), seed=1)
+    tel = lap.telemetry
+    for text, s0, s1 in grid.corners:
+        th = [x for si, x, lim in zip(tel.s, tel.throttle, tel.limit)
+              if s0 + 1 <= si <= (s0 + s1) / 2 and lim == "corner"]   # entry half, where it used to be flat
+        if len(th) > 10:
+            longest_flat = max_run_of_equal(th)
+            assert longest_flat < 15, f"{text}: throttle flat for {longest_flat} samples"
+
+
+def max_run_of_equal(xs, tol=1e-4):
+    best = run = 1
+    for a, b in zip(xs, xs[1:]):
+        run = run + 1 if abs(a - b) < tol else 1
+        best = max(best, run)
+    return best
+
+
+def test_corrections_never_exceed_the_limit(car, grid):
+    lap = run_lap(car, grid, driver=Driver(push="flat_out"), seed=3)
+    for v, vmax in zip(lap.telemetry.v, lap.v_limit):
+        assert v <= vmax + 1e-9
+
+
+def test_calmer_driver_is_slightly_faster(car, grid):
+    # Same intent, same corners: corrections cost a little time
+    from sim.driver import CornerAttempt
+    d = Driver(push="hard")
+    plan = run_lap(car, grid, driver=d, seed=2).corner_log
+    calm = [CornerAttempt(a.text, a.attempt, a.mistake, a.s_start, a.s_end, ()) for a in plan]
+    t_busy = run_lap(car, grid, driver=d, plan=plan).lap_time
+    t_calm = run_lap(car, grid, driver=d, plan=calm).lap_time
+    assert 0 < t_busy - t_calm < 0.2
+
+
+
+def test_rpm_never_steady_in_a_corner(car, grid):
+    # Spire's rule: the engine should never sit at one rpm through a corner.
+    # Check every 10 m window inside every corner: rpm must change.
+    lap = run_lap(car, grid, driver=Driver(push="normal", sigma=0.0))
+    tel = lap.telemetry
+    for text, s0, s1 in grid.corners:
+        pts = [(s, r, g) for s, r, g in zip(tel.s, tel.rpm, tel.gear) if s0 + 1 <= s <= s1 - 1]
+        for i in range(0, len(pts) - 100, 50):                 # 10 m windows (ds = 0.1)
+            window = [r for _, r, g in pts[i:i + 100] if g != 0]
+            if len(window) > 50:
+                assert max(window) - min(window) > 5, f"steady rpm in {text} near {pts[i][0]:.0f} m"
+
+
+def test_feathering_into_the_apex(car, grid):
+    # Entry half of a clean corner: the car slows gently, LESS than drag and
+    # rolling resistance alone would slow it, so the driver feathers a little
+    # throttle (rising toward the apex), with no brakes.
+    lap = run_lap(car, grid, driver=Driver(push="normal", sigma=0.0))
+    text, s0, s1 = grid.corners[2]                     # R3 90
+    mid = (s0 + s1) / 2
+    entry = [(th, br) for s, th, br in zip(lap.telemetry.s, lap.telemetry.throttle, lap.telemetry.brake)
+             if s0 + 3 <= s <= mid - 3]
+    assert all(br == 0.0 for _, br in entry)
+    assert all(0.0 < th < 0.2 for th, _ in entry)
+    assert max(th for th, _ in entry) - min(th for th, _ in entry) > 0.02   # never steady

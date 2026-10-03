@@ -5,10 +5,12 @@ extends Node2D
 ## The physics lives in Python; this script only draws and animates.
 ## Builds the whole scene in code, so main.tscn is just this script.
 ##
-## Controls:
-##   1 / 2 / 3   overview / follow / trackside camera     C  cycle camera
-##   Space       pause / play                             R  restart
-##   Up / Down   playback speed (0.25x - 8x)
+## Portrait layout (720 x 1280): info bar on top, camera / playback buttons
+## and the dash (gauges, gear, pedals) at the bottom. Touch or mouse works;
+## keys too: 1-4 cameras, C cycle, Space pause, R restart, Up/Down speed.
+##
+## Cameras: Overview (whole track), Follow (north-up), Chase (car always points
+## up, the world turns around it), TV (fixed trackside cameras per corner).
 ##
 ## Command line (after "--"):
 ##   --selftest        step through the replay headless, print checks, quit
@@ -28,15 +30,17 @@ const TRACKSIDE_TRAIL_M := 60.0  # ...and keep it this far past the exit
 const SPEEDS := [0.25, 0.5, 1.0, 2.0, 4.0, 8.0]
 const LABEL_SCREEN_SCALE := 0.5  # corner labels: 36 px font drawn at ~18 px on screen
 const MARKER_RADIUS_PX := 9.0    # car marker ring, constant size on screen
-const HUD_LEFT_PX := 450.0       # overview keeps the track clear of the HUD column
-const PEDAL_TOP := 52.0          # pedal bars inside the dash
-const PEDAL_H := 160.0
+const TOP_BAR_PX := 196.0        # info bar height (screen px)
+const BOTTOM_PX := 420.0         # camera buttons + dash height (screen px)
+const CHASE_VIEW_M := 110.0      # meters across the screen in chase mode
+const CHASE_LOOKAHEAD_M := 22.0  # chase camera looks ahead so the car sits low on screen
+const PEDAL_H := 210.0
 const GaugeScript := preload("res://gauge.gd")
 
 signal finished_viewing     # embedded mode: player pressed Continue after the finish
 
-enum CamMode { OVERVIEW, FOLLOW, TRACKSIDE }
-const CAM_NAMES := ["Overview", "Follow", "Trackside"]
+enum CamMode { OVERVIEW, FOLLOW, CHASE, TRACKSIDE }
+const CAM_NAMES := ["Overview", "Follow", "Chase", "TV"]
 
 # Set these before adding the viewer to the tree (game.gd does); defaults = standalone
 var replay_path := REPLAY_PATH
@@ -237,6 +241,8 @@ func build_car() -> void:
 
 func build_camera() -> void:
 	camera = Camera2D.new()
+	# Camera2D ignores its own rotation by default; the chase camera needs it
+	camera.ignore_rotation = false
 	add_child(camera)
 	camera.make_current()
 
@@ -254,12 +260,12 @@ func add_label(parent: Node, pos: Vector2, size: int, color := Color.WHITE) -> L
 	return label
 
 
-## A background box with a fill rectangle; returns the fill.
 func add_bar(parent: Node, pos: Vector2, size: Vector2, color: Color) -> ColorRect:
+	## A background box with a fill rectangle; returns the fill.
 	var bg := ColorRect.new()
 	bg.position = pos
 	bg.size = size
-	bg.color = Color(0, 0, 0, 0.55)
+	bg.color = Color(1, 1, 1, 0.08)
 	parent.add_child(bg)
 	var fill := ColorRect.new()
 	fill.position = pos
@@ -273,31 +279,57 @@ func build_hud() -> void:
 	var layer := CanvasLayer.new()
 	add_child(layer)
 
-	var panel := ColorRect.new()
-	panel.position = Vector2(12, 12)
-	panel.size = Vector2(430, 66)
-	panel.color = Color(0, 0, 0, 0.45)
-	layer.add_child(panel)
-	hud["title"] = add_label(layer, Vector2(24, 16), 18)
-	hud["title"].text = "%s\n%s  (%d m)" % [replay["car"]["name"], replay["track"]["name"],
-		int(replay["track"]["length"])]
+	# Top info bar
+	var top := ColorRect.new()
+	top.color = Color(0.05, 0.05, 0.06, 0.82)
+	layer.add_child(top)
+	hud["top"] = top
+	hud["clock"] = add_label(top, Vector2(28, 40), 58)
+	hud["title"] = add_label(top, Vector2(30, 112), 22, Color(0.7, 0.71, 0.75))
+	hud["title"].text = "%s  /  %s" % [replay["car"]["name"], str(replay["track"]["name"]).get_basename().replace("_", " ")]
+	hud["status"] = add_label(top, Vector2(30, 142), 24, Color(1.0, 0.55, 0.1))
 
-	hud["clock"] = add_label(layer, Vector2(24, 86), 30)
-	hud["status"] = add_label(layer, Vector2(24, 128), 16, Color(0.9, 0.9, 0.9))
-	hud["help"] = add_label(layer, Vector2.ZERO, 14, Color(0.8, 0.8, 0.8))
-	hud["help"].text = "1 Overview   2 Follow   3 Trackside   C Cycle   Space Pause   R Restart   Up/Down Speed"
+	# Bottom: camera + playback buttons, then the dash
+	var bottom := ColorRect.new()
+	bottom.color = Color(0.05, 0.05, 0.06, 0.88)
+	layer.add_child(bottom)
+	hud["bottom"] = bottom
 
-	# Bottom-left dash: tachometer, speedometer, gear, pedals, rotor temperature
-	var dash := ColorRect.new()
-	dash.size = Vector2(436, 226)
-	dash.color = Color(0, 0, 0, 0.5)
-	layer.add_child(dash)
+	var buttons := HBoxContainer.new()
+	buttons.add_theme_constant_override("separation", 8)
+	bottom.add_child(buttons)
+	hud["buttons"] = buttons
+	hud["cam_buttons"] = []
+	for i in CAM_NAMES.size():
+		var b := Button.new()
+		b.text = CAM_NAMES[i]
+		b.add_theme_font_size_override("font_size", 22)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.focus_mode = Control.FOCUS_NONE
+		b.pressed.connect(set_cam_mode.bind(i))
+		buttons.add_child(b)
+		hud["cam_buttons"].append(b)
+	var play := Button.new()
+	play.add_theme_font_size_override("font_size", 22)
+	play.focus_mode = Control.FOCUS_NONE
+	play.pressed.connect(toggle_play)
+	buttons.add_child(play)
+	hud["play"] = play
+	var speed := Button.new()
+	speed.add_theme_font_size_override("font_size", 22)
+	speed.focus_mode = Control.FOCUS_NONE
+	speed.pressed.connect(func(): speed_i = (speed_i + 1) % SPEEDS.size())
+	buttons.add_child(speed)
+	hud["speed_btn"] = speed
+
+	var dash := Control.new()
+	bottom.add_child(dash)
 	hud["dash"] = dash
-	hud["temp"] = add_label(dash, Vector2(12, 4), 16)
+	hud["temp"] = add_label(dash, Vector2(24, 0), 22, Color(0.8, 0.8, 0.82))
 
 	var tach: Control = GaugeScript.new()
-	tach.position = Vector2(6, 30)
-	tach.size = Vector2(186, 186)
+	tach.position = Vector2(14, 34)
+	tach.size = Vector2(250, 250)
 	tach.max_value = 8000.0
 	tach.major_step = 1000.0
 	tach.minor_step = 500.0
@@ -308,8 +340,8 @@ func build_hud() -> void:
 	hud["tach"] = tach
 
 	var speedo: Control = GaugeScript.new()
-	speedo.position = Vector2(196, 30)
-	speedo.size = Vector2(186, 186)
+	speedo.position = Vector2(272, 34)
+	speedo.size = Vector2(250, 250)
 	speedo.max_value = 200.0
 	speedo.major_step = 40.0
 	speedo.minor_step = 10.0
@@ -317,22 +349,18 @@ func build_hud() -> void:
 	dash.add_child(speedo)
 	hud["speedo"] = speedo
 
-	hud["gear"] = add_label(dash, Vector2(392, 0), 34, Color(1.0, 0.85, 0.3))
-	hud["throttle"] = add_bar(dash, Vector2(388, PEDAL_TOP), Vector2(18, PEDAL_H), Color(0.2, 0.75, 0.3))
-	hud["brake"] = add_bar(dash, Vector2(410, PEDAL_TOP), Vector2(18, PEDAL_H), Color(0.9, 0.15, 0.15))
+	hud["gear"] = add_label(dash, Vector2(560, 22), 72, Color(1.0, 0.85, 0.3))
+	hud["gear_caption"] = add_label(dash, Vector2(552, 104), 16, Color(0.6, 0.61, 0.66))
+	hud["gear_caption"].text = "GEAR"
+	hud["throttle"] = add_bar(dash, Vector2(616, 70), Vector2(30, PEDAL_H), Color(0.3, 0.8, 0.4))
+	hud["brake"] = add_bar(dash, Vector2(656, 70), Vector2(30, PEDAL_H), Color(0.93, 0.17, 0.24))
 
-	hud["banner"] = add_label(layer, Vector2.ZERO, 40, Color(1.0, 0.9, 0.4))
-	hud["mistake"] = add_label(layer, Vector2.ZERO, 30, Color(1.0, 0.55, 0.1))
+	hud["banner"] = add_label(layer, Vector2.ZERO, 52, Color(1.0, 0.9, 0.4))
+	hud["mistake"] = add_label(layer, Vector2.ZERO, 34, Color(1.0, 0.55, 0.1))
 	if embedded:
 		var cont := Button.new()
-		cont.text = "  Continue  >  "
-		cont.add_theme_font_size_override("font_size", 24)
-		var style := StyleBoxFlat.new()
-		style.bg_color = Color(0.65, 0.36, 0.06)
-		style.set_corner_radius_all(6)
-		style.set_content_margin_all(10)
-		cont.add_theme_stylebox_override("normal", style)
-		cont.add_theme_stylebox_override("hover", style)
+		cont.text = "CONTINUE"
+		cont.theme_type_variation = "AccentButton"
 		cont.visible = false
 		cont.pressed.connect(func(): finished_viewing.emit())
 		layer.add_child(cont)
@@ -341,74 +369,87 @@ func build_hud() -> void:
 
 func update_hud() -> void:
 	var vp := get_viewport_rect().size
-	hud["dash"].position = Vector2(12, vp.y - 238)
+	var top: ColorRect = hud["top"]
+	top.position = Vector2.ZERO
+	top.size = Vector2(vp.x, TOP_BAR_PX)
+	var bottom: ColorRect = hud["bottom"]
+	bottom.position = Vector2(0, vp.y - BOTTOM_PX)
+	bottom.size = Vector2(vp.x, BOTTOM_PX)
+	var buttons: HBoxContainer = hud["buttons"]
+	buttons.position = Vector2(14, 14)
+	buttons.size = Vector2(vp.x - 28, 64)
+	hud["dash"].position = Vector2((vp.x - 720.0) / 2.0, 100)
 
-	hud["clock"].text = "%6.2f s  /  %.2f s" % [t, lap_time]
-	var rival_text := ""
-	if rival_time > 0:
-		rival_text = "   |   Rival %s: %.2f s" % [rival_name, rival_time]
-	var push_text := "Theoretical limit"
+	hud["clock"].text = "%.2f" % t + (" / %.2f" % rival_time if rival_time > 0 else "")
+	var push_text := "THEORETICAL LIMIT"
 	if driver != null:
-		push_text = "Push: %s (seed %d)" % [str(driver["push"]).replace("_", " ").to_upper(), int(driver["seed"])]
-	hud["status"].text = "%s%s\nCamera: %s   Speed: %sx%s" \
-		% [push_text, rival_text, CAM_NAMES[cam_mode], str(SPEEDS[speed_i]), "" if playing else "   (paused)"]
+		push_text = "%s PUSH" % str(driver["push"]).replace("_", " ").to_upper()
+	hud["status"].text = push_text + ("   vs  %s" % rival_name.to_upper() if rival_time > 0 else "")
 
-	# Mistake callout: from the apex of a mistaken corner until shortly after it
-	var mistake: Label = hud["mistake"]
-	mistake.visible = false
-	if driver != null:
-		var s_now := value_at("s")
-		for c in driver["corners"]:
-			var s0 := float(c["s_start"])
-			var s1 := float(c["s_end"])
-			if c["mistake"] and s_now >= (s0 + s1) / 2.0 and s_now <= s1 + 40.0:
-				mistake.text = "MISTAKE: ran wide at %s" % c["text"]
-				mistake.reset_size()
-				mistake.position = Vector2((vp.x - mistake.size.x) / 2 + HUD_LEFT_PX / 2, 24)
-				mistake.visible = true
-	var help: Label = hud["help"]
-	help.reset_size()
-	help.position = Vector2(vp.x - help.size.x - 16, vp.y - help.size.y - 12)
+	for i in hud["cam_buttons"].size():
+		var b: Button = hud["cam_buttons"][i]
+		b.theme_type_variation = "SelectedButton" if i == cam_mode else ""
+	hud["play"].text = "||" if playing and t < lap_time else ">"
+	hud["speed_btn"].text = "%sx" % str(SPEEDS[speed_i])
 
 	var gear := int(samples["gear"][idx])
-	hud["gear"].text = "–" if gear == 0 else str(gear)     # "–" while shifting
+	hud["gear"].text = "-" if gear == 0 else str(gear)
 	hud["tach"].value = value_at("rpm")
 	hud["speedo"].value = value_at("v") * 3.6
 
 	var temp := value_at("brake_temp")
 	var fade := float(replay["car"]["pad_fade_temp"])
-	hud["temp"].text = "Front rotor %d C%s" % [int(temp), "   FADING" if temp > fade else ""]
-	hud["temp"].add_theme_color_override("font_color", Color(1, 0.35, 0.3) if temp > fade else Color.WHITE)
+	hud["temp"].text = "FRONT ROTOR %d C%s" % [int(temp), "   FADING" if temp > fade else ""]
+	hud["temp"].add_theme_color_override("font_color", Color(1, 0.35, 0.3) if temp > fade else Color(0.8, 0.8, 0.82))
+	set_pedal(hud["throttle"], value_at("throttle"), Vector2(616, 70))
+	set_pedal(hud["brake"], value_at("brake"), Vector2(656, 70))
 
-	set_pedal(hud["throttle"], value_at("throttle"), Vector2(388, PEDAL_TOP))
-	set_pedal(hud["brake"], value_at("brake"), Vector2(410, PEDAL_TOP))
-
+	# Finish banner (two lines with a rival) and Continue
 	var banner: Label = hud["banner"]
 	banner.visible = t >= lap_time
-	banner.text = "FINISH  %.2f s" % lap_time
 	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	banner.text = "FINISH  %.2f" % lap_time
 	if rival_time > 0:
 		var gap := absf(lap_time - rival_time)
-		if lap_time < rival_time:
-			banner.text += "\nBEAT %s by %.2f s" % [rival_name, gap]
-			banner.add_theme_color_override("font_color", Color(0.46, 0.77, 0.4))
-		else:
-			banner.text += "\nLOST to %s by %.2f s" % [rival_name, gap]
-			banner.add_theme_color_override("font_color", Color(0.93, 0.17, 0.24))
+		var won := lap_time < rival_time
+		banner.text += "\n%s %s BY %.2f" % ["BEAT" if won else "LOST TO", rival_name.to_upper(), gap]
+		banner.add_theme_color_override("font_color", Color(0.46, 0.77, 0.4) if won else Color(0.93, 0.17, 0.24))
 	banner.reset_size()
-	banner.position = Vector2((vp.x - banner.size.x) / 2 + HUD_LEFT_PX / 2, 70)
+	banner.position = Vector2((vp.x - banner.size.x) / 2, TOP_BAR_PX + 30)
 	if hud.has("continue"):
 		var cont: Button = hud["continue"]
 		cont.visible = t >= lap_time
 		cont.reset_size()
-		cont.position = Vector2((vp.x - cont.size.x) / 2 + HUD_LEFT_PX / 2, 190)
+		cont.size.x = vp.x - 120
+		cont.position = Vector2(60, TOP_BAR_PX + 190)
+
+	# Mistake callout: from the apex of a mistaken corner until shortly after it
+	var mistake: Label = hud["mistake"]
+	mistake.visible = false
+	if driver != null and t < lap_time:
+		var s_now := value_at("s")
+		for c in driver["corners"]:
+			var s0 := float(c["s_start"])
+			var s1 := float(c["s_end"])
+			if c["mistake"] and s_now >= (s0 + s1) / 2.0 and s_now <= s1 + 40.0:
+				mistake.text = "MISTAKE: RAN WIDE AT %s" % str(c["text"]).to_upper()
+				mistake.reset_size()
+				mistake.position = Vector2((vp.x - mistake.size.x) / 2, TOP_BAR_PX + 24)
+				mistake.visible = true
 
 
 func set_pedal(fill: ColorRect, amount: float, base: Vector2) -> void:
 	# Vertical bar that fills from the bottom
 	var h := PEDAL_H * clampf(amount, 0.0, 1.0)
-	fill.size = Vector2(18, h)
+	fill.size = Vector2(30, h)
 	fill.position = Vector2(base.x, base.y + PEDAL_H - h)
+
+
+func toggle_play() -> void:
+	if t >= lap_time:
+		restart()
+	else:
+		playing = not playing
 
 
 # ------------------------------------------------------------------ playback
@@ -423,8 +464,8 @@ func _process(delta: float) -> void:
 	update_hud()
 
 
-## Move idx so that samples.t[idx] <= t < samples.t[idx + 1].
 func find_index() -> void:
+	## Move idx so that samples.t[idx] <= t < samples.t[idx + 1].
 	var ts: Array = samples["t"]
 	while idx < ts.size() - 2 and float(ts[idx + 1]) <= t:
 		idx += 1
@@ -439,8 +480,8 @@ func frac() -> float:
 	return 0.0 if t1 <= t0 else clampf((t - t0) / (t1 - t0), 0.0, 1.0)
 
 
-## Telemetry channel linearly interpolated at playback time t.
 func value_at(key: String) -> float:
+	## Telemetry channel linearly interpolated at playback time t.
 	var arr: Array = samples[key]
 	return lerpf(float(arr[idx]), float(arr[idx + 1]), frac())
 
@@ -463,55 +504,77 @@ func set_cam_mode(mode: int) -> void:
 	update_camera(0.0, true)
 
 
-## Trackside camera: the corner the car is approaching or in.
 func pick_corner(s: float) -> int:
+	## TV camera: the corner the car is approaching or in, or -1 when the car
+	## is far from every corner camera (then the broadcast follows the car).
 	for i in corners.size():
 		var c: Dictionary = corners[i]
 		if s >= float(c["s_start"]) - TRACKSIDE_LEAD_M and s <= float(c["s_end"]) + TRACKSIDE_TRAIL_M:
 			return i
-	for i in corners.size():                     # between corners: the next one ahead
-		if s < float(corners[i]["s_start"]):
-			return i
-	return corners.size() - 1
+	return -1
+
+
+func view_area() -> Rect2:
+	## Screen area between the top bar and the bottom panel.
+	var vp := get_viewport_rect().size
+	return Rect2(0, TOP_BAR_PX, vp.x, vp.y - TOP_BAR_PX - BOTTOM_PX)
 
 
 func update_camera(delta: float, snap: bool) -> void:
 	var vp := get_viewport_rect().size
+	var area := view_area()
 	var target_pos := car.position
-	var target_zoom := vp.x / (FOLLOW_VIEW_M * PX_PER_M)
+	var target_zoom := area.size.x / (FOLLOW_VIEW_M * PX_PER_M)
+	var target_rot := 0.0
 	var cut := snap
 
 	if cam_mode == CamMode.OVERVIEW:
-		# Fit the track into the screen area right of the HUD column
-		var margin := 220.0 * PX_PER_M                # room for labels outside the road
-		var area := Vector2(vp.x - HUD_LEFT_PX, vp.y)
-		target_zoom = minf(area.x / (track_size.x + margin), area.y / (track_size.y + margin))
-		target_pos = track_center - Vector2(HUD_LEFT_PX / 2.0, 0.0) / target_zoom
+		var margin := 120.0 * PX_PER_M                # room for labels outside the road
+		target_zoom = minf(area.size.x / (track_size.x + margin), area.size.y / (track_size.y + margin))
+		target_pos = track_center
+	elif cam_mode == CamMode.CHASE:
+		# Car always points up: rotate the camera with the car; look ahead along
+		# the heading so the car sits in the lower part of the view
+		target_zoom = area.size.x / (CHASE_VIEW_M * PX_PER_M)
+		target_rot = car.rotation + PI / 2.0
+		target_pos = car.position + Vector2.from_angle(car.rotation) * CHASE_LOOKAHEAD_M * PX_PER_M
 	elif cam_mode == CamMode.TRACKSIDE and not corners.is_empty():
 		var i := pick_corner(value_at("s"))
 		if i != active_corner:
 			active_corner = i
 			cut = true                               # TV-style hard cut between cameras
-		var c: Dictionary = corners[active_corner]
-		var r := float(c["radius"])
-		var mid: Array = c["mid"]
-		var out: Array = c["outward"]
-		target_pos = to_world(mid[0] + out[0] * r * 0.15, mid[1] + out[1] * r * 0.15)
-		var view_m := clampf(r * 4.5, 110.0, 420.0)
-		target_zoom = minf(vp.x, vp.y * 1.6) / (view_m * PX_PER_M)
+		if active_corner >= 0:                       # a corner camera has the car
+			var c: Dictionary = corners[active_corner]
+			var r := float(c["radius"])
+			var mid: Array = c["mid"]
+			var out: Array = c["outward"]
+			target_pos = to_world(mid[0] + out[0] * r * 0.15, mid[1] + out[1] * r * 0.15)
+			var view_m := clampf(r * 4.5, 110.0, 420.0)
+			target_zoom = minf(area.size.x, area.size.y) / (view_m * PX_PER_M)
+		# else: between camera positions, keep the follow-camera defaults
+
+	# The view area isn't centered vertically (top bar vs bottom panel): shift
+	# the camera so target_pos lands in the middle of the view area
+	var screen_offset := Vector2(0, (vp.y / 2.0) - area.get_center().y)
 
 	if cut:
-		camera.position = target_pos
 		camera.zoom = Vector2.ONE * target_zoom
+		camera.rotation = target_rot
 	else:
 		var k := 1.0 - exp(-delta * 6.0)             # smooth, frame-rate independent
-		camera.position = camera.position.lerp(target_pos, k)
 		camera.zoom = camera.zoom.lerp(Vector2.ONE * target_zoom, k)
+		camera.rotation = lerp_angle(camera.rotation, target_rot, 1.0 - exp(-delta * 8.0))
+	var world_offset := (screen_offset / camera.zoom.x).rotated(camera.rotation)
+	var final_pos := target_pos + world_offset
+	if cut:
+		camera.position = final_pos
+	else:
+		camera.position = camera.position.lerp(final_pos, 1.0 - exp(-delta * 6.0))
 	rescale_overlays()
 
 
-## Keep corner labels and the car marker a constant size on screen:
-## world size = screen size / zoom.
+## Keep corner labels and the car marker a constant size on screen
+## (world size = screen size / zoom), and upright when the camera rotates.
 func rescale_overlays() -> void:
 	var inv := 1.0 / camera.zoom.x
 	for entry in corner_labels:
@@ -519,14 +582,15 @@ func rescale_overlays() -> void:
 		var mid: Vector2 = entry[1]
 		var out_dir: Vector2 = entry[2]
 		label.scale = Vector2.ONE * LABEL_SCREEN_SCALE * inv
-		# Outside the turn: past the road edge plus a fixed on-screen gap
+		label.pivot_offset = label.size / 2.0
+		label.rotation = camera.rotation
 		var half := label.size * label.scale / 2.0
-		var reach := absf(out_dir.x) * half.x + absf(out_dir.y) * half.y
+		var reach := maxf(half.x, half.y)
 		var center := mid + out_dir * (ROAD_WIDTH_M * PX_PER_M / 2.0 + 10.0 * inv + reach)
-		label.position = center - half
+		label.position = center - label.size / 2.0
 	marker.position = car.position
 	marker.scale = Vector2.ONE * inv
-	marker.visible = cam_mode != CamMode.FOLLOW
+	marker.visible = cam_mode == CamMode.OVERVIEW or cam_mode == CamMode.TRACKSIDE
 
 
 # ------------------------------------------------------------------ input
@@ -541,23 +605,22 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_2:
 			set_cam_mode(CamMode.FOLLOW)
 		KEY_3:
+			set_cam_mode(CamMode.CHASE)
+		KEY_4:
 			set_cam_mode(CamMode.TRACKSIDE)
 		KEY_C:
 			set_cam_mode((cam_mode + 1) % CAM_NAMES.size())
 		KEY_SPACE:
-			if t >= lap_time:
-				restart()
-			else:
-				playing = not playing
+			toggle_play()
 		KEY_R:
 			restart()
-		KEY_ENTER, KEY_KP_ENTER:
-			if embedded and t >= lap_time:
-				finished_viewing.emit()
 		KEY_UP:
 			speed_i = mini(speed_i + 1, SPEEDS.size() - 1)
 		KEY_DOWN:
 			speed_i = maxi(speed_i - 1, 0)
+		KEY_ENTER, KEY_KP_ENTER:
+			if embedded and t >= lap_time:
+				finished_viewing.emit()
 
 
 func restart() -> void:
@@ -569,7 +632,7 @@ func restart() -> void:
 func show_message(text: String) -> void:
 	var layer := CanvasLayer.new()
 	add_child(layer)
-	var label := add_label(layer, Vector2(40, 40), 22)
+	var label := add_label(layer, Vector2(40, 200), 28)
 	label.text = text
 
 
@@ -582,7 +645,7 @@ func self_test() -> void:
 	for check_t in [0.0, lap_time * 0.25, lap_time * 0.5, lap_time * 0.75, lap_time]:
 		t = check_t
 		update_car()
-		for mode in [CamMode.OVERVIEW, CamMode.FOLLOW, CamMode.TRACKSIDE]:
+		for mode in [CamMode.OVERVIEW, CamMode.FOLLOW, CamMode.CHASE, CamMode.TRACKSIDE]:
 			set_cam_mode(mode)
 		update_hud()
 		print("t=%7.2f s=%7.1f m  pos=(%7.1f, %7.1f) m  v=%5.1f km/h  gear=%d  corner_cam=%d" % [
@@ -605,7 +668,7 @@ func take_screenshots(folder: String) -> void:
 	for moment in moments:
 		t = minf(float(moments[moment]), lap_time)
 		update_car()
-		for mode in [CamMode.OVERVIEW, CamMode.FOLLOW, CamMode.TRACKSIDE]:
+		for mode in [CamMode.OVERVIEW, CamMode.FOLLOW, CamMode.CHASE, CamMode.TRACKSIDE]:
 			set_cam_mode(mode)
 			update_hud()
 			await RenderingServer.frame_post_draw

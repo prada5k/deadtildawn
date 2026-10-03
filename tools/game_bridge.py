@@ -111,9 +111,14 @@ def distributions(track_file):
     from sim.montecarlo import run_many
     from sim.track import discretize, load_track
 
+    # The cache key must cover EVERYTHING that changes the results: car data,
+    # track, settings, and the sim's own code. Hashing the sim source means any
+    # physics or driver-model change invalidates old odds automatically (a
+    # hand-bumped version number only works if someone remembers to bump it).
     track_path = resolve(track_file)
+    sim_code = "".join(p.read_text(encoding="utf-8") for p in sorted((ROOT / "sim").glob("*.py")))
     key = hashlib.sha256((CAR_FILE.read_text(encoding="utf-8") + track_path.read_text(encoding="utf-8")
-                          + f"{GAME_DS}|{ODDS_RUNS}|{Driver().sigma}").encode()).hexdigest()[:16]
+                          + sim_code + f"{GAME_DS}|{ODDS_RUNS}|{Driver().sigma}").encode()).hexdigest()[:16]
     cache = CACHE_DIR / f"{track_path.stem}_{key}.json"
     if cache.exists():
         return json.loads(cache.read_text(encoding="utf-8")), True

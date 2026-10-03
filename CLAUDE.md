@@ -1,6 +1,6 @@
 # deadtildawn
 
-2D mobile touge racing RPG. The player is a gifted mechanic who can no longer drive (career-ending injury to the throttle leg in a canyon crash). The player's friend drives. The player builds, tunes, and coaches, turning a stock 1996 Civic into a giant-killer against wealthy underground car clubs. The player never drives: races are physics simulations shown as a broadcast-style replay with live telemetry.
+2D mobile touge racing RPG (portrait). Story: six years ago the player was a legend of the SoCal canyon scene in a self-built 2009 Civic Si (FA5). In a $50k race, one corner too hot at 87 mph: the car hit a tree and burned, and the player survived but lost strength and feel in the right leg and left the scene. Best friend **Faba** got them back on their feet. Six years later Faba quits his corporate job, buys a stock '96 Civic DX coupe 5MT, and spends his savings on a warehouse (home + HQ): "You build it. I drive it." The player never drives: races are physics simulations shown as a broadcast-style replay with live telemetry. (Intro text lives in `godot/intro.gd` SLIDES.)
 
 The physics simulator is also my Physics 3 showcase project (due ~early December 2026): "Can first-year physics predict a real car's performance?"
 
@@ -16,7 +16,11 @@ The physics simulator is also my Physics 3 showcase project (due ~early December
 ## Architecture
 
 - **Python (`sim/`) is the physics engine and the reference implementation.** A lap run returns telemetry. Any future vehicle model must honor that interface.
-- **Godot (`godot/`) is currently a replay viewer only.** It reads `replay.json` (format `deadtildawn-replay`, versioned; contract in `tools/export_replay.py`, tested in `tests/test_tools.py`). It does no physics.
+- **Godot (`godot/`) is the game.** `game.tscn` (game.gd) runs the vertical slice; `main.tscn` (main.gd) is the replay viewer, used standalone or embedded in the race screen. Godot does no physics: it calls `tools/game_bridge.py` (Python) in a background thread (`bridge.gd`) and reads one JSON reply per command (versioned contract, tested in `tests/test_bridge.py`). Replays use the `deadtildawn-replay` format (`tools/export_replay.py`, tested in `tests/test_tools.py`).
+- **Menus:** built in code in `game.gd`, but ALL styling lives in `godot/theme.tres` (Rajdhani font; type variations TitleLabel, HeadingLabel, MutedLabel, BigNumberLabel, AccentButton, DangerButton, SelectedButton). Never hard-code colors or sizes in screens; add a theme variation. Spire is learning the editor: prefer editor-editable scenes (`.tscn`) for new screens (see `intro.tscn`, `docs/LEARNING_GODOT.md`). Labels only wrap inside columns (the wrap trap); a screen's main action goes in the pinned footer.
+- **Viewer cameras:** Overview, Follow, Chase (car always points up, world rotates; needs `Camera2D.ignore_rotation = false`), TV (corner cameras; follows the car between them). Touch buttons for camera, pause, speed.
+- **Odds and races use identical solver settings** (`GAME_DS = 0.5` m in the bridge) or the odds lie. Monte Carlo distributions are cached in `runs/cache/`, keyed by car + track + settings + a hash of the sim source code (any sim change invalidates old odds automatically).
+- **Anti save-scum:** tonight's rival posted time is drawn once and saved; race results are applied and saved before the replay plays.
 - **Planned (Phase 4):** port the sim to GDScript so the game runs on iPhone (Python can't run there). Python stays the reference; regression tests must show both versions give the same results. Don't start the port without asking.
 
 ```
@@ -26,7 +30,8 @@ data/tracks/  pace-note tracks (test_track.txt, switchbacks.txt)
 tests/        pytest; expected values come from hand calcs in docs/PHYSICS.md
 tools/        run_all, validation, plots, maps, comparison, fade test, replay export
 docs/         PHYSICS.md (the spec), VALIDATION_LOG.md (every model change + results)
-godot/        replay viewer (main.gd builds the scene in code; gauge.gd)
+godot/        game (game.gd, bridge.gd, ui.gd, track_map.gd) + replay viewer (main.gd, gauge.gd)
+data/rivals/  rival definitions (name, car, track, difficulty)
 runs/         generated reports (gitignored)
 ```
 
@@ -34,7 +39,7 @@ runs/         generated reports (gitignored)
 
 ```
 .venv\Scripts\activate
-python -m pytest -v                                   # ~127 tests, ~50 s
+python -m pytest -v                                   # ~141 tests, ~90 s
 python tools/run_all.py [--track FILE] [--mass -100] [--runs 4]
 python tools/validate_straight.py                     # validation table only
 python tools/export_replay.py [track]                 # -> godot/replays/latest.json
@@ -42,7 +47,8 @@ python tools/run_all.py --push hard --seed 7 --rival 49.55   # driven run + odds
 python tools/driver_study.py --rival 49.55            # push-level odds only
 python tools/sensitivity.py                           # tornado charts
 ```
-Godot viewer: open `godot/project.godot` in Godot 4.5+, press F5. Headless check: `godot --headless --path godot -- --selftest`. Stills: `-- --shots=<folder>` (needs a display).
+Game: open `godot/project.godot` in Godot 4.5+, press F5 (needs the repo's .venv with the requirements installed). Viewer alone: open main.tscn, press F6.
+Godot checks: `godot --headless --path godot -- --gametest` (one full night through the bridge); `godot --headless --path godot res://main.tscn -- --selftest` (viewer); stills: `-- --gameshots=<folder>` or `res://main.tscn -- --shots=<folder>` (need a display).
 
 Windows laptop (ASUS Vivobook S14), VS Code, Python 3.14, Git + GitHub.
 
@@ -66,7 +72,7 @@ Windows laptop (ASUS Vivobook S14), VS Code, Python 3.14, Git + GitHub.
 - Shifting: sequential only; downshift only if the engine lands at or below redline (no money shifts); no mid-corner shifts
 - Cornering: lateral load transfer (roll stiffness split, wheel lift), per-tire load sensitivity, axle-limited (stock car understeers at 0.832 g)
 - Braking: forward load transfer + load sensitivity, ideal bias; brake capacity ratio 1.3; rotor thermal model (Newton cooling), pad fade above 350 C; fixed-point iteration over the lap; back-to-back runs carry rotor temperature
-- Driver: push level sets f; attempt ~ N(f, sigma) per corner; attempt > 1 = mistake (runs wide, scrubs speed); slow in / fast out; brakes at f of max; seeded runs
+- Driver: push level sets f; attempt ~ N(f, sigma) per corner; attempt > 1 = mistake (runs wide, scrubs speed); corner technique: carry speed in and ease down to the apex, then roll on to the exit (speed and rpm never steady in a corner); slowing gentler than coasting = feathered partial throttle, not brakes; brakes at f of max; seeded runs
 - Not yet: friction circle, elevation, aero balance, suspension dynamics
 
 ## Car: 1996 Honda Civic DX coupe (EJ6, D16Y7, S40 5MT, FWD)
@@ -83,13 +89,19 @@ Sim mass 1112 kg. Redline 6500, fuel cut 6800. Rear drums, no ABS. All graded va
 - [x] Godot replay viewer (3 cameras, analog gauges)
 - [x] Phase 2 exit: sensitivity study (mass > grip ~ power >> rest; brakes zero on flat roads)
 - [x] Milestone D: driver model (push levels, sigma 0.02, physical mistakes, slow in / fast out, Monte Carlo odds)
-- [ ] Vertical slice: Godot game screens calling the Python sim on the laptop (garage, briefing, wager + push, Send It, replay, results); GDScript port later
+- [x] Vertical slice v0.1: garage, briefing + driver meeting (odds per push, wager), Send It, broadcast replay vs rival time, results, save, broke screen
+- [x] Portrait UI pass: theme + Rajdhani font, intro story scene, warehouse HQ, pinned-footer driver meeting, chase camera, touch camera controls
+- [ ] Next: parts and upgrades (the way out of the money hole), then the rival ladder
 - [ ] Showcase materials (poster/slides, demo)
 - [ ] Phase 3: game systems design; Phase 4: Godot game + GDScript port; Phase 5: iPhone
 
 ## Game scope
 
 **Loop:** pre-race (inspect track profile, install parts, tune sliders, set wager, "Send It") -> race (broadcast replay + live HUD) -> results (cash, rep).
+
+**Economy (slice):** start $250, minimum buy-in $100, even-money payouts vs single racers, +10 rep per win. Boss battles (later): the lower-rep underdog puts up more. Rival difficulty: posted time set so the player's best push level wins ~45% on an average night, plus nightly randomness (0.10 s). At even money that is a losing bet without upgrades: intentional pressure. Goal: hard, every win should feel earned.
+
+**Rival club (Nissan ladder, later):** 280Z -> Sentra SE-R -> 240SX -> R33 GT-R -> R35 GT-R -> 370Z (final boss, above the GT-Rs; inspired by the friend's car). Race each rival several times (e.g. 3); rivals upgrade in proportion to the player, then the player moves up. Slice: one rival, "Zed", 1977 280Z (placeholder name, `data/rivals/zed_280z.json`), posted time only. Later: simulated rival car + driver (both can make mistakes, both on the road).
 
 **v1:** cash + rep, wagers, rival ladder -> boss club, parts where rarity is not superiority (specialized tradeoffs), first tuning sliders (roll stiffness / sway bar), 4 fixed push levels, broadcast replay.
 

@@ -71,3 +71,15 @@ def test_race_matches_odds_settings():
     r = call("race", "--track", TRACK, "--push", "normal", "--seed", "1000",
              "--out", str(ROOT / "runs" / "cache" / "_test_race.json"))
     assert r["lap_time"] == pytest.approx(data["normal"]["times"][0], abs=1e-3)
+
+
+def test_cache_key_changes_when_sim_code_changes(tmp_path, monkeypatch):
+    # Regression: stale cached odds after a physics change. The cache key must
+    # depend on the sim's source code, not a hand-bumped version number.
+    sys.path.insert(0, str(ROOT / "tools"))
+    import hashlib
+    import game_bridge
+    src = "".join(p.read_text(encoding="utf-8") for p in sorted((ROOT / "sim").glob("*.py")))
+    text = (ROOT / "tools" / "game_bridge.py").read_text(encoding="utf-8")
+    assert "sim_code" in text and "SIM_VERSION" not in text
+    assert hashlib.sha256(src.encode()).hexdigest() != hashlib.sha256((src + " ").encode()).hexdigest()
