@@ -11,16 +11,15 @@ const DAY_NAMES := ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
 
 
 func _ready() -> void:
-	$Margin/Column/TopRow/Back.pressed.connect(func(): go.emit("warehouse"))
+	pass
 
 
 ## info: cash/rep/min_buy_in, week, day, week_events ({day: label}),
 ## upcoming ([[when, what], ...]), past ([[when, what, result], ...])
 func setup(info: Dictionary) -> void:
-	$Margin/Column/Header.show_stats(info["cash"], info["rep"], info["min_buy_in"])
-	$Margin/Column/WeekLabel.text = "WEEK %d" % info["week"]
+	%WeekLabel.text = "WEEK %d" % info["week"]
 
-	var days: HBoxContainer = $Margin/Column/Days
+	var days: HBoxContainer = %Days
 	for d in 7:
 		var cell := PanelContainer.new()
 		cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -38,10 +37,10 @@ func setup(info: Dictionary) -> void:
 		mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		mark.autowrap_mode = TextServer.AUTOWRAP_OFF
 
-	var up: VBoxContainer = $Margin/Column/UpcomingPanel/Upcoming
+	var up: VBoxContainer = %Upcoming
 	for row in info["upcoming"]:
 		UI.stat_row(up, row[0], row[1])
-	var past: VBoxContainer = $Margin/Column/PastPanel/Past
+	var past: VBoxContainer = %Past
 	if info["past"].is_empty():
 		UI.label(past, "No races yet.", "MutedLabel")
 	for row in info["past"]:

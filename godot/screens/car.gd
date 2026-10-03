@@ -10,19 +10,17 @@ const UI := preload("res://ui.gd")
 
 
 func _ready() -> void:
-	$Margin/Scroll/Column/TopRow/Back.pressed.connect(func(): go.emit("warehouse"))
-	$Margin/Scroll/Column/PartsPanel/Box/ShopButton.pressed.connect(func(): go.emit("shop"))
+	%ShopButton.pressed.connect(func(): go.emit("shop"))
 
 
 ## parts: {"slots": {slot: name}, "options": {slot: [[id, name], ...]}, "installed": {slot: id}}
 func setup(info: Dictionary, stats: Dictionary, parts := {}) -> void:
-	$Margin/Scroll/Column/Header.show_stats(info["cash"], info["rep"], info["min_buy_in"])
-	$Margin/Scroll/Column/CarName.text = stats["name"]
-	var dyno = $Margin/Scroll/Column/DynoPanel/Dyno
+	%CarName.text = stats["name"]
+	var dyno = %Dyno
 	dyno.dyno = stats["dyno"]
 	dyno.redline = float(stats["redline"])
 	dyno.queue_redraw()
-	var rows: VBoxContainer = $Margin/Scroll/Column/StatsPanel/Stats
+	var rows: VBoxContainer = %Stats
 	UI.stat_row(rows, "Weight", "%d kg (with Faba)" % stats["weight_kg"])
 	UI.stat_row(rows, "Power / weight", "%d hp per tonne" % stats["hp_per_tonne"])
 	UI.stat_row(rows, "Drivetrain", "%s, redline %d" % [stats["drivetrain"], stats["redline"]])
@@ -37,7 +35,7 @@ func setup(info: Dictionary, stats: Dictionary, parts := {}) -> void:
 
 ## One row per slot: slot name + a dropdown of Stock and every owned part.
 func build_parts_list(parts: Dictionary) -> void:
-	var list: VBoxContainer = $Margin/Scroll/Column/PartsPanel/Box/PartsList
+	var list: VBoxContainer = %PartsList
 	for slot in parts["slots"]:
 		var row := UI.hbox(list, 10)
 		var name := UI.label(row, parts["slots"][slot], "MutedLabel")

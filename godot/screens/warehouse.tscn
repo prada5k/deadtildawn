@@ -1,7 +1,7 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=3 format=3 uid="uid://dgjoqqwn0qtpt"]
 
-[ext_resource type="Script" path="res://screens/warehouse.gd" id="1"]
-[ext_resource type="PackedScene" path="res://screens/header.tscn" id="2"]
+[ext_resource type="Script" uid="uid://bgt4myfh4o6nq" path="res://screens/warehouse.gd" id="1"]
+[ext_resource type="Script" path="res://widgets/pedestal.gd" id="2"]
 
 [node name="Warehouse" type="Control"]
 layout_mode = 3
@@ -12,110 +12,84 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1")
 
-[node name="Margin" type="MarginContainer" parent="."]
+[node name="Column" type="VBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 32
-theme_override_constants/margin_top = 48
-theme_override_constants/margin_right = 32
-theme_override_constants/margin_bottom = 40
-
-[node name="Column" type="VBoxContainer" parent="Margin"]
-layout_mode = 2
 theme_override_constants/separation = 18
 
-[node name="Header" parent="Margin/Column" instance=ExtResource("2")]
-layout_mode = 2
-
-[node name="Title" type="Label" parent="Margin/Column"]
-layout_mode = 2
-theme_type_variation = &"TitleLabel"
-text = "THE WAREHOUSE"
-
-[node name="Subtitle" type="Label" parent="Margin/Column"]
+[node name="Subtitle" type="Label" parent="Column"]
 layout_mode = 2
 theme_type_variation = &"MutedLabel"
 text = "Home. Garage. HQ. Faba's savings, your tools."
 autowrap_mode = 3
 
-[node name="NextUp" type="PanelContainer" parent="Margin/Column"]
+[node name="CarPedestal" type="SubViewportContainer" parent="Column"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+stretch = true
+script = ExtResource("2")
+
+[node name="Crew" type="PanelContainer" parent="Column"]
 layout_mode = 2
 
-[node name="Box" type="VBoxContainer" parent="Margin/Column/NextUp"]
+[node name="Box" type="VBoxContainer" parent="Column/Crew"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="CrewTitle" type="Label" parent="Column/Crew/Box"]
+layout_mode = 2
+theme_type_variation = &"HeadingLabel"
+text = "THE CREW"
+
+[node name="CrewLine" type="Label" parent="Column/Crew/Box"]
+layout_mode = 2
+text = "Faba drives. You build."
+autowrap_mode = 3
+
+[node name="Record" type="Label" parent="Column/Crew/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+text = "Record 0 W - 0 L"
+
+[node name="StoryButton" type="Button" parent="Column/Crew/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Replay the story"
+
+[node name="NextUp" type="PanelContainer" parent="Column"]
+layout_mode = 2
+
+[node name="Box" type="VBoxContainer" parent="Column/NextUp"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="Kicker" type="Label" parent="Margin/Column/NextUp/Box"]
+[node name="Kicker" type="Label" parent="Column/NextUp/Box"]
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
 text = "NEXT UP"
 
-[node name="EventTitle" type="Label" parent="Margin/Column/NextUp/Box"]
+[node name="EventTitle" type="Label" parent="Column/NextUp/Box"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 30
 text = "FRI, WEEK 1: RACE NIGHT"
 autowrap_mode = 3
 
-[node name="EventDetail" type="Label" parent="Margin/Column/NextUp/Box"]
+[node name="EventDetail" type="Label" parent="Column/NextUp/Box"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"MutedLabel"
 text = "Event details"
 autowrap_mode = 3
 
-[node name="GetReady" type="Button" parent="Margin/Column/NextUp/Box"]
+[node name="GetReady" type="Button" parent="Column/NextUp/Box"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"AccentButton"
 text = "GET READY"
-
-[node name="Nav" type="HBoxContainer" parent="Margin/Column"]
-layout_mode = 2
-theme_override_constants/separation = 12
-
-[node name="CarButton" type="Button" parent="Margin/Column/Nav"]
-layout_mode = 2
-size_flags_horizontal = 3
-text = "THE CAR"
-
-[node name="CalendarButton" type="Button" parent="Margin/Column/Nav"]
-layout_mode = 2
-size_flags_horizontal = 3
-text = "CALENDAR"
-
-[node name="ShopButton" type="Button" parent="Margin/Column/Nav"]
-layout_mode = 2
-size_flags_horizontal = 3
-text = "PARTS"
-
-[node name="Crew" type="PanelContainer" parent="Margin/Column"]
-layout_mode = 2
-
-[node name="Box" type="VBoxContainer" parent="Margin/Column/Crew"]
-layout_mode = 2
-theme_override_constants/separation = 6
-
-[node name="CrewTitle" type="Label" parent="Margin/Column/Crew/Box"]
-layout_mode = 2
-theme_type_variation = &"HeadingLabel"
-text = "THE CREW"
-
-[node name="CrewLine" type="Label" parent="Margin/Column/Crew/Box"]
-layout_mode = 2
-text = "Faba drives. You build."
-autowrap_mode = 3
-
-[node name="Record" type="Label" parent="Margin/Column/Crew/Box"]
-layout_mode = 2
-theme_type_variation = &"MutedLabel"
-text = "Record 0 W - 0 L"
-
-[node name="Spacer" type="Control" parent="Margin/Column"]
-layout_mode = 2
-size_flags_vertical = 3
-
-[node name="StoryButton" type="Button" parent="Margin/Column"]
-layout_mode = 2
-text = "Replay the story"

@@ -1,7 +1,6 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://screens/car.gd" id="1"]
-[ext_resource type="PackedScene" path="res://screens/header.tscn" id="2"]
 [ext_resource type="Script" path="res://widgets/dyno_chart.gd" id="3"]
 
 [node name="Car" type="Control"]
@@ -13,80 +12,63 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1")
 
-[node name="Margin" type="MarginContainer" parent="."]
+[node name="Scroll" type="ScrollContainer" parent="."]
+unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 32
-theme_override_constants/margin_top = 48
-theme_override_constants/margin_right = 32
-theme_override_constants/margin_bottom = 40
-
-[node name="Scroll" type="ScrollContainer" parent="Margin"]
-layout_mode = 2
 horizontal_scroll_mode = 0
 
-[node name="Column" type="VBoxContainer" parent="Margin/Scroll"]
+[node name="Column" type="VBoxContainer" parent="Scroll"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 16
 
-[node name="Header" parent="Margin/Scroll/Column" instance=ExtResource("2")]
-layout_mode = 2
-
-[node name="TopRow" type="HBoxContainer" parent="Margin/Scroll/Column"]
-layout_mode = 2
-theme_override_constants/separation = 16
-
-[node name="Back" type="Button" parent="Margin/Scroll/Column/TopRow"]
-layout_mode = 2
-text = "<"
-
-[node name="Title" type="Label" parent="Margin/Scroll/Column/TopRow"]
-layout_mode = 2
-theme_type_variation = &"TitleLabel"
-text = "THE CAR"
-
-[node name="CarName" type="Label" parent="Margin/Scroll/Column"]
+[node name="CarName" type="Label" parent="Scroll/Column"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
 text = "1996 Honda Civic DX Coupe"
 autowrap_mode = 3
 
-[node name="DynoPanel" type="PanelContainer" parent="Margin/Scroll/Column"]
+[node name="DynoPanel" type="PanelContainer" parent="Scroll/Column"]
 layout_mode = 2
 
-[node name="Dyno" type="Control" parent="Margin/Scroll/Column/DynoPanel"]
+[node name="Dyno" type="Control" parent="Scroll/Column/DynoPanel"]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 280)
 layout_mode = 2
 script = ExtResource("3")
 
-[node name="StatsPanel" type="PanelContainer" parent="Margin/Scroll/Column"]
+[node name="StatsPanel" type="PanelContainer" parent="Scroll/Column"]
 layout_mode = 2
 
-[node name="Stats" type="VBoxContainer" parent="Margin/Scroll/Column/StatsPanel"]
+[node name="Stats" type="VBoxContainer" parent="Scroll/Column/StatsPanel"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="PartsPanel" type="PanelContainer" parent="Margin/Scroll/Column"]
+[node name="PartsPanel" type="PanelContainer" parent="Scroll/Column"]
 layout_mode = 2
 
-[node name="Box" type="VBoxContainer" parent="Margin/Scroll/Column/PartsPanel"]
+[node name="Box" type="VBoxContainer" parent="Scroll/Column/PartsPanel"]
 layout_mode = 2
 
-[node name="PartsTitle" type="Label" parent="Margin/Scroll/Column/PartsPanel/Box"]
+[node name="PartsTitle" type="Label" parent="Scroll/Column/PartsPanel/Box"]
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
 text = "PARTS"
 
-[node name="PartsList" type="VBoxContainer" parent="Margin/Scroll/Column/PartsPanel/Box"]
+[node name="PartsList" type="VBoxContainer" parent="Scroll/Column/PartsPanel/Box"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="ShopButton" type="Button" parent="Margin/Scroll/Column/PartsPanel/Box"]
+[node name="ShopButton" type="Button" parent="Scroll/Column/PartsPanel/Box"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"AccentButton"
 text = "PARTS SHOP"

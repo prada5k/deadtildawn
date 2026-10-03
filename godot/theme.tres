@@ -1,64 +1,7 @@
-[gd_resource type="Theme" load_steps=14 format=3]
+[gd_resource type="Theme" format=3 uid="uid://djfy7f843pd1o"]
 
-[ext_resource type="FontFile" path="res://fonts/Rajdhani-SemiBold.ttf" id="1"]
-[ext_resource type="FontFile" path="res://fonts/Rajdhani-Bold.ttf" id="2"]
-
-[sub_resource type="StyleBoxFlat" id="panel"]
-content_margin_left = 22.0
-content_margin_top = 18.0
-content_margin_right = 22.0
-content_margin_bottom = 18.0
-bg_color = Color(0.13, 0.135, 0.15, 1)
-border_width_left = 4
-border_color = Color(0.839, 0.251, 0.271, 1)
-corner_radius_top_left = 14
-corner_radius_top_right = 14
-corner_radius_bottom_right = 14
-corner_radius_bottom_left = 14
-
-[sub_resource type="StyleBoxFlat" id="btn_normal"]
-content_margin_left = 20.0
-content_margin_top = 16.0
-content_margin_right = 20.0
-content_margin_bottom = 16.0
-bg_color = Color(0.2, 0.205, 0.225, 1)
-corner_radius_top_left = 14
-corner_radius_top_right = 14
-corner_radius_bottom_right = 14
-corner_radius_bottom_left = 14
-
-[sub_resource type="StyleBoxFlat" id="btn_hover"]
-content_margin_left = 20.0
-content_margin_top = 16.0
-content_margin_right = 20.0
-content_margin_bottom = 16.0
-bg_color = Color(0.27, 0.275, 0.3, 1)
-corner_radius_top_left = 14
-corner_radius_top_right = 14
-corner_radius_bottom_right = 14
-corner_radius_bottom_left = 14
-
-[sub_resource type="StyleBoxFlat" id="btn_pressed"]
-content_margin_left = 20.0
-content_margin_top = 16.0
-content_margin_right = 20.0
-content_margin_bottom = 16.0
-bg_color = Color(0.839, 0.251, 0.271, 1)
-corner_radius_top_left = 14
-corner_radius_top_right = 14
-corner_radius_bottom_right = 14
-corner_radius_bottom_left = 14
-
-[sub_resource type="StyleBoxFlat" id="accent_normal"]
-content_margin_left = 20.0
-content_margin_top = 18.0
-content_margin_right = 20.0
-content_margin_bottom = 18.0
-bg_color = Color(0.839, 0.251, 0.271, 1)
-corner_radius_top_left = 14
-corner_radius_top_right = 14
-corner_radius_bottom_right = 14
-corner_radius_bottom_left = 14
+[ext_resource type="FontFile" uid="uid://c7qnaixan8sul" path="res://fonts/Rajdhani-SemiBold.ttf" id="1"]
+[ext_resource type="FontFile" uid="uid://1m72gfqevtk" path="res://fonts/Rajdhani-Bold.ttf" id="2"]
 
 [sub_resource type="StyleBoxFlat" id="accent_hover"]
 content_margin_left = 20.0
@@ -66,21 +9,54 @@ content_margin_top = 18.0
 content_margin_right = 20.0
 content_margin_bottom = 18.0
 bg_color = Color(0.902, 0.38, 0.4, 1)
-corner_radius_top_left = 14
-corner_radius_top_right = 14
-corner_radius_bottom_right = 14
-corner_radius_bottom_left = 14
+corner_radius_top_left = 0
+corner_radius_top_right = 0
+corner_radius_bottom_right = 0
+corner_radius_bottom_left = 0
 
-[sub_resource type="StyleBoxFlat" id="danger_normal"]
+[sub_resource type="StyleBoxFlat" id="accent_normal"]
 content_margin_left = 20.0
-content_margin_top = 22.0
+content_margin_top = 18.0
 content_margin_right = 20.0
-content_margin_bottom = 22.0
-bg_color = Color(0.86, 0.13, 0.2, 1)
-corner_radius_top_left = 14
-corner_radius_top_right = 14
-corner_radius_bottom_right = 14
-corner_radius_bottom_left = 14
+content_margin_bottom = 18.0
+bg_color = Color(0.839, 0.251, 0.271, 1)
+corner_radius_top_left = 0
+corner_radius_top_right = 0
+corner_radius_bottom_right = 0
+corner_radius_bottom_left = 0
+
+[sub_resource type="StyleBoxFlat" id="btn_hover"]
+content_margin_left = 20.0
+content_margin_top = 16.0
+content_margin_right = 20.0
+content_margin_bottom = 16.0
+bg_color = Color(0.27, 0.275, 0.3, 1)
+corner_radius_top_left = 0
+corner_radius_top_right = 0
+corner_radius_bottom_right = 0
+corner_radius_bottom_left = 0
+
+[sub_resource type="StyleBoxFlat" id="btn_normal"]
+content_margin_left = 20.0
+content_margin_top = 16.0
+content_margin_right = 20.0
+content_margin_bottom = 16.0
+bg_color = Color(0.2, 0.205, 0.225, 1)
+corner_radius_top_left = 0
+corner_radius_top_right = 0
+corner_radius_bottom_right = 0
+corner_radius_bottom_left = 0
+
+[sub_resource type="StyleBoxFlat" id="btn_pressed"]
+content_margin_left = 20.0
+content_margin_top = 16.0
+content_margin_right = 20.0
+content_margin_bottom = 16.0
+bg_color = Color(0.839, 0.251, 0.271, 1)
+corner_radius_top_left = 0
+corner_radius_top_right = 0
+corner_radius_bottom_right = 0
+corner_radius_bottom_left = 0
 
 [sub_resource type="StyleBoxFlat" id="danger_hover"]
 content_margin_left = 20.0
@@ -88,10 +64,53 @@ content_margin_top = 22.0
 content_margin_right = 20.0
 content_margin_bottom = 22.0
 bg_color = Color(0.95, 0.25, 0.3, 1)
-corner_radius_top_left = 14
-corner_radius_top_right = 14
-corner_radius_bottom_right = 14
-corner_radius_bottom_left = 14
+corner_radius_top_left = 0
+corner_radius_top_right = 0
+corner_radius_bottom_right = 0
+corner_radius_bottom_left = 0
+
+[sub_resource type="StyleBoxFlat" id="danger_normal"]
+content_margin_left = 20.0
+content_margin_top = 22.0
+content_margin_right = 20.0
+content_margin_bottom = 22.0
+bg_color = Color(0.86, 0.13, 0.2, 1)
+corner_radius_top_left = 0
+corner_radius_top_right = 0
+corner_radius_bottom_right = 0
+corner_radius_bottom_left = 0
+
+[sub_resource type="StyleBoxFlat" id="event_day_panel"]
+content_margin_left = 4.0
+content_margin_top = 10.0
+content_margin_right = 4.0
+content_margin_bottom = 10.0
+bg_color = Color(0.2, 0.205, 0.23, 1)
+corner_radius_top_left = 0
+corner_radius_top_right = 0
+corner_radius_bottom_right = 0
+corner_radius_bottom_left = 0
+
+[sub_resource type="StyleBoxFlat" id="slider_fill"]
+content_margin_top = 6.0
+content_margin_bottom = 6.0
+bg_color = Color(0.839, 0.251, 0.271, 1)
+corner_radius_top_left = 0
+corner_radius_top_right = 0
+corner_radius_bottom_right = 0
+corner_radius_bottom_left = 0
+
+[sub_resource type="StyleBoxFlat" id="slider"]
+content_margin_top = 6.0
+content_margin_bottom = 6.0
+bg_color = Color(0.25, 0.255, 0.28, 1)
+corner_radius_top_left = 0
+corner_radius_top_right = 0
+corner_radius_bottom_right = 0
+corner_radius_bottom_left = 0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_oesku"]
+bg_color = Color(0.026566213, 0.012257386, 0.013300521, 1)
 
 [sub_resource type="StyleBoxFlat" id="selected_normal"]
 content_margin_left = 20.0
@@ -104,28 +123,10 @@ border_width_top = 3
 border_width_right = 3
 border_width_bottom = 3
 border_color = Color(0.839, 0.251, 0.271, 1)
-corner_radius_top_left = 14
-corner_radius_top_right = 14
-corner_radius_bottom_right = 14
-corner_radius_bottom_left = 14
-
-[sub_resource type="StyleBoxFlat" id="slider"]
-content_margin_top = 6.0
-content_margin_bottom = 6.0
-bg_color = Color(0.25, 0.255, 0.28, 1)
-corner_radius_top_left = 6
-corner_radius_top_right = 6
-corner_radius_bottom_right = 6
-corner_radius_bottom_left = 6
-
-[sub_resource type="StyleBoxFlat" id="slider_fill"]
-content_margin_top = 6.0
-content_margin_bottom = 6.0
-bg_color = Color(0.839, 0.251, 0.271, 1)
-corner_radius_top_left = 6
-corner_radius_top_right = 6
-corner_radius_bottom_right = 6
-corner_radius_bottom_left = 6
+corner_radius_top_left = 0
+corner_radius_top_right = 0
+corner_radius_bottom_right = 0
+corner_radius_bottom_left = 0
 
 [sub_resource type="StyleBoxFlat" id="today_panel"]
 content_margin_left = 4.0
@@ -138,76 +139,65 @@ border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
 border_color = Color(0.839, 0.251, 0.271, 1)
-corner_radius_top_left = 10
-corner_radius_top_right = 10
-corner_radius_bottom_right = 10
-corner_radius_bottom_left = 10
-
-[sub_resource type="StyleBoxFlat" id="event_day_panel"]
-content_margin_left = 4.0
-content_margin_top = 10.0
-content_margin_right = 4.0
-content_margin_bottom = 10.0
-bg_color = Color(0.2, 0.205, 0.23, 1)
-corner_radius_top_left = 10
-corner_radius_top_right = 10
-corner_radius_bottom_right = 10
-corner_radius_bottom_left = 10
+corner_radius_top_left = 0
+corner_radius_top_right = 0
+corner_radius_bottom_right = 0
+corner_radius_bottom_left = 0
 
 [resource]
 default_font = ExtResource("1")
 default_font_size = 26
+AccentButton/base_type = &"Button"
+AccentButton/colors/font_color = Color(0.102, 0.059, 0.063, 1)
+AccentButton/colors/font_focus_color = Color(0.102, 0.059, 0.063, 1)
+AccentButton/colors/font_hover_color = Color(0.102, 0.059, 0.063, 1)
+AccentButton/font_sizes/font_size = 32
+AccentButton/styles/focus = SubResource("accent_hover")
+AccentButton/styles/hover = SubResource("accent_hover")
+AccentButton/styles/normal = SubResource("accent_normal")
+AccentButton/styles/pressed = SubResource("accent_hover")
+BigNumberLabel/base_type = &"Label"
+BigNumberLabel/colors/font_color = Color(0.976, 0.957, 0.961, 1)
+BigNumberLabel/font_sizes/font_size = 44
+BigNumberLabel/fonts/font = ExtResource("2")
 Button/colors/font_color = Color(0.976, 0.957, 0.961, 1)
+Button/colors/font_focus_color = Color(1, 1, 1, 1)
 Button/colors/font_hover_color = Color(1, 1, 1, 1)
 Button/colors/font_pressed_color = Color(0.102, 0.059, 0.063, 1)
-Button/colors/font_focus_color = Color(1, 1, 1, 1)
 Button/font_sizes/font_size = 28
 Button/fonts/font = ExtResource("2")
 Button/styles/focus = SubResource("btn_hover")
 Button/styles/hover = SubResource("btn_hover")
 Button/styles/normal = SubResource("btn_normal")
 Button/styles/pressed = SubResource("btn_pressed")
-AccentButton/base_type = &"Button"
-AccentButton/colors/font_color = Color(0.102, 0.059, 0.063, 1)
-AccentButton/colors/font_hover_color = Color(0.102, 0.059, 0.063, 1)
-AccentButton/colors/font_focus_color = Color(0.102, 0.059, 0.063, 1)
-AccentButton/font_sizes/font_size = 32
-AccentButton/styles/focus = SubResource("accent_hover")
-AccentButton/styles/hover = SubResource("accent_hover")
-AccentButton/styles/normal = SubResource("accent_normal")
-AccentButton/styles/pressed = SubResource("accent_hover")
 DangerButton/base_type = &"Button"
 DangerButton/font_sizes/font_size = 44
 DangerButton/styles/focus = SubResource("danger_hover")
 DangerButton/styles/hover = SubResource("danger_hover")
 DangerButton/styles/normal = SubResource("danger_normal")
 DangerButton/styles/pressed = SubResource("danger_hover")
+EventDayPanel/base_type = &"PanelContainer"
+EventDayPanel/styles/panel = SubResource("event_day_panel")
+HSlider/styles/grabber_area = SubResource("slider_fill")
+HSlider/styles/grabber_area_highlight = SubResource("slider_fill")
+HSlider/styles/slider = SubResource("slider")
+HeadingLabel/base_type = &"Label"
+HeadingLabel/colors/font_color = Color(0.839, 0.251, 0.271, 1)
+HeadingLabel/font_sizes/font_size = 30
+HeadingLabel/fonts/font = ExtResource("2")
+Label/colors/font_color = Color(0.976, 0.957, 0.961, 1)
+MutedLabel/base_type = &"Label"
+MutedLabel/colors/font_color = Color(0.6, 0.61, 0.66, 1)
+MutedLabel/font_sizes/font_size = 22
+PanelContainer/styles/panel = SubResource("StyleBoxFlat_oesku")
 SelectedButton/base_type = &"Button"
 SelectedButton/styles/focus = SubResource("selected_normal")
 SelectedButton/styles/hover = SubResource("selected_normal")
 SelectedButton/styles/normal = SubResource("selected_normal")
 SelectedButton/styles/pressed = SubResource("selected_normal")
-Label/colors/font_color = Color(0.976, 0.957, 0.961, 1)
 TitleLabel/base_type = &"Label"
 TitleLabel/colors/font_color = Color(0.976, 0.957, 0.961, 1)
 TitleLabel/font_sizes/font_size = 56
 TitleLabel/fonts/font = ExtResource("2")
-HeadingLabel/base_type = &"Label"
-HeadingLabel/colors/font_color = Color(0.839, 0.251, 0.271, 1)
-HeadingLabel/font_sizes/font_size = 30
-HeadingLabel/fonts/font = ExtResource("2")
-MutedLabel/base_type = &"Label"
-MutedLabel/colors/font_color = Color(0.6, 0.61, 0.66, 1)
-MutedLabel/font_sizes/font_size = 22
-BigNumberLabel/base_type = &"Label"
-BigNumberLabel/colors/font_color = Color(0.976, 0.957, 0.961, 1)
-BigNumberLabel/font_sizes/font_size = 44
-BigNumberLabel/fonts/font = ExtResource("2")
-HSlider/styles/slider = SubResource("slider")
-HSlider/styles/grabber_area = SubResource("slider_fill")
-HSlider/styles/grabber_area_highlight = SubResource("slider_fill")
-PanelContainer/styles/panel = SubResource("panel")
 TodayPanel/base_type = &"PanelContainer"
 TodayPanel/styles/panel = SubResource("today_panel")
-EventDayPanel/base_type = &"PanelContainer"
-EventDayPanel/styles/panel = SubResource("event_day_panel")

@@ -136,3 +136,18 @@ def test_rolled_parts_reach_the_sim():
     worn = call("car_stats", "--parts", "interior_strip@0.0")["weight_kg"]
     mint = call("car_stats", "--parts", "interior_strip@1.0")["weight_kg"]
     assert mint < worn < call("car_stats")["weight_kg"]
+
+
+def test_street_contract_and_reproducible():
+    a = call("street", "--week", "2", "--seed", "11")
+    b = call("street", "--week", "2", "--seed", "11")
+    assert a["ok"] and a["posted_time"] == b["posted_time"] and a["name"] == b["name"]
+    assert a["track"].startswith("data/tracks/generated/open_week_2")
+    assert call("track", "--track", a["track"])["ok"]          # the road is a valid track
+
+
+def test_sources_listed_with_rep_gates_and_loot_hidden():
+    r = call("parts")
+    assert r["sources"]["swap_meet"]["rep_required"] == 30
+    assert r["sources"]["crate"]["rep_required"] == 100
+    assert "loot" not in r["sources"]

@@ -1,0 +1,19 @@
+{
+  "notes": "Random opponents for the weekly open road. Posted times are anchored to the STOCK DX on that week's road: best push level wins `best_push_odds` of the time on an average night, plus nightly randomness. Edit freely.",
+  "best_push_odds": [0.35, 0.6],
+  "nightly_spread_s": 0.12,
+  "racers": [
+    {"name": "Lalo", "car": "1991 Honda CRX Si"},
+    {"name": "Bree", "car": "1994 Mazda MX-5 Miata"},
+    {"name": "Dez", "car": "1989 Toyota Corolla GT-S (AE86)"},
+    {"name": "Monk", "car": "1997 Acura Integra GS-R"},
+    {"name": "Tavo", "car": "1993 Ford Mustang LX 5.0"},
+    {"name": "Kiki", "car": "2004 Subaru WRX"},
+    {"name": "Rook", "car": "1998 Mitsubishi Eclipse GS-T"},
+    {"name": "Paz", "car": "2002 Volkswagen GTI 1.8T"},
+    {"name": "Junebug", "car": "1990 Toyota MR2"},
+    {"name": "Static", "car": "2006 Mazdaspeed 3"},
+    {"name": "Wren", "car": "1999 Honda Prelude Type SH"},
+    {"name": "Cutter", "car": "1995 Chevrolet Camaro Z28"}
+  ]
+}

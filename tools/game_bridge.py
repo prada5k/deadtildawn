@@ -11,6 +11,8 @@ Commands:
   car_stats [--parts a,b]                 stat sheet + dyno for the car with these parts
   track     --track FILE                  layout for the briefing (no car)
   rival     --rival FILE --seed N         rival card + tonight's posted time
+  street    --week W --seed N             this week's open road (generated) + a random
+                                          street racer and their posted time
   practice  --track FILE [--parts a,b]    practice runs per push level (time + mistake flag)
   odds      --track FILE --posted T       win odds for every push level (dev tools only:
                                           the game shows practice runs, not odds)
@@ -157,7 +159,11 @@ def parts_catalog():
     from sim.parts import load_catalog
     slots, parts = load_catalog()
     car = load_car(CAR_FILE)
-    reply(slots=slots, parts=[{**p, "effects_text": part_effects(car, p)} for p in parts.values()])
+    from sim.gacha import load_pulls
+    sources = {k: {kk: v for kk, v in s.items() if kk in ("name", "price", "blurb", "rep_required", "pity")}
+               for k, s in load_pulls().items() if not s.get("hidden")}
+    reply(slots=slots, sources=sources,
+          parts=[{**p, "effects_text": part_effects(car, p)} for p in parts.values()])
 
 
 def do_pull(source, pity_json, seed):
@@ -169,6 +175,7 @@ def do_pull(source, pity_json, seed):
     sources = load_pulls()
     if source not in sources:
         raise ValueError(f"unknown source {source!r}")
+    # (rep and cash gates are enforced by the game, which owns the save)
     _, parts = load_catalog()
     pity = json.loads(pity_json or "{}")
     pid, q, new_pity = pull(source, sources, parts, pity, random.Random(seed))
@@ -256,6 +263,42 @@ def rival(rival_file, seed):
           posted_time=round(posted, 3), seed=seed, cached=cached)
 
 
+OPEN_ROAD_STYLES = ["technical", "balanced", "flowing"]
+OPEN_ROAD_DIR = ROOT / "data" / "tracks" / "generated"
+
+
+def open_road(week):
+    """This week's open road: generated from the week number (same week = same
+    road), style rotating technical -> balanced -> flowing. Writes the pace
+    notes to a track file once and returns its repo-relative path."""
+    from sim.trackgen import generate
+    style = OPEN_ROAD_STYLES[(week - 1) % len(OPEN_ROAD_STYLES)]
+    path = OPEN_ROAD_DIR / f"open_week_{week}.txt"
+    if not path.exists():
+        g = generate(1000 + week, style)
+        OPEN_ROAD_DIR.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"# Open road, week {week}: {style} (sim/trackgen.py seed {1000 + week})\n"
+                        f"{g.notes}\n", encoding="utf-8")
+    return path.relative_to(ROOT).as_posix(), style
+
+
+def street(week, seed):
+    """A random street racer on this week's open road. Like the rival, the
+    posted time is anchored to the STOCK car on this road."""
+    import random
+    track, style = open_road(week)
+    spec = json.loads((ROOT / "data" / "street_racers.json").read_text(encoding="utf-8"))
+    rng = random.Random(seed)
+    racer = rng.choice(spec["racers"])
+    target = rng.uniform(*spec["best_push_odds"])        # some nights are easier than others
+    data, cached = distributions(track)
+    base = min(quantile(d["times"], target) for d in data.values())
+    posted = base + rng.gauss(0.0, spec["nightly_spread_s"])
+    reply(id="street", name=racer["name"], car=racer["car"], club=f"Open road, {style}",
+          track=track, payout="even", base_time=round(base, 3), posted_time=round(posted, 3),
+          seed=seed, week=week, style=style, cached=cached)
+
+
 def odds(track_file, posted):
     data, cached = distributions(track_file)
     out = {}
@@ -300,7 +343,9 @@ def race(track_file, push, seed, out_file, part_ids=()):
 
 def main():
     ap = argparse.ArgumentParser(description="deadtildawn game bridge")
-    ap.add_argument("command", choices=["parts", "pull", "car_stats", "track", "rival", "practice", "odds", "race"])
+    ap.add_argument("command", choices=["parts", "pull", "car_stats", "track", "rival", "street",
+                                        "practice", "odds", "race"])
+    ap.add_argument("--week", type=int)
     ap.add_argument("--source")
     ap.add_argument("--pity", default="{}")
     ap.add_argument("--parts", default="", help="installed part ids, comma-separated")
@@ -323,6 +368,8 @@ def main():
             track(a.track)
         elif a.command == "rival":
             rival(a.rival, a.seed)
+        elif a.command == "street":
+            street(a.week, a.seed)
         elif a.command == "practice":
             practice(a.track, part_ids)
         elif a.command == "odds":

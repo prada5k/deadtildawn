@@ -22,18 +22,29 @@ const WarehouseScene := preload("res://screens/warehouse.tscn")
 const CarScene := preload("res://screens/car.tscn")
 const CalendarScene := preload("res://screens/calendar.tscn")
 const ShopScene := preload("res://screens/shop.tscn")
+const ShellScene := preload("res://screens/shell.tscn")
+const LOCATIONS := {
+	"warehouse": "THE WAREHOUSE // TERMINAL_01",
+	"car": "THE DX // CHASSIS_CONFIG",
+	"calendar": "THE CALENDAR // TIMELINE",
+	"shop": "PARTS // JUNK_SWAP_COUNTER",
+}
 
 const SAVE_PATH := "user://save.json"
-const SAVE_VERSION := 3
+const SAVE_VERSION := 4
 const START_CASH := 250
 const MIN_BUY_IN := 100
 const WAGER_STEP := 10
 const REP_WIN := 10
 const SKIP_REP_COST := 5 * REP_WIN   # chicken-out fee: five wins' worth of rep
-const LOOT_CHANCE := 0.05            # chance a win also drops a random part
-const LOOT_WEIGHTS := {"common": 50, "rare": 30, "epic": 15, "legendary": 5}
+const LOOT_CHANCE := 0.05            # chance a win also drops an unopened part ("loot" pull)
+const SCRAP_RATE := 0.25             # selling a spare: price x rate x (0.5 + quality)
+const NEW_QUALITY := 0.5             # shop parts are new in box: exactly the catalog spec
 const RIVAL_FILE := "data/rivals/zed_280z.json"
 const PUSH_ORDER := ["safe", "normal", "hard", "flat_out"]
+const RARITY_COLORS := {
+	"common": Color(0.75, 0.76, 0.8), "rare": Color(0.35, 0.6, 1.0),
+	"epic": Color(0.72, 0.42, 1.0), "legendary": Color(1.0, 0.78, 0.25)}
 
 # Calendar: a week is 7 days; race nights fall on these days (0 = Monday)
 const DAY_NAMES := ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
@@ -45,8 +56,11 @@ var track_info := {}
 var practice := {}
 var catalog := {}          # bridge "parts" reply (slots + parts with exact effects)
 var shop_message := ""
+var pending_race := {}     # race reply + result, held while a loot pull resolves
 var bridge: Node
-var screen: Control        # current UI screen
+var screen: Control        # current UI screen (the shell while in the hub)
+var shell: Control         # persistent hub shell (top rail, ribbon, bottom nav)
+var hub_content: Control   # the hub screen currently inside the shell
 var footer: VBoxContainer  # pinned area at the bottom of scrolling screens
 var viewer: Node           # replay viewer while racing
 var choice := {"push": "normal", "wager": MIN_BUY_IN}
@@ -83,7 +97,7 @@ func _ready() -> void:
 func new_state() -> Dictionary:
 	return {"version": SAVE_VERSION, "cash": START_CASH, "rep": 0, "week": 1, "day": 0,
 		"history": [], "night": {}, "intro_seen": false,
-		"owned_parts": [], "installed": {}}
+		"inventory": [], "installed": {}, "pity": {}, "next_uid": 1}
 
 
 func load_game() -> void:
@@ -109,6 +123,27 @@ func migrate(data: Dictionary) -> Dictionary:
 		data["owned_parts"] = []
 		data["installed"] = {}
 		v = 3
+	if v < 4:                        # v3 -> v4: every part becomes a rolled instance
+		var inv := []
+		var uid_of := {}
+		var n := 1
+		for id in data.get("owned_parts", []):
+			var uid := "p%d" % n
+			n += 1
+			inv.append({"uid": uid, "part": id, "quality": NEW_QUALITY, "revealed": true,
+				"source": "shop"})
+			uid_of[id] = uid
+		var installed := {}
+		for slot in data.get("installed", {}):
+			var id: String = data["installed"][slot]
+			if uid_of.has(id):
+				installed[slot] = uid_of[id]
+		data.erase("owned_parts")
+		data["inventory"] = inv
+		data["installed"] = installed
+		data["pity"] = {}
+		data["next_uid"] = n
+		v = 4
 	data["version"] = v
 	return data
 
@@ -127,12 +162,16 @@ func reset_game() -> void:
 
 # ------------------------------------------------------------------ calendar
 
-## Events in a given week: [{"day": int, "type": "race", "title": String}]
-func events_for_week(_week: int) -> Array:
-	var out := []
-	for d in RACE_DAYS:
-		out.append({"day": d, "type": "race", "title": "Race night vs Zed (280Z)"})
-	return out
+## Events in a given week: [{"day", "type", "title"}]. Friday: the rival on
+## his home road. Saturday: this week's generated open road vs a street racer.
+const OPEN_STYLES := ["technical", "balanced", "flowing"]
+
+
+func events_for_week(week: int) -> Array:
+	return [
+		{"day": 4, "type": "rival", "title": "Zed (280Z) on his home road"},
+		{"day": 5, "type": "open", "title": "Open road (%s), street racer" % OPEN_STYLES[(week - 1) % 3]},
+	]
 
 
 func when(week: int, day: int) -> String:
@@ -190,17 +229,26 @@ func clear_screen() -> void:
 	if screen:
 		screen.queue_free()
 		screen = null
+	shell = null
+	hub_content = null
 	footer = null
 
 
-## Show an editor-built hub scene and route its go(target) signal.
-func open_scene(packed: PackedScene) -> Control:
-	clear_screen()
-	var s: Control = packed.instantiate()
-	add_child(s)
-	s.go.connect(_go)
-	screen = s
-	return s
+## Show a hub screen inside the persistent shell. The shell is created once;
+## moving between hub tabs swaps only its content slot.
+func open_hub(packed: PackedScene, tab: String) -> Control:
+	if shell == null:
+		clear_screen()
+		shell = ShellScene.instantiate()
+		add_child(shell)
+		shell.go.connect(_go)
+		screen = shell
+	shell.set_stats(int(state["cash"]), int(state["rep"]), MIN_BUY_IN)
+	shell.set_location(LOCATIONS[tab], tab)
+	hub_content = packed.instantiate()
+	hub_content.go.connect(_go)
+	shell.set_content(hub_content)
+	return hub_content
 
 
 func _go(target: String) -> void:
@@ -285,13 +333,14 @@ func show_warehouse() -> void:
 	var ev := next_event()
 	var record := wins_losses()
 	var info := common_info()
-	info["event_title"] = "%s: RACE NIGHT" % when(ev["week"], ev["day"])
+	info["event_title"] = "%s: %s" % [when(ev["week"], ev["day"]),
+		"RIVAL NIGHT" if ev["type"] == "rival" else "OPEN ROAD"]
 	info["event_detail"] = "%s. Minimum buy-in %s. Today is %s." % [
 		ev["title"], UI.money(MIN_BUY_IN), when(state["week"], state["day"]).to_lower()]
 	info["wins"] = record.x
 	info["losses"] = record.y
 	info["min_buy_in_text"] = UI.money(MIN_BUY_IN)
-	open_scene(WarehouseScene).setup(info)
+	open_hub(WarehouseScene, "warehouse").setup(info)
 
 
 func show_car() -> void:
@@ -305,13 +354,16 @@ func show_car() -> void:
 		after_car_stats = "car"
 		bridge.request("car_stats", ["car_stats"] + parts_args())
 		return
+	# Dropdown options per slot: every revealed part you own, with its quality
 	var options := {}
-	for p in catalog["parts"]:
-		if p["id"] in state["owned_parts"]:
-			if not options.has(p["slot"]):
-				options[p["slot"]] = []
-			options[p["slot"]].append([p["id"], p["name"]])
-	var car: Control = open_scene(CarScene)
+	for inst in state["inventory"]:
+		if not inst["revealed"]:
+			continue
+		var p := part_by_id(inst["part"])
+		if not options.has(p["slot"]):
+			options[p["slot"]] = []
+		options[p["slot"]].append([inst["uid"], "%s  (Q %d%%)" % [p["name"], quality_pct(inst)]])
+	var car: Control = open_hub(CarScene, "car")
 	car.part_changed.connect(install_part)
 	car.setup(common_info(), car_stats,
 		{"slots": catalog["slots"], "options": options, "installed": state["installed"]})
@@ -319,22 +371,30 @@ func show_car() -> void:
 
 func show_shop() -> void:
 	if catalog.is_empty():
-		show_message("PARTS SHOP", "Checking the parts shelf...")
+		show_message("PARTS", "Checking the parts shelf...")
 		after_catalog = "shop"
 		bridge.request("parts", ["parts"])
 		return
-	var shop: Control = open_scene(ShopScene)
+	var shop: Control = open_hub(ShopScene, "shop")
 	shop.buy.connect(buy_part)
-	shop.setup(common_info(), catalog, state["owned_parts"], state["installed"], shop_message)
+	shop.pull.connect(do_pull)
+	shop.sell.connect(sell_instance)
+	shop.reveal.connect(func(uid): show_reveal(instance(uid)))
+	shop.setup(common_info(), catalog, state["inventory"], state["installed"],
+		state["pity"], shop_message)
 	shop_message = ""
 
 
-## Installed part ids, for every sim call: the car being simulated is the car
-## in the warehouse.
+## Installed parts for every sim call, as id@quality: the car being simulated
+## is the exact car in the warehouse, rolls included.
 func parts_args() -> Array:
-	var ids: Array = state["installed"].values()
-	ids.sort()
-	return [] if ids.is_empty() else ["--parts", ",".join(ids)]
+	var entries := []
+	for slot in state["installed"]:
+		var inst := instance(state["installed"][slot])
+		if not inst.is_empty():
+			entries.append("%s@%.4f" % [inst["part"], float(inst["quality"])])
+	entries.sort()
+	return [] if entries.is_empty() else ["--parts", ",".join(entries)]
 
 
 func part_by_id(id: String) -> Dictionary:
@@ -344,57 +404,140 @@ func part_by_id(id: String) -> Dictionary:
 	return {}
 
 
-## Buy and install. The shop won't spend below the race buy-in (otherwise one
-## purchase could leave you unable to race at all).
+func instance(uid: String) -> Dictionary:
+	for inst in state["inventory"]:
+		if inst["uid"] == uid:
+			return inst
+	return {}
+
+
+func quality_pct(inst: Dictionary) -> int:
+	return int(round(float(inst["quality"]) * 100))
+
+
+func add_instance(part_id: String, quality: float, revealed: bool, source: String,
+		effects_text := []) -> Dictionary:
+	var inst := {"uid": "p%d" % int(state["next_uid"]), "part": part_id, "quality": quality,
+		"revealed": revealed, "source": source, "effects_text": effects_text}
+	state["next_uid"] = int(state["next_uid"]) + 1
+	state["inventory"].append(inst)
+	return inst
+
+
+func can_spend(amount: int) -> bool:
+	## The game never lets you spend below the race buy-in (soft-lock guard).
+	return int(state["cash"]) - amount >= MIN_BUY_IN
+
+
+## The counter sells commons, new in box (exactly the catalog spec).
 func buy_part(id: String) -> void:
 	var p := part_by_id(id)
-	if p.is_empty() or id in state["owned_parts"]:
+	if p.is_empty() or p["rarity"] != "common":
 		return
-	if int(state["cash"]) - int(p["price"]) < MIN_BUY_IN:
+	if not can_spend(int(p["price"])):
 		shop_message = "Can't: that would leave less than the %s buy-in." % UI.money(MIN_BUY_IN)
 		show_shop()
 		return
 	state["cash"] = int(state["cash"]) - int(p["price"])
-	state["owned_parts"].append(id)
+	var inst := add_instance(id, NEW_QUALITY, true, "shop", p["effects_text"])
 	shop_message = "Bought and installed: %s." % p["name"]
-	install_part(p["slot"], id, false)
+	install_part(p["slot"], inst["uid"], false)
+	show_shop()
+
+
+## Pull from an in-world source: rep gate, cash, then the bridge rolls it.
+func do_pull(source: String) -> void:
+	var src: Dictionary = catalog["sources"][source]
+	if int(state["rep"]) < int(src["rep_required"]):
+		shop_message = "%s needs %d rep." % [src["name"], int(src["rep_required"])]
+		show_shop()
+		return
+	if not can_spend(int(src["price"])):
+		shop_message = "Can't: that would leave less than the %s buy-in." % UI.money(MIN_BUY_IN)
+		show_shop()
+		return
+	state["cash"] = int(state["cash"]) - int(src["price"])
+	save_game()                                   # paid: a crash or quit can't refund it
+	show_message("PULLING", "%s..." % src["name"])
+	bridge.request("pull", ["pull", "--source", source, "--seed", str(randi() % 1000000),
+		"--pity", JSON.stringify(state["pity"])])
+
+
+func on_pulled(data: Dictionary) -> void:
+	state["pity"] = data["pity"]
+	var inst := add_instance(data["part"], float(data["quality"]), false, data["source"],
+		data["effects_text"])
+	save_game()
+	show_reveal(inst)
+
+
+## The dyno reveal: rarity and name first, numbers hidden until you dyno it.
+func show_reveal(inst: Dictionary, revealed := false) -> void:
+	var p := part_by_id(inst["part"])
+	var col := new_screen()
+	var src_name: String = catalog["sources"].get(inst["source"], {}).get("name", "Loot drop") \
+		if inst["source"] != "shop" else "Parts counter"
+	UI.label(col, "FROM: %s" % src_name.to_upper(), "HeadingLabel")
+	UI.spacer(col, false).custom_minimum_size.y = 20
+	var rarity := UI.label(col, str(p["rarity"]).to_upper(), "TitleLabel", RARITY_COLORS[p["rarity"]])
+	rarity.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var name := UI.label(col, p["name"], "BigNumberLabel")
+	name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	UI.label(col, str(catalog["slots"][p["slot"]]), "MutedLabel").horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var box := UI.vbox(UI.panel(col), 6)
+	if revealed or inst["revealed"]:
+		inst["revealed"] = true
+		save_game()
+		var q := UI.label(box, "QUALITY %d%%" % quality_pct(inst), "TitleLabel",
+			UI.GOOD if float(inst["quality"]) >= 0.5 else UI.BAD)
+		q.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		for line in inst["effects_text"]:
+			UI.label(box, line).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		UI.label(box, p["blurb"], "MutedLabel").horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var fade := create_tween()
+		box.modulate.a = 0.0
+		fade.tween_property(box, "modulate:a", 1.0, 0.6)
+		var row := UI.hbox(footer, 10)
+		UI.button(row, "Keep as spare", show_shop)
+		var inst_btn := UI.button(row, "INSTALL", func():
+			install_part(p["slot"], inst["uid"], false)
+			shop_message = "Installed: %s (Q %d%%)." % [p["name"], quality_pct(inst)]
+			show_shop(), "AccentButton")
+		inst_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	else:
+		var hidden := UI.label(box, "? ? ?", "TitleLabel")
+		hidden.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		UI.label(box, "Quality and exact specs unknown until it's on the dyno.", "MutedLabel")
+		UI.button(footer, "DYNO IT", func(): show_reveal(inst, true), "DangerButton")
+		UI.button(footer, "Later", show_shop)
+
+
+## Sell a spare for scrap. Installed parts must be swapped out first.
+func sell_instance(uid: String) -> void:
+	var inst := instance(uid)
+	if inst.is_empty() or uid in state["installed"].values():
+		return
+	var p := part_by_id(inst["part"])
+	var value := int(round(float(p["price"]) * SCRAP_RATE * (0.5 + float(inst["quality"]))))
+	state["cash"] = int(state["cash"]) + value
+	state["inventory"].erase(inst)
+	save_game()
+	shop_message = "Sold %s for %s." % [p["name"], UI.money(value)]
 	show_shop()
 
 
 ## Swap what's in a slot ("" = back to stock). The car changed, so its stats
 ## and practice runs are stale.
-func install_part(slot: String, id: String, refresh := true) -> void:
-	if id == "":
+func install_part(slot: String, uid: String, refresh := true) -> void:
+	if uid == "":
 		state["installed"].erase(slot)
 	else:
-		state["installed"][slot] = id
+		state["installed"][slot] = uid
 	car_stats = {}
 	practice = {}
 	save_game()
 	if refresh:
 		show_car()
-
-
-## A win has a small chance to drop a random part you don't own (by rarity).
-func roll_loot() -> String:
-	if catalog.is_empty() or randf() >= LOOT_CHANCE:
-		return ""
-	var pool := []
-	var total := 0
-	for p in catalog["parts"]:
-		if not p["id"] in state["owned_parts"]:
-			var w: int = LOOT_WEIGHTS[p["rarity"]]
-			pool.append([p["id"], w])
-			total += w
-	if total == 0:
-		return ""
-	var pick := randi() % total
-	for entry in pool:
-		pick -= entry[1]
-		if pick < 0:
-			state["owned_parts"].append(entry[0])
-			return entry[0]
-	return ""
 
 
 func show_calendar() -> void:
@@ -404,7 +547,7 @@ func show_calendar() -> void:
 	info["day"] = int(state["day"])
 	var week_events := {}
 	for e in events_for_week(week):
-		week_events[int(e["day"])] = "RACE"
+		week_events[int(e["day"])] = "RIVAL" if e["type"] == "rival" else "OPEN"
 	info["week_events"] = week_events
 	var upcoming := []
 	for e in upcoming_events(5):
@@ -420,7 +563,7 @@ func show_calendar() -> void:
 			past.append([r.get("when", "-"), "vs %s" % r["rival"],
 				"%s  %+d" % ["W" if r["won"] else "L", int(r["cash_change"])]])
 	info["past"] = past
-	open_scene(CalendarScene).setup(info)
+	open_hub(CalendarScene, "calendar").setup(info)
 
 
 func wins_losses() -> Vector2i:
@@ -444,7 +587,11 @@ func show_briefing() -> void:
 	# Draw the night's rival time once and save it (no rerolling by restarting)
 	if state["night"].is_empty():
 		show_message("WORD ON THE STREET", "Finding out who's running tonight.\n\nThe first time on a road, Faba runs practice laps at every push level. Give it 15-30 seconds.")
-		bridge.request("rival", ["rival", "--rival", RIVAL_FILE, "--seed", str(randi() % 1000000)])
+		var seed := str(randi() % 1000000)
+		if ev["type"] == "open":
+			bridge.request("night", ["street", "--week", str(ev["week"]), "--seed", seed])
+		else:
+			bridge.request("night", ["rival", "--rival", RIVAL_FILE, "--seed", seed])
 		return
 	if track_info.is_empty():
 		show_message("SCOUTING", "Driving the road in daylight.")
@@ -564,7 +711,7 @@ func apply_result(r: Dictionary) -> Dictionary:
 		"wager": wager, "cash_change": wager if won else -wager,
 		"rep_change": REP_WIN if won else 0, "mistakes": r["mistakes"],
 		"practice_beat": beat.x, "practice_runs": beat.y,
-		"parts": state["installed"].values(), "loot": roll_loot() if won else ""}
+		"parts": parts_args(), "loot": ""}
 	state["cash"] = int(state["cash"]) + int(result["cash_change"])
 	state["rep"] = int(state["rep"]) + int(result["rep_change"])
 	state["history"].append(result)
@@ -610,8 +757,8 @@ func show_results(result: Dictionary) -> void:
 		var loot := UI.vbox(UI.panel(col), 4)
 		UI.label(loot, "LOOT", "HeadingLabel")
 		var lp := part_by_id(result["loot"])
-		UI.label(loot, "Zed's crew paid up with more than cash: %s (%s). It's in the warehouse." % [
-			lp.get("name", result["loot"]), str(lp.get("rarity", "")).to_upper()])
+		UI.label(loot, "%s paid up with more than cash: an unopened %s %s. Dyno it in Parts." % [
+			result["rival"], str(lp.get("rarity", "")), lp.get("name", result["loot"])])
 	UI.button(footer, "BACK TO THE WAREHOUSE", show_warehouse, "AccentButton")
 
 
@@ -636,12 +783,23 @@ func _on_reply(tag: String, data: Dictionary) -> void:
 		"parts":
 			catalog = data
 			_go(after_catalog)
-		"rival":
+		"night":
 			data["event"] = event_key(next_event())
 			state["night"] = data
 			save_game()
-			track_info = {}
+			track_info = {}            # a new night can be a new road:
+			practice = {}              # drop the old road's map and practice runs
 			show_briefing()
+		"pull":
+			on_pulled(data)
+		"loot":
+			var r: Dictionary = pending_race["result"]
+			var inst := add_instance(data["part"], float(data["quality"]), false, "loot",
+				data["effects_text"])
+			r["loot"] = inst["part"]
+			state["history"][-1]["loot"] = inst["part"]
+			save_game()
+			show_race(pending_race["replay"], r)
 		"track":
 			track_info = data
 			show_briefing()
@@ -650,7 +808,12 @@ func _on_reply(tag: String, data: Dictionary) -> void:
 			show_briefing()
 		"race":
 			var result := apply_result(data)
-			show_race(data["replay"], result)
+			if result["won"] and randf() < LOOT_CHANCE:
+				# The rival paid up in parts too: roll it before the replay starts
+				pending_race = {"replay": data["replay"], "result": result}
+				bridge.request("loot", ["pull", "--source", "loot", "--seed", str(randi() % 1000000)])
+			else:
+				show_race(data["replay"], result)
 
 
 # ------------------------------------------------------------------ self-test
@@ -687,14 +850,34 @@ func game_test() -> void:
 	catalog = (await bridge.replied)[1]
 	print("GAMETEST catalog: %d parts in %d slots" % [catalog["parts"].size(), catalog["slots"].size()])
 	state["cash"] = 1000
+	state["rep"] = 0
 	shop_message = ""
 	buy_part("interior_strip")
-	buy_part("tires_r_comp")                 # $1600: must be refused (cash)
-	print("GAMETEST bought: owned %s, installed %s, cash %d" % [state["owned_parts"], state["installed"], state["cash"]])
+	buy_part("cams_race")                    # not a common: the counter won't sell it
+	print("GAMETEST bought: %s, installed %s, cash %d" % [
+		state["inventory"].map(func(i): return i["part"]), state["installed"], state["cash"]])
+	state["cash"] = 1000
+	do_pull("crate")                         # needs 100 rep: refused
+	print("GAMETEST crate at 0 rep refused: cash still %d" % state["cash"])
+	bridge.request("pull", ["pull", "--source", "junkyard", "--seed", "3", "--pity", "{}"])
+	var pr: Dictionary = (await bridge.replied)[1]
+	state["pity"] = pr["pity"]
+	var inst := add_instance(pr["part"], float(pr["quality"]), false, "junkyard", pr["effects_text"])
+	print("GAMETEST pulled: %s (%s), quality %.2f, pity %s" % [pr["name"], pr["rarity"], pr["quality"], pr["pity"]])
+	install_part(pr["slot"], inst["uid"], false)
 	print("GAMETEST parts args: %s" % [parts_args()])
 	bridge.request("car_stats", ["car_stats"] + parts_args())
 	r = await bridge.replied
 	print("GAMETEST car with parts: %d kg (stock 1112)" % r[1]["weight_kg"])
+	install_part(pr["slot"], "", false)
+	var cash_before := int(state["cash"])
+	sell_instance(inst["uid"])
+	print("GAMETEST sold spare: +%d cash" % (int(state["cash"]) - cash_before))
+	print("GAMETEST migrate v3: %s" % [migrate({"version": 3, "cash": 1, "rep": 0, "week": 1, "day": 0,
+		"history": [], "night": {}, "owned_parts": ["rsb_19"], "installed": {"rear_sway": "rsb_19"}})])
+	bridge.request("night", ["street", "--week", "3", "--seed", "8"])
+	r = await bridge.replied
+	print("GAMETEST open road week 3: %s in a %s on %s, posted %.2f" % [r[1]["name"], r[1]["car"], r[1]["style"], r[1]["posted_time"]])
 	print("GAMETEST migrate v2: %s" % [migrate({"version": 2, "cash": 1, "rep": 0, "week": 1, "day": 0, "history": [], "night": {}}).keys()])
 	state["rep"] = 10
 	skip_night()
@@ -724,8 +907,12 @@ func game_shots(folder: String) -> void:
 	bridge.request("parts", ["parts"])
 	catalog = (await bridge.replied)[1]
 	state["cash"] = 900
-	state["owned_parts"] = ["interior_strip", "rsb_19", "shifter_short"]
-	state["installed"] = {"interior": "interior_strip", "rear_sway": "rsb_19"}
+	state["rep"] = 40
+	var a := add_instance("interior_strip", 0.5, true, "shop", part_by_id("interior_strip")["effects_text"])
+	var b := add_instance("rsb_19", 0.5, true, "shop", part_by_id("rsb_19")["effects_text"])
+	add_instance("shifter_short", 0.71, true, "junkyard", ["shift time 0.40 s -> 0.31 s"])
+	add_instance("cams_street", 0.62, false, "swap_meet", ["+5.9 hp peak"])
+	state["installed"] = {"interior": a["uid"], "rear_sway": b["uid"]}
 	shop_message = "Bought and installed: Rear sway bar 19 mm."
 	show_shop()
 	await snap(folder, "1a_shop")
@@ -733,10 +920,19 @@ func game_shots(folder: String) -> void:
 	car_stats = (await bridge.replied)[1]
 	show_car()
 	await snap(folder, "1b_car")
-	screen.get_node("Margin/Scroll").scroll_vertical = 900
+	hub_content.get_node("%Scroll").scroll_vertical = 900
 	await snap(folder, "1b_car_parts")
+	bridge.request("pull", ["pull", "--source", "swap_meet", "--seed", "4", "--pity", "{}"])
+	var pr: Dictionary = (await bridge.replied)[1]
+	var pulled := add_instance(pr["part"], float(pr["quality"]), false, "swap_meet", pr["effects_text"])
+	show_reveal(pulled)
+	await snap(folder, "1d_pull")
+	show_reveal(pulled, true)
+	await get_tree().create_timer(0.8).timeout
+	await snap(folder, "1e_dyno_reveal")
 	state["cash"] = 250
-	state["owned_parts"] = []
+	state["rep"] = 0
+	state["inventory"] = []
 	state["installed"] = {}
 	state["history"] = [{"when": "FRI, WEEK 1", "rival": "Zed", "won": true, "cash_change": 150},
 		{"when": "SAT, WEEK 1", "rival": "Zed", "won": false, "cash_change": -100}]
