@@ -83,3 +83,20 @@ def test_cache_key_changes_when_sim_code_changes(tmp_path, monkeypatch):
     text = (ROOT / "tools" / "game_bridge.py").read_text(encoding="utf-8")
     assert "sim_code" in text and "SIM_VERSION" not in text
     assert hashlib.sha256(src.encode()).hexdigest() != hashlib.sha256((src + " ").encode()).hexdigest()
+
+
+def test_practice_contract():
+    r = call("practice", "--track", TRACK)
+    assert r["ok"] and r["runs"] == 60
+    for push, d in r["push_levels"].items():
+        assert len(d["times"]) == len(d["mistakes"]) == 60
+        assert all(isinstance(m, bool) for m in d["mistakes"])
+    assert "win" not in str(r)                 # the game gets no percentages
+
+
+def test_car_stats_dyno_curve():
+    r = call("car_stats")
+    rpm = [p[0] for p in r["dyno"]]
+    assert rpm[0] == 1000 and rpm[-1] == 6800
+    peak_tq = max(p[1] for p in r["dyno"])
+    assert peak_tq == pytest.approx(103, abs=1.5)          # spec: 103 lb-ft

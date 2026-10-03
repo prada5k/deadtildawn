@@ -17,7 +17,8 @@ The physics simulator is also my Physics 3 showcase project (due ~early December
 
 - **Python (`sim/`) is the physics engine and the reference implementation.** A lap run returns telemetry. Any future vehicle model must honor that interface.
 - **Godot (`godot/`) is the game.** `game.tscn` (game.gd) runs the vertical slice; `main.tscn` (main.gd) is the replay viewer, used standalone or embedded in the race screen. Godot does no physics: it calls `tools/game_bridge.py` (Python) in a background thread (`bridge.gd`) and reads one JSON reply per command (versioned contract, tested in `tests/test_bridge.py`). Replays use the `deadtildawn-replay` format (`tools/export_replay.py`, tested in `tests/test_tools.py`).
-- **Menus:** built in code in `game.gd`, but ALL styling lives in `godot/theme.tres` (Rajdhani font; type variations TitleLabel, HeadingLabel, MutedLabel, BigNumberLabel, AccentButton, DangerButton, SelectedButton). Never hard-code colors or sizes in screens; add a theme variation. Spire is learning the editor: prefer editor-editable scenes (`.tscn`) for new screens (see `intro.tscn`, `docs/LEARNING_GODOT.md`). Labels only wrap inside columns (the wrap trap); a screen's main action goes in the pinned footer.
+- **Hub screens are editor scenes** in `godot/screens/` (warehouse, car, calendar, plus a shared `header.tscn` instanced into each). Layout lives in the `.tscn` (Spire edits these in the editor); each script only fills in data and emits `go(target)`, which `game.gd` routes. Keep node names stable or update the script's paths. Race-night screens (meeting, results) are still code-built in `game.gd`.
+- **Menus:** ALL styling lives in `godot/theme.tres` (Rajdhani font; type variations TitleLabel, HeadingLabel, MutedLabel, BigNumberLabel, AccentButton, DangerButton, SelectedButton, TodayPanel, EventDayPanel). Never hard-code colors or sizes in screens; add a theme variation. Spire is learning the editor: prefer editor-editable scenes (`.tscn`) for new screens (see `intro.tscn`, `docs/LEARNING_GODOT.md`). Labels only wrap inside columns (the wrap trap); a screen's main action goes in the pinned footer.
 - **Viewer cameras:** Overview, Follow, Chase (car always points up, world rotates; needs `Camera2D.ignore_rotation = false`), TV (corner cameras; follows the car between them). Touch buttons for camera, pause, speed.
 - **Odds and races use identical solver settings** (`GAME_DS = 0.5` m in the bridge) or the odds lie. Monte Carlo distributions are cached in `runs/cache/`, keyed by car + track + settings + a hash of the sim source code (any sim change invalidates old odds automatically).
 - **Anti save-scum:** tonight's rival posted time is drawn once and saved; race results are applied and saved before the replay plays.
@@ -91,13 +92,19 @@ Sim mass 1112 kg. Redline 6500, fuel cut 6800. Rear drums, no ABS. All graded va
 - [x] Milestone D: driver model (push levels, sigma 0.02, physical mistakes, slow in / fast out, Monte Carlo odds)
 - [x] Vertical slice v0.1: garage, briefing + driver meeting (odds per push, wager), Send It, broadcast replay vs rival time, results, save, broke screen
 - [x] Portrait UI pass: theme + Rajdhani font, intro story scene, warehouse HQ, pinned-footer driver meeting, chase camera, touch camera controls
-- [ ] Next: parts and upgrades (the way out of the money hole), then the rival ladder
+- [x] Hub scenes (warehouse, car with dyno chart, calendar), weekly calendar (race nights Fri + Sat, skip allowed), save migration v1 -> v2, practice-run dot chart replaces win % (revealed after the race as "your read")
+- [ ] Spire: UI styling pass (colors, buttons, layout of the hub scenes)
+- [ ] Next: parts and loot system (the way out of the money hole), then the rival ladder
 - [ ] Showcase materials (poster/slides, demo)
 - [ ] Phase 3: game systems design; Phase 4: Godot game + GDScript port; Phase 5: iPhone
 
 ## Game scope
 
 **Loop:** pre-race (inspect track profile, install parts, tune sliders, set wager, "Send It") -> race (broadcast replay + live HUD) -> results (cash, rep).
+
+**Driver meeting design:** no win percentages. The player reads a practice-run chart (60 dots per push level vs the rival's posted-time line; red = mistake runs; axis zoomed on the decision zone, slow outliers pinned as edge arrows). After the race, results reveal how many practice runs beat the rival ("your read") so players can calibrate. `odds` in the bridge is for dev tools only.
+
+**Calendar:** week + day (Mon-Sun). Race nights Fri and Sat vs the current rival; other days empty until parts/repairs. Skipping a night is allowed (open question: should it cost rep?). Saves carry a version and are migrated step by step (`migrate()` in game.gd); never wipe a save on a format change.
 
 **Economy (slice):** start $250, minimum buy-in $100, even-money payouts vs single racers, +10 rep per win. Boss battles (later): the lower-rep underdog puts up more. Rival difficulty: posted time set so the player's best push level wins ~45% on an average night, plus nightly randomness (0.10 s). At even money that is a losing bet without upgrades: intentional pressure. Goal: hard, every win should feel earned.
 

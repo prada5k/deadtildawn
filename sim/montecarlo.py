@@ -11,7 +11,7 @@ from .lap import run_lap
 class Distribution:
     push: str
     times: list           # s, one per run
-    mistake_runs: int     # runs with at least one mistake
+    mistakes: list        # bool per run: at least one mistake in that run
 
     @property
     def mean(self):
@@ -20,6 +20,10 @@ class Distribution:
     @property
     def stdev(self):
         return statistics.stdev(self.times) if len(self.times) > 1 else 0.0
+
+    @property
+    def mistake_runs(self):
+        return sum(self.mistakes)
 
     @property
     def mistake_rate(self):
@@ -33,9 +37,9 @@ class Distribution:
 def run_many(car, grid, driver, n, seed0=0, temp_start=None):
     """n runs with seeds seed0 .. seed0 + n - 1 (reproducible)."""
     kwargs = {} if temp_start is None else {"temp_start": temp_start}
-    times, mistakes = [], 0
+    times, mistakes = [], []
     for seed in range(seed0, seed0 + n):
         lap = run_lap(car, grid, driver=driver, seed=seed, **kwargs)
         times.append(lap.lap_time)
-        mistakes += any(c.mistake for c in lap.corner_log)
+        mistakes.append(any(c.mistake for c in lap.corner_log))
     return Distribution(driver.push, times, mistakes)

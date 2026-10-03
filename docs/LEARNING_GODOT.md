@@ -18,7 +18,10 @@ A path from "never opened the editor" to restyling and building screens yourself
 
 | File | What it is |
 |---|---|
-| `game.tscn` / `game.gd` | The game: state, save file, and every menu screen (built in code) |
+| `game.tscn` / `game.gd` | The game: state, save file, calendar, race-night screens (built in code) |
+| `screens/warehouse.tscn`, `car.tscn`, `calendar.tscn` | The hub screens, built in the **editor**: style these freely |
+| `screens/header.tscn` | The top bar, instanced into every hub screen: style it once |
+| `widgets/practice_chart.gd`, `dyno_chart.gd` | Charts that draw themselves |
 | `intro.tscn` / `intro.gd` | The story intro, built in the **editor** (your first scene to explore) |
 | `main.tscn` / `main.gd` | The race viewer (broadcast cameras, HUD) |
 | `theme.tres` | The look of every menu: colors, fonts, buttons, panels |
@@ -40,7 +43,9 @@ The menu screens are built in code so they stay small and testable, but their **
 
 **Exercise 5: make a new style (20 min).** In the Theme editor, add a type variation called `WarningLabel` (base type `Label`) with a yellow font color. In `game.gd`, find a label in `show_results` and give it `"WarningLabel"` instead of `"MutedLabel"`. Run it.
 
-**Exercise 6: build a screen in the editor (1-2 h).** Create a new scene with a `Control` root. Add a `MarginContainer` set to Full Rect, a `VBoxContainer` inside, then Labels and a Button. Give them theme variations. Ideas: a "Faba" profile card, or a warehouse header with the crew's record. Save it as `crew.tscn`. Ask Claude to help wire it into the game: a screen that shows it and returns to the warehouse.
+**Exercise 6: restyle the hub scenes (1 h).** Open `screens/warehouse.tscn`. Rearrange it: drag `Nav` above `NextUp` in the Scene dock, change the `EventTitle` font size in the Inspector, swap a button's Theme Type Variation. Rule: you can move and restyle anything, but keep the node **names** the script uses (they're listed at the top of `warehouse.gd`), or update those paths. Then try the calendar: plain days use the default panel style, which has the orange left border. Add a `DayPanel` variation in the theme and set it in `calendar.gd` for days with no event.
+
+**Exercise 7: build a screen in the editor (1-2 h).** Create a new scene with a `Control` root. Add a `MarginContainer` set to Full Rect, a `VBoxContainer` inside, then Labels and a Button. Give them theme variations. Ideas: a "Faba" profile card, or a warehouse header with the crew's record. Save it as `screens/crew.tscn`. Copy the pattern from `warehouse.gd`: a `go(target)` signal and a `setup(info)` function. Ask Claude to help wire it into `game.gd`.
 
 ## 4. Habits worth building early
 

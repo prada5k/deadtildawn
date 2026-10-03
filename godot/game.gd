@@ -1,21 +1,29 @@
 extends Node
-## deadtildawn vertical slice: garage -> briefing -> driver meeting -> race -> results.
+## deadtildawn: game flow and state.
 ##
-## The Python sim does all physics through the bridge (bridge.gd). This script
-## owns the game state (cash, rep, history) and the screens.
+## Hub screens are editor scenes in screens/ (warehouse, car, calendar): their
+## LAYOUT is edited in Godot, their scripts only fill in data and emit
+## go(target). The race-night screens (meeting, results) are still built in
+## code here. Every look comes from theme.tres.
+##
+## The Python sim does all physics through the bridge (bridge.gd).
 ##
 ## Rules that protect the game from save-scumming:
-##   - tonight's rival posted time is drawn once and saved
+##   - a race night's posted time is drawn once and saved
 ##   - the race result is applied and saved BEFORE the replay plays
 
 const UI := preload("res://ui.gd")
 const Bridge := preload("res://bridge.gd")
 const TrackMap := preload("res://track_map.gd")
+const PracticeChart := preload("res://widgets/practice_chart.gd")
 const Viewer := preload("res://main.gd")
 const IntroScene := preload("res://intro.tscn")
+const WarehouseScene := preload("res://screens/warehouse.tscn")
+const CarScene := preload("res://screens/car.tscn")
+const CalendarScene := preload("res://screens/calendar.tscn")
 
 const SAVE_PATH := "user://save.json"
-const SAVE_VERSION := 1
+const SAVE_VERSION := 2
 const START_CASH := 250
 const MIN_BUY_IN := 100
 const WAGER_STEP := 10
@@ -23,15 +31,20 @@ const REP_WIN := 10
 const RIVAL_FILE := "data/rivals/zed_280z.json"
 const PUSH_ORDER := ["safe", "normal", "hard", "flat_out"]
 
-var state := {}            # saved: cash, rep, history, night
+# Calendar: a week is 7 days; race nights fall on these days (0 = Monday)
+const DAY_NAMES := ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+const RACE_DAYS := [4, 5]        # Friday and Saturday nights
+
+var state := {}            # saved: cash, rep, week, day, history, night, intro_seen
 var car_stats := {}        # bridge replies, cached for the session
 var track_info := {}
-var odds := {}
+var practice := {}
 var bridge: Node
 var screen: Control        # current UI screen
 var footer: VBoxContainer  # pinned area at the bottom of scrolling screens
 var viewer: Node           # replay viewer while racing
 var choice := {"push": "normal", "wager": MIN_BUY_IN}
+var after_car_stats := "warehouse"   # where to go once car stats arrive
 
 
 # ------------------------------------------------------------------ setup
@@ -57,20 +70,35 @@ func _ready() -> void:
 	if not state.get("intro_seen", false):
 		show_intro()
 	else:
-		show_garage()
+		show_warehouse()
 
 
 func new_state() -> Dictionary:
-	return {"version": SAVE_VERSION, "cash": START_CASH, "rep": 0, "history": [], "night": {},
-		"intro_seen": false}
+	return {"version": SAVE_VERSION, "cash": START_CASH, "rep": 0, "week": 1, "day": 0,
+		"history": [], "night": {}, "intro_seen": false}
 
 
 func load_game() -> void:
 	state = new_state()
-	if FileAccess.file_exists(SAVE_PATH):
-		var data = JSON.parse_string(FileAccess.get_file_as_string(SAVE_PATH))
-		if typeof(data) == TYPE_DICTIONARY and int(data.get("version", 0)) == SAVE_VERSION:
-			state = data
+	if not FileAccess.file_exists(SAVE_PATH):
+		return
+	var data = JSON.parse_string(FileAccess.get_file_as_string(SAVE_PATH))
+	if typeof(data) != TYPE_DICTIONARY:
+		return
+	state = migrate(data)
+
+
+## Upgrade an older save instead of throwing it away. Each step takes a save
+## from version N to N + 1, so any old save can climb to the current version.
+func migrate(data: Dictionary) -> Dictionary:
+	var v := int(data.get("version", 1))
+	if v < 2:                        # v1 -> v2: the calendar arrives
+		data["week"] = 1
+		data["day"] = 0
+		data["night"] = {}           # an old night has no calendar event; redraw it
+		v = 2
+	data["version"] = v
+	return data
 
 
 func save_game() -> void:
@@ -82,19 +110,108 @@ func reset_game() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
 	state = new_state()
 	save_game()
-	show_garage()
+	show_warehouse()
+
+
+# ------------------------------------------------------------------ calendar
+
+## Events in a given week: [{"day": int, "type": "race", "title": String}]
+func events_for_week(_week: int) -> Array:
+	var out := []
+	for d in RACE_DAYS:
+		out.append({"day": d, "type": "race", "title": "Race night vs Zed (280Z)"})
+	return out
+
+
+func when(week: int, day: int) -> String:
+	return "%s, WEEK %d" % [DAY_NAMES[day], week]
+
+
+## The next event at or after today: {"week", "day", "type", "title"}
+func next_event() -> Dictionary:
+	var week := int(state["week"])
+	for w in range(week, week + 52):
+		for e in events_for_week(w):
+			if w > week or int(e["day"]) >= int(state["day"]):
+				var ev: Dictionary = e.duplicate()
+				ev["week"] = w
+				return ev
+	return {}
+
+
+func upcoming_events(n: int) -> Array:
+	var out := []
+	var week := int(state["week"])
+	for w in range(week, week + 52):
+		for e in events_for_week(w):
+			if w > week or int(e["day"]) >= int(state["day"]):
+				var ev: Dictionary = e.duplicate()
+				ev["week"] = w
+				out.append(ev)
+				if out.size() >= n:
+					return out
+	return out
+
+
+## Move time to the day after an event.
+func advance_past(event: Dictionary) -> void:
+	var day := int(event["day"]) + 1
+	var week := int(event["week"])
+	if day > 6:
+		day = 0
+		week += 1
+	state["week"] = week
+	state["day"] = day
+
+
+func event_key(event: Dictionary) -> String:
+	return "%d-%d" % [int(event["week"]), int(event["day"])]
 
 
 # ------------------------------------------------------------------ screens
 
-func new_screen(scroll := true) -> VBoxContainer:
-	## Portrait page: header (cash / rep), then a column for the content.
+func clear_screen() -> void:
 	RenderingServer.set_default_clear_color(UI.BG)
 	if viewer:
 		viewer.queue_free()
 		viewer = null
 	if screen:
 		screen.queue_free()
+		screen = null
+	footer = null
+
+
+## Show an editor-built hub scene and route its go(target) signal.
+func open_scene(packed: PackedScene) -> Control:
+	clear_screen()
+	var s: Control = packed.instantiate()
+	add_child(s)
+	s.go.connect(_go)
+	screen = s
+	return s
+
+
+func _go(target: String) -> void:
+	match target:
+		"warehouse":
+			show_warehouse()
+		"car":
+			show_car()
+		"calendar":
+			show_calendar()
+		"story":
+			show_intro()
+		"race":
+			show_briefing()
+
+
+func common_info() -> Dictionary:
+	return {"cash": int(state["cash"]), "rep": int(state["rep"]), "min_buy_in": MIN_BUY_IN}
+
+
+func new_screen(scroll := true) -> VBoxContainer:
+	## Code-built portrait page: header (cash / rep), then a column for content.
+	clear_screen()
 	var root := MarginContainer.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	for side in ["left", "right"]:
@@ -108,7 +225,7 @@ func new_screen(scroll := true) -> VBoxContainer:
 	var header := UI.hbox(page, 16)
 	var brand := UI.label(header, "DEADTILDAWN", "HeadingLabel")
 	brand.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var money := UI.label(header, UI.money(state["cash"]), "HeadingLabel",
+	UI.label(header, UI.money(state["cash"]), "HeadingLabel",
 		UI.GOOD if state["cash"] >= MIN_BUY_IN else UI.BAD)
 	UI.label(header, "REP %d" % int(state["rep"]), "HeadingLabel", Color.WHITE)
 
@@ -137,54 +254,62 @@ func show_message(title: String, text: String, button_text := "", action := Call
 
 
 func show_intro() -> void:
-	if viewer:
-		viewer.queue_free()
-		viewer = null
-	if screen:
-		screen.queue_free()
+	clear_screen()
 	var intro: Control = IntroScene.instantiate()
 	intro.finished.connect(func():
 		state["intro_seen"] = true
 		save_game()
-		show_garage())
+		show_warehouse())
 	add_child(intro)
 	screen = intro
 
 
-func show_garage() -> void:
+func show_warehouse() -> void:
 	if state["cash"] < MIN_BUY_IN:
 		show_broke()
 		return
+	var ev := next_event()
+	var record := wins_losses()
+	var info := common_info()
+	info["event_title"] = "%s: RACE NIGHT" % when(ev["week"], ev["day"])
+	info["event_detail"] = "%s. Minimum buy-in %s. Today is %s." % [
+		ev["title"], UI.money(MIN_BUY_IN), when(state["week"], state["day"]).to_lower()]
+	info["wins"] = record.x
+	info["losses"] = record.y
+	info["min_buy_in_text"] = UI.money(MIN_BUY_IN)
+	open_scene(WarehouseScene).setup(info)
+
+
+func show_car() -> void:
 	if car_stats.is_empty():
-		show_message("THE WAREHOUSE", "Putting the car on the dyno...")
+		show_message("THE CAR", "Strapping the DX to the dyno...")
+		after_car_stats = "car"
 		bridge.request("car_stats", ["car_stats"])
 		return
-	var col := new_screen()
-	UI.label(col, "THE WAREHOUSE", "TitleLabel")
-	UI.label(col, "HQ. Faba's savings, your tools.", "MutedLabel")
+	open_scene(CarScene).setup(common_info(), car_stats)
 
-	var car := UI.vbox(UI.panel(col), 6)
-	UI.label(car, car_stats["name"], "HeadingLabel")
-	UI.label(car, "Bone stock. Every number from the sim.", "MutedLabel")
-	UI.stat_row(car, "Power", "%d hp @ %d" % [car_stats["hp"], car_stats["hp_rpm"]])
-	UI.stat_row(car, "Torque", "%d lb-ft @ %d" % [car_stats["torque_lbft"], car_stats["torque_rpm"]])
-	UI.stat_row(car, "Weight", "%d kg" % car_stats["weight_kg"])
-	UI.stat_row(car, "Power / weight", "%d hp/t" % car_stats["hp_per_tonne"])
-	UI.stat_row(car, "0-60 mph", "%.2f s" % car_stats["zero_60_s"])
-	UI.stat_row(car, "Quarter mile", "%.2f s" % car_stats["quarter_s"])
-	UI.stat_row(car, "Top speed", "%d mph" % car_stats["top_speed_mph"])
-	UI.stat_row(car, "Skidpad", "%.2f g, %s" % [car_stats["skidpad_g"], car_stats["balance"]])
-	UI.stat_row(car, "60-0 mph", "%d ft" % car_stats["sixty_zero_ft"])
 
-	var crew := UI.vbox(UI.panel(col), 6)
-	UI.label(crew, "THE CREW", "HeadingLabel")
-	var record := wins_losses()
-	UI.stat_row(crew, "Driver", "Faba")
-	UI.stat_row(crew, "Record", "%d W - %d L" % [record.x, record.y])
-	UI.stat_row(crew, "Minimum buy-in", UI.money(MIN_BUY_IN))
-
-	UI.button(col, "TONIGHT'S RACE", show_briefing, "AccentButton")
-	UI.button(col, "Replay the story", show_intro)
+func show_calendar() -> void:
+	var info := common_info()
+	var week := int(state["week"])
+	info["week"] = week
+	info["day"] = int(state["day"])
+	var week_events := {}
+	for e in events_for_week(week):
+		week_events[int(e["day"])] = "RACE"
+	info["week_events"] = week_events
+	var upcoming := []
+	for e in upcoming_events(5):
+		upcoming.append([when(e["week"], e["day"]), e["title"]])
+	info["upcoming"] = upcoming
+	var past := []
+	var hist: Array = state["history"]
+	for i in range(hist.size() - 1, maxi(hist.size() - 6, -1), -1):
+		var r: Dictionary = hist[i]
+		past.append([r.get("when", "-"), "vs %s" % r["rival"],
+			"%s  %+d" % ["W" if r["won"] else "L", int(r["cash_change"])]])
+	info["past"] = past
+	open_scene(CalendarScene).setup(info)
 
 
 func wins_losses() -> Vector2i:
@@ -199,18 +324,22 @@ func wins_losses() -> Vector2i:
 
 
 func show_briefing() -> void:
-	# Draw tonight's rival once and save it (no rerolling by restarting)
+	var ev := next_event()
+	# A saved night belongs to one calendar event; a stale one gets redrawn
+	if not state["night"].is_empty() and state["night"].get("event") != event_key(ev):
+		state["night"] = {}
+	# Draw the night's rival time once and save it (no rerolling by restarting)
 	if state["night"].is_empty():
-		show_message("WORD ON THE STREET", "Finding out who's running tonight.\n\nThe first time on a road, Faba runs it in his head at every push level. Give it 15-30 seconds.")
+		show_message("WORD ON THE STREET", "Finding out who's running tonight.\n\nThe first time on a road, Faba runs practice laps at every push level. Give it 15-30 seconds.")
 		bridge.request("rival", ["rival", "--rival", RIVAL_FILE, "--seed", str(randi() % 1000000)])
 		return
 	if track_info.is_empty():
 		show_message("SCOUTING", "Driving the road in daylight.")
 		bridge.request("track", ["track", "--track", state["night"]["track"]])
 		return
-	if odds.is_empty():
-		show_message("DRIVER MEETING", "Running the numbers on every push level.")
-		bridge.request("odds", ["odds", "--track", state["night"]["track"], "--posted", str(state["night"]["posted_time"])])
+	if practice.is_empty():
+		show_message("PRACTICE", "Faba's running the road at every push level.")
+		bridge.request("practice", ["practice", "--track", state["night"]["track"]])
 		return
 	show_meeting()
 
@@ -228,22 +357,20 @@ func show_meeting() -> void:
 
 	var map: Control = TrackMap.new()
 	map.track = track_info
-	map.custom_minimum_size = Vector2(0, 290)
+	map.custom_minimum_size = Vector2(0, 240)
 	UI.panel(col).add_child(map)
 
-	UI.label(footer, "HOW HARD DOES FABA PUSH?", "HeadingLabel")
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 12)
-	grid.add_theme_constant_override("v_separation", 12)
-	footer.add_child(grid)
-	for push in PUSH_ORDER:
-		var o: Dictionary = odds["push_levels"][push]
-		var text := "%s\nwin %d%%\nmistake %d%%" % [push.replace("_", " ").to_upper(),
-			int(round(o["win"] * 100)), int(round(o["mistake_rate"] * 100))]
-		var b := UI.button(grid, text, _on_push.bind(push),
-			"SelectedButton" if push == choice["push"] else "")
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Decision area, pinned at the bottom
+	UI.label(footer, "PRACTICE RUNS: HOW HARD DOES FABA PUSH?", "HeadingLabel")
+	UI.label(footer, "Each dot is a practice run. Left of the red line beats %s. Red dots: Faba made a mistake. Tap a row to pick it." % night["name"], "MutedLabel")
+	var chart: Control = PracticeChart.new()
+	chart.practice = practice["push_levels"]
+	chart.posted = float(night["posted_time"])
+	chart.rival_name = str(night["name"])
+	chart.selected = choice["push"]
+	chart.custom_minimum_size = Vector2(0, 300)
+	chart.push_selected.connect(func(p): choice["push"] = p)
+	UI.panel(footer).add_child(chart)
 
 	var cash := int(state["cash"])
 	choice["wager"] = clampi(int(choice["wager"]), MIN_BUY_IN, cash)
@@ -263,14 +390,18 @@ func show_meeting() -> void:
 	set_wager.call(choice["wager"])
 
 	var actions := UI.hbox(footer, 10)
-	UI.button(actions, "Back", show_garage)
+	UI.button(actions, "Back", show_warehouse)
+	UI.button(actions, "Skip", skip_night)
 	var go := UI.button(actions, "SEND IT", send_it, "DangerButton")
 	go.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 
-func _on_push(push: String) -> void:
-	choice["push"] = push
-	show_meeting()
+## Sit this race night out: no money changes hands, time moves on.
+func skip_night() -> void:
+	advance_past(next_event())
+	state["night"] = {}
+	save_game()
+	show_warehouse()
 
 
 func send_it() -> void:
@@ -281,29 +412,42 @@ func send_it() -> void:
 		"--seed", str(randi() % 1000000), "--out", out])
 
 
+## How many practice runs at this push level beat the posted time
+## (shown only AFTER the race, so players can check their read).
+func practice_beat(push: String, posted: float) -> Vector2i:
+	var times: Array = practice["push_levels"][push]["times"]
+	var n := 0
+	for t in times:
+		if float(t) < posted:
+			n += 1
+	return Vector2i(n, times.size())
+
+
 func apply_result(r: Dictionary) -> Dictionary:
-	## Settle the bet and save immediately (before the replay plays).
+	## Settle the bet, move the calendar, and save immediately (before the replay).
 	var night: Dictionary = state["night"]
+	var ev := next_event()
 	var won: bool = float(r["lap_time"]) < float(night["posted_time"])
 	var wager := int(choice["wager"])
+	var beat := practice_beat(r["push"], float(night["posted_time"]))
 	var result := {
+		"when": when(ev["week"], ev["day"]),
 		"rival": night["name"], "rival_car": night["car"], "posted": night["posted_time"],
 		"time": r["lap_time"], "won": won, "push": r["push"], "seed": r["seed"],
 		"wager": wager, "cash_change": wager if won else -wager,
 		"rep_change": REP_WIN if won else 0, "mistakes": r["mistakes"],
-		"odds": odds["push_levels"][r["push"]]["win"]}
+		"practice_beat": beat.x, "practice_runs": beat.y}
 	state["cash"] = int(state["cash"]) + int(result["cash_change"])
 	state["rep"] = int(state["rep"]) + int(result["rep_change"])
 	state["history"].append(result)
-	state["night"] = {}               # tomorrow is a new night
+	state["night"] = {}
+	advance_past(ev)
 	save_game()
 	return result
 
 
 func show_race(replay_path: String, result: Dictionary) -> void:
-	if screen:
-		screen.queue_free()
-		screen = null
+	clear_screen()
 	viewer = Viewer.new()
 	viewer.replay_path = replay_path
 	viewer.rival_name = result["rival"]
@@ -325,11 +469,16 @@ func show_results(result: Dictionary) -> void:
 	UI.stat_row(info, "Faba", "%.3f s" % result["time"])
 	UI.stat_row(info, str(result["rival"]), "%.3f s" % result["posted"])
 	UI.stat_row(info, "Push", str(result["push"]).replace("_", " "))
-	UI.stat_row(info, "Odds going in", "%d%%" % int(round(float(result["odds"]) * 100)))
 	UI.stat_row(info, "Mistakes", "none" if result["mistakes"].is_empty() else ", ".join(result["mistakes"]))
 	UI.stat_row(info, "Cash", "%s%s  ->  %s" % ["+" if won else "", UI.money(result["cash_change"]), UI.money(state["cash"])])
 	UI.stat_row(info, "Rep", "+%d  ->  %d" % [result["rep_change"], state["rep"]])
-	UI.button(col, "BACK TO THE WAREHOUSE", show_garage, "AccentButton")
+	# The reveal: how good was the read? (hidden before the race on purpose)
+	var reveal := UI.vbox(UI.panel(col), 4)
+	UI.label(reveal, "YOUR READ", "HeadingLabel")
+	UI.label(reveal, "In practice, %d of %d runs at %s push beat %s's %.2f." % [
+		result["practice_beat"], result["practice_runs"], str(result["push"]).replace("_", " "),
+		result["rival"], result["posted"]], "MutedLabel")
+	UI.button(footer, "BACK TO THE WAREHOUSE", show_warehouse, "AccentButton")
 
 
 func show_broke() -> void:
@@ -344,23 +493,23 @@ func show_broke() -> void:
 
 func _on_reply(tag: String, data: Dictionary) -> void:
 	if not data.get("ok", false):
-		show_message("THE SIM HIT A PROBLEM", str(data.get("error", "unknown error")), "BACK TO THE WAREHOUSE", show_garage)
+		show_message("THE SIM HIT A PROBLEM", str(data.get("error", "unknown error")), "BACK TO THE WAREHOUSE", show_warehouse)
 		return
 	match tag:
 		"car_stats":
 			car_stats = data
-			show_garage()
+			_go(after_car_stats)
 		"rival":
+			data["event"] = event_key(next_event())
 			state["night"] = data
 			save_game()
 			track_info = {}
-			odds = {}
 			show_briefing()
 		"track":
 			track_info = data
 			show_briefing()
-		"odds":
-			odds = data
+		"practice":
+			practice = data
 			show_briefing()
 		"race":
 			var result := apply_result(data)
@@ -370,33 +519,35 @@ func _on_reply(tag: String, data: Dictionary) -> void:
 # ------------------------------------------------------------------ self-test
 
 func game_test() -> void:
-	## Headless end-to-end check: one full night, printed. Run with
+	## Headless end-to-end check: one full race night, printed. Run with
 	##   godot --headless --path godot -- --gametest
 	state = new_state()
 	print("GAMETEST bridge: ", bridge.ready_to_use() if bridge.ready_to_use() != "" else "ok")
+	print("GAMETEST migrate v1: ", migrate({"version": 1, "cash": 300, "rep": 5, "history": [], "night": {"x": 1}}))
+	var ev := next_event()
+	print("GAMETEST next event: %s, %s" % [when(ev["week"], ev["day"]), ev["title"]])
 	bridge.request("car_stats", ["car_stats"])
 	var r: Array = await bridge.replied
-	print("GAMETEST car: %s, %d hp, 0-60 %.2f s" % [r[1]["name"], r[1]["hp"], r[1]["zero_60_s"]])
+	print("GAMETEST car: %s, %d hp, dyno points %d" % [r[1]["name"], r[1]["hp"], r[1]["dyno"].size()])
 	bridge.request("rival", ["rival", "--rival", RIVAL_FILE, "--seed", "42"])
 	r = await bridge.replied
 	state["night"] = r[1]
 	print("GAMETEST rival: %s (%s), posted %.3f s" % [r[1]["name"], r[1]["car"], r[1]["posted_time"]])
-	bridge.request("odds", ["odds", "--track", r[1]["track"], "--posted", str(r[1]["posted_time"])])
+	bridge.request("practice", ["practice", "--track", r[1]["track"]])
 	r = await bridge.replied
-	odds = r[1]
-	for push in PUSH_ORDER:
-		print("GAMETEST odds %-9s win %.2f" % [push, odds["push_levels"][push]["win"]])
+	practice = r[1]
+	print("GAMETEST practice runs: %d per push level" % practice["runs"])
 	choice = {"push": "hard", "wager": 100}
 	var out := ProjectSettings.globalize_path("user://replays/race.json")
 	bridge.request("race", ["race", "--track", state["night"]["track"], "--push", "hard", "--seed", "9", "--out", out])
 	r = await bridge.replied
 	var result := apply_result(r[1])
-	print("GAMETEST race: %.3f s vs %.3f s -> %s, cash %d, rep %d" % [
-		result["time"], result["posted"], "WIN" if result["won"] else "LOSS", state["cash"], state["rep"]])
-	print("GAMETEST replay exists: ", FileAccess.file_exists(out))
+	print("GAMETEST race: %.3f s vs %.3f s -> %s, cash %d, practice %d/%d" % [
+		result["time"], result["posted"], "WIN" if result["won"] else "LOSS", state["cash"],
+		result["practice_beat"], result["practice_runs"]])
+	print("GAMETEST calendar after race: %s" % when(state["week"], state["day"]))
 	print("GAMETEST OK")
 	get_tree().quit()
-
 
 
 ## Stills of every screen for review (needs a display, not --headless):
@@ -410,20 +561,27 @@ func game_shots(folder: String) -> void:
 		screen.next_slide()
 	await get_tree().create_timer(0.8).timeout
 	await snap(folder, "0b_intro_crash")
-	for i in 6:
-		screen.next_slide()
-	await get_tree().create_timer(0.8).timeout
-	await snap(folder, "0c_intro_title")
 	bridge.request("car_stats", ["car_stats"])
 	car_stats = (await bridge.replied)[1]
-	show_garage()
-	await snap(folder, "1_garage")
+	show_warehouse()
+	await snap(folder, "1_warehouse")
+	show_car()
+	await snap(folder, "1b_car")
+	state["history"] = [{"when": "FRI, WEEK 1", "rival": "Zed", "won": true, "cash_change": 150},
+		{"when": "SAT, WEEK 1", "rival": "Zed", "won": false, "cash_change": -100}]
+	state["week"] = 2
+	state["day"] = 2
+	show_calendar()
+	await snap(folder, "1c_calendar")
+	state["history"] = []
+	state["week"] = 1
+	state["day"] = 0
 	bridge.request("rival", ["rival", "--rival", RIVAL_FILE, "--seed", "3"])
 	state["night"] = (await bridge.replied)[1]
 	bridge.request("track", ["track", "--track", state["night"]["track"]])
 	track_info = (await bridge.replied)[1]
-	bridge.request("odds", ["odds", "--track", state["night"]["track"], "--posted", str(state["night"]["posted_time"])])
-	odds = (await bridge.replied)[1]
+	bridge.request("practice", ["practice", "--track", state["night"]["track"]])
+	practice = (await bridge.replied)[1]
 	choice = {"push": "hard", "wager": 150}
 	show_meeting()
 	await snap(folder, "2_meeting")
@@ -432,17 +590,10 @@ func game_shots(folder: String) -> void:
 	var r: Dictionary = (await bridge.replied)[1]
 	var result := apply_result(r)
 	show_race(out, result)
-	await snap(folder, "3_race_start")
-	viewer.t = viewer.lap_time * 0.55
-	viewer.playing = false
-	await snap(folder, "4_race_mid")
 	viewer.t = viewer.lap_time
 	await snap(folder, "5_race_finish")
 	show_results(result)
 	await snap(folder, "6_results")
-	state["cash"] = 40
-	show_garage()
-	await snap(folder, "7_broke")
 	get_tree().quit()
 
 

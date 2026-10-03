@@ -8,7 +8,9 @@ Commands:
   car_stats                               stat sheet for the garage
   track     --track FILE                  layout for the briefing (no car)
   rival     --rival FILE --seed N         rival card + tonight's posted time
-  odds      --track FILE --posted T       win odds for every push level
+  practice  --track FILE                  practice runs per push level (time + mistake flag)
+  odds      --track FILE --posted T       win odds for every push level (dev tools only:
+                                          the game shows practice runs, not odds)
   race      --track FILE --push P --seed N --out FILE.json
                                           run the race, write the replay
 
@@ -28,6 +30,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).parent))
 
 BRIDGE_VERSION = 1
+CACHE_FORMAT = 2       # bump when the cached JSON layout changes (sim changes are hashed)
 GAME_DS = 0.5          # m; odds and races must match
 ODDS_RUNS = 60         # Monte Carlo runs per push level
 CACHE_DIR = ROOT / "runs" / "cache"
@@ -66,7 +69,12 @@ def car_stats():
     q = run_straight(car, 402.336, ds=0.1)
     long = run_straight(car, 8000, ds=0.5)
     hp = power / HP_TO_W
-    reply(name=car.name, hp=round(hp), hp_rpm=peak_rpm,
+    from sim.powertrain import torque_at
+    dyno = []
+    for rpm in range(1000, int(car.fuel_cut) + 1, 200):
+        t = torque_at(car, rpm - 1e-6 if rpm == car.fuel_cut else rpm)
+        dyno.append([rpm, round(t / LBFT_TO_NM, 1), round(t * rpm * RPM_TO_RADS / HP_TO_W, 1)])
+    reply(dyno=dyno, name=car.name, hp=round(hp), hp_rpm=peak_rpm,
           torque_lbft=round(tq / LBFT_TO_NM), torque_rpm=tq_rpm,
           weight_kg=round(car.mass), hp_per_tonne=round(hp / (car.mass / 1000)),
           zero_60_s=round(time_to_speed(q, 60 * MPH_TO_MS), 2),
@@ -118,7 +126,7 @@ def distributions(track_file):
     track_path = resolve(track_file)
     sim_code = "".join(p.read_text(encoding="utf-8") for p in sorted((ROOT / "sim").glob("*.py")))
     key = hashlib.sha256((CAR_FILE.read_text(encoding="utf-8") + track_path.read_text(encoding="utf-8")
-                          + sim_code + f"{GAME_DS}|{ODDS_RUNS}|{Driver().sigma}").encode()).hexdigest()[:16]
+                          + sim_code + f"{GAME_DS}|{ODDS_RUNS}|{Driver().sigma}|fmt{CACHE_FORMAT}").encode()).hexdigest()[:16]
     cache = CACHE_DIR / f"{track_path.stem}_{key}.json"
     if cache.exists():
         return json.loads(cache.read_text(encoding="utf-8")), True
@@ -128,7 +136,7 @@ def distributions(track_file):
     data = {}
     for push in PUSH_LEVELS:
         d = run_many(car, grid, Driver(push=push), ODDS_RUNS, seed0=1000)
-        data[push] = {"times": d.times, "mistake_rate": d.mistake_rate}
+        data[push] = {"times": d.times, "mistakes": d.mistakes, "mistake_rate": d.mistake_rate}
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache.write_text(json.dumps(data), encoding="utf-8")
     return data, False
@@ -169,6 +177,15 @@ def odds(track_file, posted):
           push_levels=out)
 
 
+def practice(track_file):
+    """Every practice run per push level: the game draws these as dots and
+    leaves the judging to the player (no percentages)."""
+    data, cached = distributions(track_file)
+    reply(runs=len(next(iter(data.values()))["times"]), cached=cached,
+          push_levels={p: {"times": [round(t, 3) for t in d["times"]],
+                           "mistakes": d["mistakes"]} for p, d in data.items()})
+
+
 def race(track_file, push, seed, out_file):
     from export_replay import build_replay
     from sim.car import load_car
@@ -190,7 +207,7 @@ def race(track_file, push, seed, out_file):
 
 def main():
     ap = argparse.ArgumentParser(description="deadtildawn game bridge")
-    ap.add_argument("command", choices=["car_stats", "track", "rival", "odds", "race"])
+    ap.add_argument("command", choices=["car_stats", "track", "rival", "practice", "odds", "race"])
     ap.add_argument("--track")
     ap.add_argument("--rival")
     ap.add_argument("--posted", type=float)
@@ -205,6 +222,8 @@ def main():
             track(a.track)
         elif a.command == "rival":
             rival(a.rival, a.seed)
+        elif a.command == "practice":
+            practice(a.track)
         elif a.command == "odds":
             odds(a.track, a.posted)
         elif a.command == "race":

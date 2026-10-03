@@ -127,6 +127,33 @@ corner_radius_top_right = 6
 corner_radius_bottom_right = 6
 corner_radius_bottom_left = 6
 
+[sub_resource type="StyleBoxFlat" id="today_panel"]
+content_margin_left = 4.0
+content_margin_top = 10.0
+content_margin_right = 4.0
+content_margin_bottom = 10.0
+bg_color = Color(0.27, 0.16, 0.05, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 0.55, 0.1, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="event_day_panel"]
+content_margin_left = 4.0
+content_margin_top = 10.0
+content_margin_right = 4.0
+content_margin_bottom = 10.0
+bg_color = Color(0.2, 0.205, 0.23, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
 [resource]
 default_font = ExtResource("1")
 default_font_size = 26
@@ -180,3 +207,7 @@ HSlider/styles/slider = SubResource("slider")
 HSlider/styles/grabber_area = SubResource("slider_fill")
 HSlider/styles/grabber_area_highlight = SubResource("slider_fill")
 PanelContainer/styles/panel = SubResource("panel")
+TodayPanel/base_type = &"PanelContainer"
+TodayPanel/styles/panel = SubResource("today_panel")
+EventDayPanel/base_type = &"PanelContainer"
+EventDayPanel/styles/panel = SubResource("event_day_panel")
