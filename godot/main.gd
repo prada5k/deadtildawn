@@ -39,6 +39,7 @@ const CAM_NAMES := ["Overview", "Follow", "Trackside"]
 var replay: Dictionary = {}
 var samples: Dictionary = {}
 var corners: Array = []
+var driver = null          # Dictionary, or null for a theoretical-limit run
 var lap_time := 0.0
 
 var t := 0.0              # playback time (s)
@@ -91,6 +92,7 @@ func load_replay(path: String) -> String:
 	replay = data
 	samples = data["samples"]
 	corners = data["track"]["corners"]
+	driver = data.get("driver")            # optional block (older replays don't have it)
 	lap_time = float(data["lap_time"])
 	return ""
 
@@ -311,6 +313,7 @@ func build_hud() -> void:
 	hud["brake"] = add_bar(dash, Vector2(410, PEDAL_TOP), Vector2(18, PEDAL_H), Color(0.9, 0.15, 0.15))
 
 	hud["banner"] = add_label(layer, Vector2.ZERO, 46, Color(1.0, 0.9, 0.4))
+	hud["mistake"] = add_label(layer, Vector2.ZERO, 30, Color(1.0, 0.55, 0.1))
 
 
 func update_hud() -> void:
@@ -318,8 +321,25 @@ func update_hud() -> void:
 	hud["dash"].position = Vector2(12, vp.y - 238)
 
 	hud["clock"].text = "%6.2f s  /  %.2f s" % [t, lap_time]
-	hud["status"].text = "Camera: %s   Speed: %sx%s" \
-		% [CAM_NAMES[cam_mode], str(SPEEDS[speed_i]), "" if playing else "   (paused)"]
+	var push_text := "Theoretical limit"
+	if driver != null:
+		push_text = "Push: %s (seed %d)" % [str(driver["push"]).replace("_", " ").to_upper(), int(driver["seed"])]
+	hud["status"].text = "%s\nCamera: %s   Speed: %sx%s" \
+		% [push_text, CAM_NAMES[cam_mode], str(SPEEDS[speed_i]), "" if playing else "   (paused)"]
+
+	# Mistake callout: from the apex of a mistaken corner until shortly after it
+	var mistake: Label = hud["mistake"]
+	mistake.visible = false
+	if driver != null:
+		var s_now := value_at("s")
+		for c in driver["corners"]:
+			var s0 := float(c["s_start"])
+			var s1 := float(c["s_end"])
+			if c["mistake"] and s_now >= (s0 + s1) / 2.0 and s_now <= s1 + 40.0:
+				mistake.text = "MISTAKE: ran wide at %s" % c["text"]
+				mistake.reset_size()
+				mistake.position = Vector2((vp.x - mistake.size.x) / 2 + HUD_LEFT_PX / 2, 24)
+				mistake.visible = true
 	var help: Label = hud["help"]
 	help.reset_size()
 	help.position = Vector2(vp.x - help.size.x - 16, vp.y - help.size.y - 12)
@@ -535,6 +555,10 @@ func take_screenshots(folder: String) -> void:
 	DirAccess.make_dir_recursive_absolute(folder)
 	playing = false
 	var moments := {"start": 2.0, "r3_entry": 24.0, "hairpin": 34.5, "finish": lap_time}
+	if driver != null:                          # also catch any mistake on camera
+		for c in driver["corners"]:
+			if c["mistake"]:
+				moments["mistake_" + str(c["text"]).replace(" ", "_")] = time_at_s(float(c["s_end"]))
 	for moment in moments:
 		t = minf(float(moments[moment]), lap_time)
 		update_car()
@@ -547,3 +571,14 @@ func take_screenshots(folder: String) -> void:
 			get_viewport().get_texture().get_image().save_png(path)
 			print("saved ", path)
 	get_tree().quit()
+
+
+
+## Playback time when the car reaches track position s (for screenshots).
+func time_at_s(s_target: float) -> float:
+	var ss: Array = samples["s"]
+	var ts: Array = samples["t"]
+	for i in range(1, ss.size()):
+		if float(ss[i]) >= s_target:
+			return float(ts[i])
+	return lap_time

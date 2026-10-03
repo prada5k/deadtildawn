@@ -17,12 +17,13 @@ LATEST_DIR = RUNS_DIR / "latest"   # standalone tools save here
 DS = 0.1                           # m, lap solver step
 
 
-def load_run(track_file, car=None):
-    """Load the car and track and run one lap. Returns (car, segments, grid, lap)."""
+def load_run(track_file, car=None, driver=None, seed=None):
+    """Load the car and track and run one lap. Returns (car, segments, grid, lap).
+    driver=None runs the theoretical limit; with a Driver, `seed` picks the run."""
     car = car or load_car(CAR_FILE)
     segments = load_track(track_file)
     grid = discretize(segments, DS)
-    return car, segments, grid, run_lap(car, grid)
+    return car, segments, grid, run_lap(car, grid, driver=driver, seed=seed)
 
 
 def latest_path(filename):

@@ -86,6 +86,8 @@ class TrackGrid:
     s: tuple            # m, node positions (uniform except possibly the last step)
     curvature: tuple    # 1/m at each node, 0 on straights
     length: float       # m
+    corner_id: tuple = ()   # index into `corners` at each node, -1 on straights
+    corners: tuple = ()     # (pace-note text, s_start, s_end) per corner
 
 
 def discretize(segments, ds):
@@ -95,6 +97,8 @@ def discretize(segments, ds):
     n = math.ceil(length / ds - 1e-9)
     s = [min(i * ds, length) for i in range(n + 1)]
     curv = [0.0] * len(s)
+    cid = [-1] * len(s)
+    corners = []
 
     start = 0.0
     for seg in segments:
@@ -103,9 +107,11 @@ def discretize(segments, ds):
             k = 1.0 / seg.radius
             for i, si in enumerate(s):
                 if start - 1e-9 <= si <= end + 1e-9:
-                    curv[i] = max(curv[i], k)
+                    if k >= curv[i]:
+                        curv[i], cid[i] = k, len(corners)
+            corners.append((seg.text, start, end))
         start = end
-    return TrackGrid(tuple(s), tuple(curv), length)
+    return TrackGrid(tuple(s), tuple(curv), length, tuple(cid), tuple(corners))
 
 
 def track_xy(segments, s_values):

@@ -102,3 +102,28 @@ def test_better_inputs_never_slow_the_car():
                  "Brake capacity"):
         apply, better = INPUTS[name]
         assert run_lap(apply(car, better), grid).lap_time <= lap.lap_time + 1e-9, name
+
+
+
+def test_replay_driver_block():
+    from common import load_run
+    from export_replay import build_replay
+    from sim.driver import Driver
+
+    car, segments, _, lap = load_run(TRACK, driver=Driver(push="hard"), seed=3)
+    d = build_replay(car, segments, lap, TRACK.name)["driver"]
+    assert d["push"] == "hard" and d["seed"] == 3
+    assert len(d["corners"]) == 5
+    assert all({"text", "attempt", "mistake", "s_start", "s_end"} <= set(c) for c in d["corners"])
+    # And the theoretical-limit run has no driver block
+    car, segments, _, lap = load_run(TRACK)
+    assert build_replay(car, segments, lap, TRACK.name)["driver"] is None
+
+
+def test_run_all_with_driver_and_odds(tmp_path):
+    out_dir, _ = run_all(TRACK, runs_dir=tmp_path, stamp="drv", copy_to_godot=False,
+                         push="hard", seed=11, rival=49.6, odds_runs=10)
+    text = (out_dir / "summary.txt").read_text(encoding="utf-8")
+    assert "push hard" in text and "seed 11" in text
+    assert "== Driver meeting" in text
+    assert (out_dir / "driver_study.png").exists()

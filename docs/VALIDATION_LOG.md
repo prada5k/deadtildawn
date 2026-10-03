@@ -61,3 +61,7 @@ Each input changed 10% in its "better" direction (and the reverse), one at a tim
 Predictions (Spire, before running): test track mass > power > drag > grip > brakes; switchbacks grip > mass > power > drag > brakes.
 
 Every input has a distinct, explainable effect (zero bars included: brakes never reach their capacity or fade on flat roads). Phase 2 exit criterion met.
+
+## Milestone D: driver model
+
+Not validated against measured data (no driver data exists); checked against Spire's tuning targets instead. Analytic per-run mistake chances: exactly 2.0 / 5.0 / 35.0 / 75.0%. Sampled (20,000 plans per level): within 1.5% of target. Monte Carlo on the test track: 3 / 7 / 34 / 77% of runs had a mistake. Theoretical-limit runs (no driver) are unchanged, so all validation results stand.

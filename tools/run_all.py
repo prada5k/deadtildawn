@@ -4,6 +4,8 @@
     python tools/run_all.py --track data/tracks/my_track.txt
     python tools/run_all.py --mass -100                      (adds a comparison)
     python tools/run_all.py --runs 5                         (back-to-back runs, brakes stay hot)
+    python tools/run_all.py --push hard --seed 7             (a driven run instead of the limit)
+    python tools/run_all.py --push hard --rival 49.55        (also: odds for every push level)
 
 Creates runs/<track name>/<date_time>/ containing:
     summary.txt         everything printed below, plus the inputs used
@@ -12,6 +14,7 @@ Creates runs/<track name>/<date_time>/ containing:
     speed_map.png       speed heatmap + driver inputs on the track shape
     fade_test.png       ten 60-0 stops back to back (car only)
     replay.json         for the Godot viewer (also copied to godot/replays/latest.json)
+    driver_study.png    only with --rival (push-level odds)
     compare.png         only with --mass
 """
 import argparse
@@ -21,7 +24,9 @@ from pathlib import Path
 from common import (CAR_FILE, DEFAULT_TRACK, DS, ROOT, RUNS_DIR, load_run,  # noqa: E402
                     segment_lines, shift_lines)
 from compare import compare                                                  # noqa: E402
+from driver_study import study as odds_study                                 # noqa: E402
 from export_replay import write_replay                                       # noqa: E402
+from sim.driver import PUSH_LEVELS, Driver                                   # noqa: E402
 from fade_test import fade_test                                              # noqa: E402
 from plot_lap import draw_lap                                                # noqa: E402
 from plot_speed_map import draw_speed_map                                    # noqa: E402
@@ -50,14 +55,17 @@ def back_to_back_lines(car, grid, n):
 
 
 def run_all(track_file, mass_delta=None, runs_dir=RUNS_DIR, stamp=None, runs=1,
-            copy_to_godot=True):
+            copy_to_godot=True, push=None, seed=None, rival=None, odds_runs=200):
     """Run every tool on one track. Returns (output_dir, summary_lines)."""
     track_file = Path(track_file)
     stamp = stamp or datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     out_dir = Path(runs_dir) / track_file.stem / stamp
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    car, segments, grid, lap = load_run(track_file)
+    driver = Driver(push=push) if push else None
+    if driver is not None and seed is None:
+        seed = int(datetime.now().timestamp()) % 100000      # recorded, so reproducible
+    car, segments, grid, lap = load_run(track_file, driver=driver, seed=seed)
     length = sum(seg.length for seg in segments)
     n_corners = sum(seg.is_corner for seg in segments)
     notes = ", ".join(seg.text for seg in segments)
@@ -78,6 +86,9 @@ def run_all(track_file, mass_delta=None, runs_dir=RUNS_DIR, stamp=None, runs=1,
         f"  [{rel(track_file)}]",
         f"Notes:   {notes}",
         f"Solver:  QSS point mass, ds = {DS} m",
+        ("Driver:  theoretical limit (no driver model)" if driver is None else
+         f"Driver:  {driver.name}, push {driver.push} (f = {driver.f:.3f}), "
+         f"sigma {driver.sigma}, seed {seed}"),
     ]
     lines += crossing_lines(crossings) or ["Layout:  no crossings"]
 
@@ -87,6 +98,11 @@ def run_all(track_file, mass_delta=None, runs_dir=RUNS_DIR, stamp=None, runs=1,
     lines.append("")
     lines += segment_lines(segments, lap.telemetry)
     lines += ["", "Shifts:"] + ["  " + ln for ln in shift_lines(lap.telemetry)]
+    if driver is not None:
+        lines += ["", "Corners (attempt = fraction of the car's limit):"]
+        for c in lap.corner_log:
+            lines.append(f"  {c.text:<8} attempt {c.attempt:6.3f}"
+                         + ("   MISTAKE: ran wide, scrubbed speed" if c.mistake else ""))
     lines += ["", f"Front rotor: start {lap.telemetry.brake_temp[0]:.0f} C, "
                   f"peak {max(lap.telemetry.brake_temp):.0f} C, end {lap.temp_end:.0f} C "
                   f"(fade onset {car.pad_fade_temp:.0f} C); "
@@ -103,10 +119,16 @@ def run_all(track_file, mass_delta=None, runs_dir=RUNS_DIR, stamp=None, runs=1,
     lines += section("Brake fade test (car only, track-independent)")
     lines += fade_test(car, out_dir / "fade_test.png")
 
+    if rival is not None:
+        lines += section(f"Driver meeting: odds vs rival {rival:.2f} s")
+        lines += odds_study(car, track_file, odds_runs, rival, out_dir / "driver_study.png")
+
     copied = write_replay(car, segments, lap, track_file.name, out_dir / "replay.json",
                           copy_to_godot=copy_to_godot)
     files = ["track_layout.png", "lap_telemetry.png", "speed_map.png", "fade_test.png",
              "replay.json" + ("  (copied to godot/replays/latest.json)" if copied else "")]
+    if rival is not None:
+        files.append("driver_study.png")
     if mass_delta is not None:
         lines += section(f"Comparison ({mass_delta:+.0f} kg)")
         lines += compare(car, lap, segments, grid, mass_delta, out_dir / "compare.png")
@@ -127,6 +149,11 @@ def main():
                     help="also compare against a car with this mass change (kg)")
     ap.add_argument("--runs", type=int, default=1,
                     help="also run this many back-to-back runs (brakes stay hot)")
+    ap.add_argument("--push", choices=list(PUSH_LEVELS), default=None,
+                    help="drive the run with the driver model at this push level")
+    ap.add_argument("--seed", type=int, default=None, help="random seed for the driven run")
+    ap.add_argument("--rival", type=float, default=None,
+                    help="also show win odds for every push level vs this time (s)")
     args = ap.parse_args()
     track = Path(args.track)
     if not track.exists():
@@ -134,7 +161,8 @@ def main():
         print(f"Track file not found: {track}")
         print("Available tracks: " + ", ".join(available))
         return
-    _, lines = run_all(track, args.mass, runs=args.runs)
+    _, lines = run_all(track, args.mass, runs=args.runs, push=args.push, seed=args.seed,
+                       rival=args.rival)
     print("\n".join(lines))
 
 

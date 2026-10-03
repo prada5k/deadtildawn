@@ -8,6 +8,9 @@ Standalone:  python tools/export_replay.py [track_file]
              -> godot/replays/latest.json (open the godot/ project to watch)
 Used by run_all.py (also saved in each run folder).
 
+Adding optional fields (like "driver") keeps older viewers working, so it
+doesn't need a version bump; removing or renaming fields does.
+
 Coordinates are the sim's: meters, x east, y north, heading in radians
 counter-clockwise from east. Godot's 2D y axis points down; the viewer flips it.
 """
@@ -87,6 +90,12 @@ def build_replay(car, segments, lap, track_name):
                   "centerline": [[_r(x, 2), _r(y, 2)] for x, y in zip(rx, ry)],
                   "corners": corners},
         "lap_time": _r(lap.lap_time),
+        "driver": None if lap.driver is None else {
+            "name": lap.driver.name, "push": lap.driver.push, "sigma": lap.driver.sigma,
+            "f": _r(lap.driver.f, 4), "seed": lap.seed,
+            "corners": [{"text": c.text, "attempt": _r(c.attempt, 4), "mistake": c.mistake,
+                         "s_start": _r(c.s_start, 1), "s_end": _r(c.s_end, 1)}
+                        for c in lap.corner_log]},
         "samples": samples,
     }
 
