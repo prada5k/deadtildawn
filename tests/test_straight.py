@@ -53,15 +53,16 @@ def test_static_mu(car):
 # ---------- solver: shift points (hand calcs) ----------
 
 def test_shift_1_to_2_at_limiter(quarter):
+    # Event detection lands the shift exactly on the fuel cut
     first = quarter.shifts[0]
     assert first.from_gear == 1
-    assert first.rpm == pytest.approx(6800, abs=30)
+    assert first.rpm == pytest.approx(6800, abs=0.01)
 
 
 def test_shift_2_to_3_at_limiter(quarter):
     second = quarter.shifts[1]
     assert second.from_gear == 2
-    assert second.rpm == pytest.approx(6800, abs=30)
+    assert second.rpm == pytest.approx(6800, abs=0.01)
 
 
 def test_shift_3_to_4_below_limiter(long_run):
@@ -90,7 +91,15 @@ def test_car_decelerates_during_shifts(quarter):
 
 
 def test_never_exceeds_fuel_cut(quarter, car):
-    assert max(quarter.rpm) <= car.fuel_cut + 30
+    # Physically impossible to pass the fuel cut; must hold to float precision
+    assert max(quarter.rpm) <= car.fuel_cut + 1e-6
+
+
+def test_shift_points_independent_of_step_size(car):
+    # With event detection, limiter shifts don't depend on ds
+    for ds in (1.0, 0.5, 0.1):
+        tel = run_straight(car, QUARTER_MILE, ds=ds)
+        assert tel.shifts[0].rpm == pytest.approx(6800, abs=0.01)
 
 
 # ---------- numerics ----------

@@ -15,7 +15,10 @@ from dataclasses import dataclass, field
 
 from .forces import drag, rolling_resistance, static_mu, traction_limit_fwd
 from .powertrain import (effective_mass, engine_rpm, is_clutch_slipping,
-                         overall_ratio, rpm_from_speed, wheel_force)
+                         overall_ratio, rpm_from_speed, speed_from_rpm,
+                         wheel_force)
+
+RPM_EPS = 1e-6   # tolerance for "at the fuel cut" after an exact event step
 
 
 @dataclass
@@ -42,7 +45,7 @@ def should_upshift(car, v, gear):
     """Shift when the next gear makes more wheel force, or at the fuel cut."""
     if gear >= len(car.gear_ratios):
         return False
-    if rpm_from_speed(car, v, gear) >= car.fuel_cut:
+    if rpm_from_speed(car, v, gear) >= car.fuel_cut - RPM_EPS:
         return True
     return wheel_force(car, v, gear + 1) > wheel_force(car, v, gear)
 
@@ -105,13 +108,24 @@ def run_straight(car, distance, ds=0.1):
 
         record(a, limit)
 
-        v2 = v * v + 2 * a * ds
+        step = ds
+        v2 = v * v + 2 * a * step
         if v2 <= 0:
             break                 # car stopped; can't happen under power on flat ground
-        v_new = v2 ** 0.5
-        dt = 2 * ds / (v + v_new)
 
-        s += ds
+        # Event detection: if this step would carry the engine past the fuel
+        # cut, shorten it to land exactly on the cut (constant-accel kinematics:
+        # step = (v_cut^2 - v^2) / 2a). The shift then starts next iteration.
+        if shift_left <= 0 and a > 0:
+            v_cut = speed_from_rpm(car, car.fuel_cut, gear)
+            if v < v_cut < v2 ** 0.5:
+                step = (v_cut * v_cut - v * v) / (2 * a)
+                v2 = v_cut * v_cut
+
+        v_new = v2 ** 0.5
+        dt = 2 * step / (v + v_new)
+
+        s += step
         t += dt
         v = v_new
         if shift_left > 0:
