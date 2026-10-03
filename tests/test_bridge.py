@@ -100,3 +100,27 @@ def test_car_stats_dyno_curve():
     assert rpm[0] == 1000 and rpm[-1] == 6800
     peak_tq = max(p[1] for p in r["dyno"])
     assert peak_tq == pytest.approx(103, abs=1.5)          # spec: 103 lb-ft
+
+
+def test_parts_contract():
+    r = call("parts")
+    assert r["ok"] and len(r["parts"]) >= 20
+    for p in r["parts"]:
+        assert {"id", "slot", "name", "rarity", "price", "effects_text"} <= set(p)
+        assert p["effects_text"], p["id"]                     # every part shows exact effects
+
+
+def test_car_stats_with_parts():
+    stock = call("car_stats")
+    mod = call("car_stats", "--parts", "interior_strip")
+    assert mod["weight_kg"] == stock["weight_kg"] - 40
+
+
+def test_parts_change_practice_but_not_the_rival():
+    # Practice data depends on installed parts; the rival's posted time doesn't
+    a = call("practice", "--track", TRACK)
+    b = call("practice", "--track", TRACK, "--parts", "interior_strip")
+    assert sum(b["push_levels"]["normal"]["times"]) < sum(a["push_levels"]["normal"]["times"])
+    r1 = call("rival", "--rival", RIVAL, "--seed", "5")
+    r2 = call("rival", "--rival", RIVAL, "--seed", "5")
+    assert r1["base_time"] == r2["base_time"]

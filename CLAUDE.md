@@ -95,8 +95,9 @@ Sim mass 1112 kg. Redline 6500, fuel cut 6800. Rear drums, no ABS. All graded va
 - [x] Vertical slice v0.1: garage, briefing + driver meeting (odds per push, wager), Send It, broadcast replay vs rival time, results, save, broke screen
 - [x] Portrait UI pass: theme + Rajdhani font, intro story scene, warehouse HQ, pinned-footer driver meeting, chase camera, touch camera controls
 - [x] Hub scenes (warehouse, car with dyno chart, calendar), weekly calendar (race nights Fri + Sat, skip allowed), save migration v1 -> v2, practice-run dot chart replaces win % (revealed after the race as "your read")
+- [x] Parts v1: 24 parts in 14 slots (engine: intake/header/cams/ECU/flywheel; trans: shifter/final drive; tires; wheels; suspension: rear sway bar/springs; weight: interior/hood/seats). Shop (exact specs, no lap times), install via car-screen dropdowns, 5% loot chance per win, save v3
 - [ ] Spire: UI styling pass (colors, buttons, layout of the hub scenes)
-- [ ] Next: parts and loot system (the way out of the money hole), then the rival ladder
+- [ ] Next: rival ladder (Zed becomes easy after one or two good parts), tuning keys/sliders, brakes + aero slots (need elevation / downforce physics)
 - [ ] Showcase materials (poster/slides, demo)
 - [ ] Phase 3: game systems design; Phase 4: Godot game + GDScript port; Phase 5: iPhone
 
@@ -105,6 +106,8 @@ Sim mass 1112 kg. Redline 6500, fuel cut 6800. Rear drums, no ABS. All graded va
 **Loop:** pre-race (inspect track profile, install parts, tune sliders, set wager, "Send It") -> race (broadcast replay + live HUD) -> results (cash, rep).
 
 **Driver meeting design:** no win percentages. The player reads a practice-run chart (60 dots per push level vs the rival's posted-time line; red = mistake runs; axis zoomed on the decision zone, slow outliers pinned as edge arrows). After the race, results reveal how many practice runs beat the rival ("your read") so players can calibrate. `odds` in the bridge is for dev tools only.
+
+**Parts:** catalog in `data/parts/catalog.json`; `sim/parts.py` `apply_parts(car, parts)` returns a modified copy (stock car untouched, validation unaffected). Effects are changes to real sim inputs (torque_scale, torque_shape, mass_kg, engine/wheel inertia, shift_time_s, final_drive, mu_scale [scales mu at every load], load_k_scale, crr_scale, roll_front, cg_height_m); unknown effects fail loudly. One part per slot. Rarity = specialization (e.g. the 4.9 final drive is slower on tight roads; the 24 mm rear bar overshoots the roll-balance optimum). Realistic magnitudes: bolt-ons are a few hp; tires and weight are the big wins. The shop shows exact specs, never lap times. Bridge takes `--parts a,b` for car_stats / practice / race; the practice cache key includes the parts and the catalog. **Rival times are anchored to the stock car** (upgrades never make the rival faster). The shop won't spend below the race buy-in (design call, revisitable). Loot: 5% per win, weighted common 50 / rare 30 / epic 15 / legendary 5.
 
 **Calendar:** week + day (Mon-Sun). Race nights Fri and Sat vs the current rival; other days empty until parts/repairs. Skipping a race night costs 50 rep (5x a win, the "chicken-out fee"); with less than 50 rep you must race. Skips are logged in history but don't count as losses. Saves carry a version and are migrated step by step (`migrate()` in game.gd); never wipe a save on a format change.
 

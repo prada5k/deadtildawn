@@ -5,16 +5,19 @@ and reads ONE JSON object from stdout. Every reply has "bridge_version" and
 "ok"; failures come back as {"ok": false, "error": "..."} instead of crashing.
 
 Commands:
-  car_stats                               stat sheet for the garage
+  parts                                   the parts catalog, with each part's exact effects
+  car_stats [--parts a,b]                 stat sheet + dyno for the car with these parts
   track     --track FILE                  layout for the briefing (no car)
   rival     --rival FILE --seed N         rival card + tonight's posted time
-  practice  --track FILE                  practice runs per push level (time + mistake flag)
+  practice  --track FILE [--parts a,b]    practice runs per push level (time + mistake flag)
   odds      --track FILE --posted T       win odds for every push level (dev tools only:
                                           the game shows practice runs, not odds)
-  race      --track FILE --push P --seed N --out FILE.json
+  race      --track FILE --push P --seed N --out FILE.json [--parts a,b]
                                           run the race, write the replay
 
 Odds and races use the SAME solver settings (GAME_DS), so the odds are honest.
+Rival times are anchored to the STOCK car: upgrades make the player faster,
+they never make the rival faster.
 Time distributions are cached per car + track + settings (runs/cache/).
 """
 import argparse
@@ -37,6 +40,18 @@ CACHE_DIR = ROOT / "runs" / "cache"
 CAR_FILE = ROOT / "data" / "cars" / "ej6_dx_coupe_1996.json"
 
 
+def player_car(part_ids):
+    """The DX with these parts installed (stock if none)."""
+    from sim.car import load_car
+    from sim.parts import apply_parts, parts_by_ids
+    car = load_car(CAR_FILE)
+    return apply_parts(car, parts_by_ids(part_ids)) if part_ids else car
+
+
+def parse_parts(text):
+    return sorted(p for p in (text or "").split(",") if p)
+
+
 def reply(**data):
     print(json.dumps({"bridge_version": BRIDGE_VERSION, "ok": True, **data},
                      separators=(",", ":")))
@@ -54,7 +69,7 @@ def resolve(path):
 
 # ------------------------------------------------------------------ commands
 
-def car_stats():
+def car_stats(part_ids=()):
     from sim.braking import stopping_distance
     from sim.car import load_car
     from sim.forces import limiting_axle, max_lateral_accel
@@ -62,7 +77,7 @@ def car_stats():
     from sim.straight import run_straight
     from sim.units import FT_TO_M, G, HP_TO_W, LBFT_TO_NM, MPH_TO_MS, RPM_TO_RADS
 
-    car = load_car(CAR_FILE)
+    car = player_car(part_ids)
     power = max(t * r * RPM_TO_RADS for r, t in zip(car.torque_rpm, car.torque_nm))
     peak_rpm = max(zip(car.torque_rpm, car.torque_nm), key=lambda p: p[0] * p[1])[0]
     tq, tq_rpm = max(zip(car.torque_nm, car.torque_rpm))
@@ -84,6 +99,54 @@ def car_stats():
           balance="understeer" if limiting_axle(car) == "front" else "oversteer",
           sixty_zero_ft=round(stopping_distance(car, 60 * MPH_TO_MS) / FT_TO_M),
           redline=car.redline, drivetrain="FWD")
+
+
+def part_effects(car, part):
+    """Exact effects of one part on the stock car, as display strings."""
+    from sim.parts import apply_parts
+    from sim.powertrain import torque_at
+    from sim.units import HP_TO_W, LBFT_TO_NM, RPM_TO_RADS
+
+    mod = apply_parts(car, [part])
+
+    def peak_hp(c):
+        return max(torque_at(c, r) * r * RPM_TO_RADS for r in range(1000, 6800, 25)) / HP_TO_W
+    out = []
+    e = part["effects"]
+    if "torque_scale" in e or "torque_shape" in e:
+        out.append(f"{peak_hp(mod) - peak_hp(car):+.1f} hp peak")
+        d3 = (torque_at(mod, 3000) - torque_at(car, 3000)) / LBFT_TO_NM
+        d6 = (torque_at(mod, 6000) - torque_at(car, 6000)) / LBFT_TO_NM
+        out.append(f"{d3:+.1f} lb-ft @ 3000 rpm, {d6:+.1f} lb-ft @ 6000 rpm")
+    if e.get("mass_kg"):
+        out.append(f"{e['mass_kg']:+.0f} kg")
+    if "engine_inertia_scale" in e:
+        out.append(f"flywheel inertia {(e['engine_inertia_scale'] - 1) * 100:+.0f}%")
+    if "wheel_inertia_scale" in e:
+        out.append(f"wheel inertia {(e['wheel_inertia_scale'] - 1) * 100:+.0f}%")
+    if "shift_time_s" in e:
+        out.append(f"shift time {car.shift_time:.2f} s -> {mod.shift_time:.2f} s")
+    if "final_drive" in e:
+        out.append(f"final drive {car.final_drive:.3f} -> {mod.final_drive:.3f}")
+    if "mu_scale" in e:
+        out.append(f"grip {(e['mu_scale'] - 1) * 100:+.0f}%")
+    if "load_k_scale" in e:
+        out.append(f"load sensitivity {(e['load_k_scale'] - 1) * 100:+.0f}%")
+    if "crr_scale" in e:
+        out.append(f"rolling resistance {(e['crr_scale'] - 1) * 100:+.0f}%")
+    if "roll_front" in e:
+        out.append(f"front roll stiffness {car.roll_front * 100:.0f}% -> {mod.roll_front * 100:.0f}%")
+    if "cg_height_m" in e:
+        out.append(f"center of gravity {e['cg_height_m'] * 100:+.1f} cm")
+    return out
+
+
+def parts_catalog():
+    from sim.car import load_car
+    from sim.parts import load_catalog
+    slots, parts = load_catalog()
+    car = load_car(CAR_FILE)
+    reply(slots=slots, parts=[{**p, "effects_text": part_effects(car, p)} for p in parts.values()])
 
 
 def track(track_file):
@@ -112,10 +175,10 @@ def track(track_file):
           corners=corners, crossings=len(find_crossings(segments)))
 
 
-def distributions(track_file):
-    """Lap-time samples per push level, cached by car + track + settings."""
-    from sim.car import load_car
+def distributions(track_file, part_ids=()):
+    """Lap-time samples per push level, cached by car + parts + track + settings."""
     from sim.driver import PUSH_LEVELS, Driver
+    from sim.parts import CATALOG_FILE
     from sim.montecarlo import run_many
     from sim.track import discretize, load_track
 
@@ -126,12 +189,13 @@ def distributions(track_file):
     track_path = resolve(track_file)
     sim_code = "".join(p.read_text(encoding="utf-8") for p in sorted((ROOT / "sim").glob("*.py")))
     key = hashlib.sha256((CAR_FILE.read_text(encoding="utf-8") + track_path.read_text(encoding="utf-8")
-                          + sim_code + f"{GAME_DS}|{ODDS_RUNS}|{Driver().sigma}|fmt{CACHE_FORMAT}").encode()).hexdigest()[:16]
+                          + sim_code + CATALOG_FILE.read_text(encoding="utf-8") + ",".join(part_ids)
+                          + f"{GAME_DS}|{ODDS_RUNS}|{Driver().sigma}|fmt{CACHE_FORMAT}").encode()).hexdigest()[:16]
     cache = CACHE_DIR / f"{track_path.stem}_{key}.json"
     if cache.exists():
         return json.loads(cache.read_text(encoding="utf-8")), True
 
-    car = load_car(CAR_FILE)
+    car = player_car(part_ids)
     grid = discretize(load_track(track_path), GAME_DS)
     data = {}
     for push in PUSH_LEVELS:
@@ -152,7 +216,7 @@ def quantile(xs, q):
 
 def rival(rival_file, seed):
     spec = json.loads(resolve(rival_file).read_text(encoding="utf-8"))
-    data, cached = distributions(spec["track"])
+    data, cached = distributions(spec["track"])          # STOCK car: rivals don't track upgrades
     # Base time: where the player's BEST odds (over all push levels) equal the
     # target. Each push level reaches the target at its own quantile; the best
     # odds first reach it at the earliest (smallest) of those times.
@@ -177,16 +241,16 @@ def odds(track_file, posted):
           push_levels=out)
 
 
-def practice(track_file):
+def practice(track_file, part_ids=()):
     """Every practice run per push level: the game draws these as dots and
     leaves the judging to the player (no percentages)."""
-    data, cached = distributions(track_file)
+    data, cached = distributions(track_file, part_ids)
     reply(runs=len(next(iter(data.values()))["times"]), cached=cached,
           push_levels={p: {"times": [round(t, 3) for t in d["times"]],
                            "mistakes": d["mistakes"]} for p, d in data.items()})
 
 
-def race(track_file, push, seed, out_file):
+def race(track_file, push, seed, out_file, part_ids=()):
     from export_replay import build_replay
     from sim.car import load_car
     from sim.driver import Driver
@@ -194,7 +258,7 @@ def race(track_file, push, seed, out_file):
     from sim.track import discretize, load_track
 
     track_path = resolve(track_file)
-    car = load_car(CAR_FILE)
+    car = player_car(part_ids)
     segments = load_track(track_path)
     lap = run_lap(car, discretize(segments, GAME_DS), driver=Driver(push=push), seed=seed)
     replay_data = build_replay(car, segments, lap, track_path.name)
@@ -207,7 +271,8 @@ def race(track_file, push, seed, out_file):
 
 def main():
     ap = argparse.ArgumentParser(description="deadtildawn game bridge")
-    ap.add_argument("command", choices=["car_stats", "track", "rival", "practice", "odds", "race"])
+    ap.add_argument("command", choices=["parts", "car_stats", "track", "rival", "practice", "odds", "race"])
+    ap.add_argument("--parts", default="", help="installed part ids, comma-separated")
     ap.add_argument("--track")
     ap.add_argument("--rival")
     ap.add_argument("--posted", type=float)
@@ -216,18 +281,21 @@ def main():
     ap.add_argument("--out")
     a = ap.parse_args()
     try:
-        if a.command == "car_stats":
-            car_stats()
+        part_ids = parse_parts(a.parts)
+        if a.command == "parts":
+            parts_catalog()
+        elif a.command == "car_stats":
+            car_stats(part_ids)
         elif a.command == "track":
             track(a.track)
         elif a.command == "rival":
             rival(a.rival, a.seed)
         elif a.command == "practice":
-            practice(a.track)
+            practice(a.track, part_ids)
         elif a.command == "odds":
             odds(a.track, a.posted)
         elif a.command == "race":
-            race(a.track, a.push, a.seed, a.out)
+            race(a.track, a.push, a.seed, a.out, part_ids)
     except Exception as e:                         # report, don't crash the game
         fail(f"{type(e).__name__}: {e}")
 

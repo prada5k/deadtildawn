@@ -21,14 +21,17 @@ const IntroScene := preload("res://intro.tscn")
 const WarehouseScene := preload("res://screens/warehouse.tscn")
 const CarScene := preload("res://screens/car.tscn")
 const CalendarScene := preload("res://screens/calendar.tscn")
+const ShopScene := preload("res://screens/shop.tscn")
 
 const SAVE_PATH := "user://save.json"
-const SAVE_VERSION := 2
+const SAVE_VERSION := 3
 const START_CASH := 250
 const MIN_BUY_IN := 100
 const WAGER_STEP := 10
 const REP_WIN := 10
 const SKIP_REP_COST := 5 * REP_WIN   # chicken-out fee: five wins' worth of rep
+const LOOT_CHANCE := 0.05            # chance a win also drops a random part
+const LOOT_WEIGHTS := {"common": 50, "rare": 30, "epic": 15, "legendary": 5}
 const RIVAL_FILE := "data/rivals/zed_280z.json"
 const PUSH_ORDER := ["safe", "normal", "hard", "flat_out"]
 
@@ -40,12 +43,15 @@ var state := {}            # saved: cash, rep, week, day, history, night, intro_
 var car_stats := {}        # bridge replies, cached for the session
 var track_info := {}
 var practice := {}
+var catalog := {}          # bridge "parts" reply (slots + parts with exact effects)
+var shop_message := ""
 var bridge: Node
 var screen: Control        # current UI screen
 var footer: VBoxContainer  # pinned area at the bottom of scrolling screens
 var viewer: Node           # replay viewer while racing
 var choice := {"push": "normal", "wager": MIN_BUY_IN}
 var after_car_stats := "warehouse"   # where to go once car stats arrive
+var after_catalog := "shop"          # where to go once the parts catalog arrives
 
 
 # ------------------------------------------------------------------ setup
@@ -76,7 +82,8 @@ func _ready() -> void:
 
 func new_state() -> Dictionary:
 	return {"version": SAVE_VERSION, "cash": START_CASH, "rep": 0, "week": 1, "day": 0,
-		"history": [], "night": {}, "intro_seen": false}
+		"history": [], "night": {}, "intro_seen": false,
+		"owned_parts": [], "installed": {}}
 
 
 func load_game() -> void:
@@ -98,6 +105,10 @@ func migrate(data: Dictionary) -> Dictionary:
 		data["day"] = 0
 		data["night"] = {}           # an old night has no calendar event; redraw it
 		v = 2
+	if v < 3:                        # v2 -> v3: parts arrive
+		data["owned_parts"] = []
+		data["installed"] = {}
+		v = 3
 	data["version"] = v
 	return data
 
@@ -202,6 +213,8 @@ func _go(target: String) -> void:
 			show_calendar()
 		"story":
 			show_intro()
+		"shop":
+			show_shop()
 		"race":
 			show_briefing()
 
@@ -282,12 +295,106 @@ func show_warehouse() -> void:
 
 
 func show_car() -> void:
+	if catalog.is_empty():
+		show_message("THE CAR", "Checking the parts shelf...")
+		after_catalog = "car"
+		bridge.request("parts", ["parts"])
+		return
 	if car_stats.is_empty():
 		show_message("THE CAR", "Strapping the DX to the dyno...")
 		after_car_stats = "car"
-		bridge.request("car_stats", ["car_stats"])
+		bridge.request("car_stats", ["car_stats"] + parts_args())
 		return
-	open_scene(CarScene).setup(common_info(), car_stats)
+	var options := {}
+	for p in catalog["parts"]:
+		if p["id"] in state["owned_parts"]:
+			if not options.has(p["slot"]):
+				options[p["slot"]] = []
+			options[p["slot"]].append([p["id"], p["name"]])
+	var car: Control = open_scene(CarScene)
+	car.part_changed.connect(install_part)
+	car.setup(common_info(), car_stats,
+		{"slots": catalog["slots"], "options": options, "installed": state["installed"]})
+
+
+func show_shop() -> void:
+	if catalog.is_empty():
+		show_message("PARTS SHOP", "Checking the parts shelf...")
+		after_catalog = "shop"
+		bridge.request("parts", ["parts"])
+		return
+	var shop: Control = open_scene(ShopScene)
+	shop.buy.connect(buy_part)
+	shop.setup(common_info(), catalog, state["owned_parts"], state["installed"], shop_message)
+	shop_message = ""
+
+
+## Installed part ids, for every sim call: the car being simulated is the car
+## in the warehouse.
+func parts_args() -> Array:
+	var ids: Array = state["installed"].values()
+	ids.sort()
+	return [] if ids.is_empty() else ["--parts", ",".join(ids)]
+
+
+func part_by_id(id: String) -> Dictionary:
+	for p in catalog["parts"]:
+		if p["id"] == id:
+			return p
+	return {}
+
+
+## Buy and install. The shop won't spend below the race buy-in (otherwise one
+## purchase could leave you unable to race at all).
+func buy_part(id: String) -> void:
+	var p := part_by_id(id)
+	if p.is_empty() or id in state["owned_parts"]:
+		return
+	if int(state["cash"]) - int(p["price"]) < MIN_BUY_IN:
+		shop_message = "Can't: that would leave less than the %s buy-in." % UI.money(MIN_BUY_IN)
+		show_shop()
+		return
+	state["cash"] = int(state["cash"]) - int(p["price"])
+	state["owned_parts"].append(id)
+	shop_message = "Bought and installed: %s." % p["name"]
+	install_part(p["slot"], id, false)
+	show_shop()
+
+
+## Swap what's in a slot ("" = back to stock). The car changed, so its stats
+## and practice runs are stale.
+func install_part(slot: String, id: String, refresh := true) -> void:
+	if id == "":
+		state["installed"].erase(slot)
+	else:
+		state["installed"][slot] = id
+	car_stats = {}
+	practice = {}
+	save_game()
+	if refresh:
+		show_car()
+
+
+## A win has a small chance to drop a random part you don't own (by rarity).
+func roll_loot() -> String:
+	if catalog.is_empty() or randf() >= LOOT_CHANCE:
+		return ""
+	var pool := []
+	var total := 0
+	for p in catalog["parts"]:
+		if not p["id"] in state["owned_parts"]:
+			var w: int = LOOT_WEIGHTS[p["rarity"]]
+			pool.append([p["id"], w])
+			total += w
+	if total == 0:
+		return ""
+	var pick := randi() % total
+	for entry in pool:
+		pick -= entry[1]
+		if pick < 0:
+			state["owned_parts"].append(entry[0])
+			return entry[0]
+	return ""
 
 
 func show_calendar() -> void:
@@ -345,7 +452,11 @@ func show_briefing() -> void:
 		return
 	if practice.is_empty():
 		show_message("PRACTICE", "Faba's running the road at every push level.")
-		bridge.request("practice", ["practice", "--track", state["night"]["track"]])
+		bridge.request("practice", ["practice", "--track", state["night"]["track"]] + parts_args())
+		return
+	if catalog.is_empty():
+		after_catalog = "race"
+		bridge.request("parts", ["parts"])
 		return
 	show_meeting()
 
@@ -425,7 +536,7 @@ func send_it() -> void:
 		UI.money(choice["wager"]), str(choice["push"]).replace("_", " ")])
 	var out := ProjectSettings.globalize_path("user://replays/race.json")
 	bridge.request("race", ["race", "--track", state["night"]["track"], "--push", choice["push"],
-		"--seed", str(randi() % 1000000), "--out", out])
+		"--seed", str(randi() % 1000000), "--out", out] + parts_args())
 
 
 ## How many practice runs at this push level beat the posted time
@@ -452,7 +563,8 @@ func apply_result(r: Dictionary) -> Dictionary:
 		"time": r["lap_time"], "won": won, "push": r["push"], "seed": r["seed"],
 		"wager": wager, "cash_change": wager if won else -wager,
 		"rep_change": REP_WIN if won else 0, "mistakes": r["mistakes"],
-		"practice_beat": beat.x, "practice_runs": beat.y}
+		"practice_beat": beat.x, "practice_runs": beat.y,
+		"parts": state["installed"].values(), "loot": roll_loot() if won else ""}
 	state["cash"] = int(state["cash"]) + int(result["cash_change"])
 	state["rep"] = int(state["rep"]) + int(result["rep_change"])
 	state["history"].append(result)
@@ -494,6 +606,12 @@ func show_results(result: Dictionary) -> void:
 	UI.label(reveal, "In practice, %d of %d runs at %s push beat %s's %.2f." % [
 		result["practice_beat"], result["practice_runs"], str(result["push"]).replace("_", " "),
 		result["rival"], result["posted"]], "MutedLabel")
+	if result.get("loot", "") != "":
+		var loot := UI.vbox(UI.panel(col), 4)
+		UI.label(loot, "LOOT", "HeadingLabel")
+		var lp := part_by_id(result["loot"])
+		UI.label(loot, "Zed's crew paid up with more than cash: %s (%s). It's in the warehouse." % [
+			lp.get("name", result["loot"]), str(lp.get("rarity", "")).to_upper()])
 	UI.button(footer, "BACK TO THE WAREHOUSE", show_warehouse, "AccentButton")
 
 
@@ -515,6 +633,9 @@ func _on_reply(tag: String, data: Dictionary) -> void:
 		"car_stats":
 			car_stats = data
 			_go(after_car_stats)
+		"parts":
+			catalog = data
+			_go(after_catalog)
 		"rival":
 			data["event"] = event_key(next_event())
 			state["night"] = data
@@ -562,6 +683,19 @@ func game_test() -> void:
 		result["time"], result["posted"], "WIN" if result["won"] else "LOSS", state["cash"],
 		result["practice_beat"], result["practice_runs"]])
 	print("GAMETEST calendar after race: %s" % when(state["week"], state["day"]))
+	bridge.request("parts", ["parts"])
+	catalog = (await bridge.replied)[1]
+	print("GAMETEST catalog: %d parts in %d slots" % [catalog["parts"].size(), catalog["slots"].size()])
+	state["cash"] = 1000
+	shop_message = ""
+	buy_part("interior_strip")
+	buy_part("tires_r_comp")                 # $1600: must be refused (cash)
+	print("GAMETEST bought: owned %s, installed %s, cash %d" % [state["owned_parts"], state["installed"], state["cash"]])
+	print("GAMETEST parts args: %s" % [parts_args()])
+	bridge.request("car_stats", ["car_stats"] + parts_args())
+	r = await bridge.replied
+	print("GAMETEST car with parts: %d kg (stock 1112)" % r[1]["weight_kg"])
+	print("GAMETEST migrate v2: %s" % [migrate({"version": 2, "cash": 1, "rep": 0, "week": 1, "day": 0, "history": [], "night": {}}).keys()])
 	state["rep"] = 10
 	skip_night()
 	print("GAMETEST skip with 10 rep: rep %d, %s (blocked)" % [state["rep"], when(state["week"], state["day"])])
@@ -587,8 +721,23 @@ func game_shots(folder: String) -> void:
 	car_stats = (await bridge.replied)[1]
 	show_warehouse()
 	await snap(folder, "1_warehouse")
+	bridge.request("parts", ["parts"])
+	catalog = (await bridge.replied)[1]
+	state["cash"] = 900
+	state["owned_parts"] = ["interior_strip", "rsb_19", "shifter_short"]
+	state["installed"] = {"interior": "interior_strip", "rear_sway": "rsb_19"}
+	shop_message = "Bought and installed: Rear sway bar 19 mm."
+	show_shop()
+	await snap(folder, "1a_shop")
+	bridge.request("car_stats", ["car_stats"] + parts_args())
+	car_stats = (await bridge.replied)[1]
 	show_car()
 	await snap(folder, "1b_car")
+	screen.get_node("Margin/Scroll").scroll_vertical = 900
+	await snap(folder, "1b_car_parts")
+	state["cash"] = 250
+	state["owned_parts"] = []
+	state["installed"] = {}
 	state["history"] = [{"when": "FRI, WEEK 1", "rival": "Zed", "won": true, "cash_change": 150},
 		{"when": "SAT, WEEK 1", "rival": "Zed", "won": false, "cash_change": -100}]
 	state["week"] = 2

@@ -4,7 +4,7 @@ extends Control
 ## anything. This script only fills in text and reports button presses, so
 ## rearranging nodes is safe as long as the node NAMES below still exist.
 
-signal go(target: String)    # "race", "car", "calendar", "story"
+signal go(target: String)    # "race", "car", "calendar", "shop", "story"
 
 @onready var header = $Margin/Column/Header
 @onready var event_title: Label = $Margin/Column/NextUp/Box/EventTitle
@@ -16,6 +16,7 @@ func _ready() -> void:
 	$Margin/Column/NextUp/Box/GetReady.pressed.connect(func(): go.emit("race"))
 	$Margin/Column/Nav/CarButton.pressed.connect(func(): go.emit("car"))
 	$Margin/Column/Nav/CalendarButton.pressed.connect(func(): go.emit("calendar"))
+	$Margin/Column/Nav/ShopButton.pressed.connect(func(): go.emit("shop"))
 	$Margin/Column/StoryButton.pressed.connect(func(): go.emit("story"))
 
 

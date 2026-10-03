@@ -24,7 +24,9 @@ def torque_at(car, rpm):
             t = (rpm - xs[i - 1]) / (xs[i] - xs[i - 1])
             return ys[i - 1] + t * (ys[i] - ys[i - 1])
     slope = (ys[-1] - ys[-2]) / (xs[-1] - xs[-2])
-    return ys[-1] + slope * (rpm - xs[-1])
+    # Never negative: a raised rev limit (ECU, cams) can extend the
+    # extrapolation far past the dyno data
+    return max(ys[-1] + slope * (rpm - xs[-1]), 0.0)
 
 
 def overall_ratio(car, gear):

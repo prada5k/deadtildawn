@@ -25,60 +25,68 @@ theme_override_constants/margin_top = 48
 theme_override_constants/margin_right = 32
 theme_override_constants/margin_bottom = 40
 
-[node name="Column" type="VBoxContainer" parent="Margin"]
+[node name="Scroll" type="ScrollContainer" parent="Margin"]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="Column" type="VBoxContainer" parent="Margin/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 16
+
+[node name="Header" parent="Margin/Scroll/Column" instance=ExtResource("2")]
+layout_mode = 2
+
+[node name="TopRow" type="HBoxContainer" parent="Margin/Scroll/Column"]
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="Header" parent="Margin/Column" instance=ExtResource("2")]
-layout_mode = 2
-
-[node name="TopRow" type="HBoxContainer" parent="Margin/Column"]
-layout_mode = 2
-theme_override_constants/separation = 16
-
-[node name="Back" type="Button" parent="Margin/Column/TopRow"]
+[node name="Back" type="Button" parent="Margin/Scroll/Column/TopRow"]
 layout_mode = 2
 text = "<"
 
-[node name="Title" type="Label" parent="Margin/Column/TopRow"]
+[node name="Title" type="Label" parent="Margin/Scroll/Column/TopRow"]
 layout_mode = 2
 theme_type_variation = &"TitleLabel"
 text = "THE CAR"
 
-[node name="CarName" type="Label" parent="Margin/Column"]
+[node name="CarName" type="Label" parent="Margin/Scroll/Column"]
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
 text = "1996 Honda Civic DX Coupe"
 autowrap_mode = 3
 
-[node name="DynoPanel" type="PanelContainer" parent="Margin/Column"]
+[node name="DynoPanel" type="PanelContainer" parent="Margin/Scroll/Column"]
 layout_mode = 2
 
-[node name="Dyno" type="Control" parent="Margin/Column/DynoPanel"]
+[node name="Dyno" type="Control" parent="Margin/Scroll/Column/DynoPanel"]
 custom_minimum_size = Vector2(0, 280)
 layout_mode = 2
 script = ExtResource("3")
 
-[node name="StatsPanel" type="PanelContainer" parent="Margin/Column"]
+[node name="StatsPanel" type="PanelContainer" parent="Margin/Scroll/Column"]
 layout_mode = 2
 
-[node name="Stats" type="VBoxContainer" parent="Margin/Column/StatsPanel"]
+[node name="Stats" type="VBoxContainer" parent="Margin/Scroll/Column/StatsPanel"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="PartsPanel" type="PanelContainer" parent="Margin/Column"]
+[node name="PartsPanel" type="PanelContainer" parent="Margin/Scroll/Column"]
 layout_mode = 2
 
-[node name="Box" type="VBoxContainer" parent="Margin/Column/PartsPanel"]
+[node name="Box" type="VBoxContainer" parent="Margin/Scroll/Column/PartsPanel"]
 layout_mode = 2
 
-[node name="PartsTitle" type="Label" parent="Margin/Column/PartsPanel/Box"]
+[node name="PartsTitle" type="Label" parent="Margin/Scroll/Column/PartsPanel/Box"]
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
 text = "PARTS"
 
-[node name="PartsNote" type="Label" parent="Margin/Column/PartsPanel/Box"]
+[node name="PartsList" type="VBoxContainer" parent="Margin/Scroll/Column/PartsPanel/Box"]
 layout_mode = 2
-theme_type_variation = &"MutedLabel"
-text = "Bone stock, every part. The loot system comes next."
-autowrap_mode = 3
+theme_override_constants/separation = 6
+
+[node name="ShopButton" type="Button" parent="Margin/Scroll/Column/PartsPanel/Box"]
+layout_mode = 2
+theme_type_variation = &"AccentButton"
+text = "PARTS SHOP"

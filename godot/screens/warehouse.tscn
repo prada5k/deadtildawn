@@ -85,6 +85,11 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "CALENDAR"
 
+[node name="ShopButton" type="Button" parent="Margin/Column/Nav"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "PARTS"
+
 [node name="Crew" type="PanelContainer" parent="Margin/Column"]
 layout_mode = 2
 
