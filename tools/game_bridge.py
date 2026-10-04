@@ -10,19 +10,28 @@ Commands:
                                           (--parts entries may carry a quality: cams_race@0.83)
   car_stats [--parts a,b]                 stat sheet + dyno for the car with these parts
   track     --track FILE                  layout for the briefing (no car)
-  rival     --rival FILE                  rival's stat card (car + driver read) + home road
-  street    --week W --seed N             this week's open road (generated) + a random
-                                          street racer's stat card
+  rival     --rival FILE [--condition C]  rival's stat card (car + driver read) + home road;
+            [--retune --parts a,b]      C = his saved engine condition; --retune re-tunes
+                                          him against this build (the player beat him
+                                          last time), never weaker than C
+  street    --road N --seed N [--tune --parts a,b]
+                                          open road N (generated) + a street racer's card;
+                                          --tune matches him to the player's car and tunes
+                                          his engine to ~50% odds at the best push
+                                          (--week W = old name for --road)
   race      --track FILE --push P --seed N --out FILE.json [--parts a,b]
-            [--opponent ID --opp-seed N]  run the race and write the replay; with an
+            [--opponent ID --opp-seed N [--opp-condition C]] [--location L]
+                                          run the race and write the replay; with an
                                           opponent, both cars run the road (head to
                                           head) and the replay carries it as a ghost
   practice  --track FILE [--parts a,b]    runs per push level (dev tool; the game
                                           no longer uses it)
   odds      --track FILE --posted T       win odds vs a fixed time (dev tool)
 
-Races and odds use the SAME solver settings (GAME_DS). Opponents never track
-the player's upgrades: parts make Faba faster, never the opponent.
+Races and odds use the SAME solver settings (GAME_DS). Matchmaking and tuning:
+sim/matchmaking.py (street racers tuned every night; rivals only after you beat
+them). Every reply with an opponent carries "engine_condition" (a number; the
+game saves it with the night and passes it back as --opp-condition).
 Time distributions are cached per car + track + settings (runs/cache/).
 """
 import argparse
@@ -102,14 +111,42 @@ def stat_sheet(car):
             "sixty_zero_ft": round(stopping_distance(car, 60 * MPH_TO_MS) / FT_TO_M)}
 
 
-def opponent_card(oid):
+def opponent_spec(oid, condition=None):
+    """An opponent's spec, with his engine condition overridden if given."""
+    from sim.opponents import load_opponents
+    spec = dict(load_opponents()["opponents"][oid])
+    if condition is not None:
+        spec["condition"] = condition
+    return spec
+
+
+def opponent_card(oid, condition=None):
     from sim.car import load_car
-    from sim.opponents import (condition_label, driver_read, load_opponents, opponent_car)
-    spec = load_opponents()["opponents"][oid]
+    from sim.opponents import condition_label, driver_read, opponent_car
+    spec = opponent_spec(oid, condition)
     sheet = stat_sheet(opponent_car(load_car(CAR_FILE), spec))
     sheet["name"] = spec["car"]
     return {"opponent": oid, "name": spec["name"], "car": spec["car"], "stats": sheet,
-            "condition": condition_label(spec), "driver_read": driver_read(spec)}
+            "condition": condition_label(spec), "engine_condition": spec["condition"],
+            "driver_read": driver_read(spec)}
+
+
+STREET_TARGET_ODDS = 0.5   # a well-played night is a coin flip (Spire)
+# Where a road is (the replay's scenery): open roads by style; a rival's home
+# road says it in his rival file. Coast = PCH cliffs over the ocean, canyon =
+# Malibu rock cuts and chaparral, mountain = Angeles Crest pines over the city.
+STYLE_LOCATIONS = {"flowing": "coast", "balanced": "canyon", "technical": "mountain"}
+
+
+def tuned_condition(oid, track_file, part_ids, target, condition=None):
+    """Engine condition for opponent oid so this build's best push has
+    `target` odds on this road (sim/matchmaking.py)."""
+    from sim.car import load_car
+    from sim.matchmaking import tune
+    from sim.track import discretize, load_track
+    grid = discretize(load_track(resolve(track_file)), GAME_DS)
+    c, _ = tune(player_car(part_ids), load_car(CAR_FILE), opponent_spec(oid, condition), grid, target)
+    return c
 
 
 def car_stats(part_ids=()):
@@ -292,41 +329,66 @@ def quantile(xs, q):
     return xs[lo] + (xs[hi] - xs[lo]) * (i - lo)
 
 
-def rival(rival_file, seed):
+def rival(rival_file, seed, condition=None, retune=False, part_ids=()):
     """The rival's stat card on his home road. (No posted time: the race is
-    head-to-head, so the card IS the information.)"""
+    head-to-head, so the card IS the information.)
+    condition: his saved engine condition (None = as calibrated in the data).
+    retune: he upgrades to have his target odds against THIS build (the
+    player beat him last time); never weaker than before."""
     spec = json.loads(resolve(rival_file).read_text(encoding="utf-8"))
+    oid = spec["opponent"]
+    current = opponent_spec(oid, condition)["condition"]
+    if retune:
+        target = opponent_spec(oid)["target_odds"]
+        condition = max(current, tuned_condition(oid, spec["track"], part_ids, target, condition))
+    else:
+        condition = current
     reply(id=spec["id"], club=spec["club"], track=spec["track"], payout=spec["payout"],
-          seed=seed, **opponent_card(spec["opponent"]))
+          seed=seed, retuned=retune, location=spec.get("location", "canyon"),
+          **opponent_card(oid, condition))
 
 
 OPEN_ROAD_STYLES = ["technical", "balanced", "flowing"]
 OPEN_ROAD_DIR = ROOT / "data" / "tracks" / "generated"
 
 
-def open_road(week):
-    """This week's open road: generated from the week number (same week = same
-    road), style rotating technical -> balanced -> flowing. Writes the pace
-    notes to a track file once and returns its repo-relative path."""
+def open_road(road):
+    """Open road number `road` (two a week: Fri and Sat): generated from the
+    number (same number = same road), style rotating technical -> balanced ->
+    flowing. Writes the pace notes to a track file once (runtime cache,
+    gitignored) and returns its repo-relative path."""
     from sim.trackgen import generate
-    style = OPEN_ROAD_STYLES[(week - 1) % len(OPEN_ROAD_STYLES)]
-    path = OPEN_ROAD_DIR / f"open_week_{week}.txt"
+    style = OPEN_ROAD_STYLES[(road - 1) % len(OPEN_ROAD_STYLES)]
+    path = OPEN_ROAD_DIR / f"open_road_{road}.txt"
     if not path.exists():
-        g = generate(1000 + week, style)
+        g = generate(1000 + road, style)
         OPEN_ROAD_DIR.mkdir(parents=True, exist_ok=True)
-        path.write_text(f"# Open road, week {week}: {style} (sim/trackgen.py seed {1000 + week})\n"
+        path.write_text(f"# Open road {road}: {style} (sim/trackgen.py seed {1000 + road})\n"
                         f"{g.notes}\n", encoding="utf-8")
     return path.relative_to(ROOT).as_posix(), style
 
 
-def street(week, seed):
-    """A random street racer's stat card on this week's open road."""
+def street(road, seed, tune=False, part_ids=()):
+    """A street racer's stat card on open road number `road`. With tune: the
+    racer is matched to the player's car and his engine tuned so the best
+    push has STREET_TARGET_ODDS (a few seconds of sim, in parallel)."""
     import random
+    from sim.car import load_car
+    from sim.matchmaking import match_opponent
     from sim.opponents import load_opponents
-    track, style = open_road(week)
-    oid = random.Random(seed).choice(load_opponents()["street"])
+    track, style = open_road(road)
+    data = load_opponents()
+    rng = random.Random(seed)
+    condition = None
+    if tune:
+        pool = {oid: data["opponents"][oid] for oid in data["street"]}
+        oid = match_opponent(player_car(part_ids), load_car(CAR_FILE), pool, rng)
+        condition = tuned_condition(oid, track, part_ids, STREET_TARGET_ODDS)
+    else:
+        oid = rng.choice(data["street"])
     reply(id="street", club=f"Open road, {style}", track=track, payout="even",
-          seed=seed, week=week, style=style, **opponent_card(oid))
+          seed=seed, road=road, style=style, tuned=tune, location=STYLE_LOCATIONS[style],
+          **opponent_card(oid, condition))
 
 
 def odds(track_file, posted):
@@ -352,7 +414,8 @@ def practice(track_file, part_ids=()):
                            "mistakes": d["mistakes"]} for p, d in data.items()})
 
 
-def race(track_file, push, seed, out_file, part_ids=(), opponent=None, opp_seed=None):
+def race(track_file, push, seed, out_file, part_ids=(), opponent=None, opp_seed=None,
+         opp_condition=None, location=None):
     from export_replay import build_replay
     from sim.car import load_car
     from sim.driver import Driver
@@ -360,7 +423,7 @@ def race(track_file, push, seed, out_file, part_ids=(), opponent=None, opp_seed=
     from sim.track import discretize, load_track
 
     from sim.lap import finish_time
-    from sim.opponents import load_opponents, opponent_car, opponent_driver
+    from sim.opponents import opponent_car, opponent_driver
 
     track_path = resolve(track_file)
     car = player_car(part_ids)
@@ -369,11 +432,11 @@ def race(track_file, push, seed, out_file, part_ids=(), opponent=None, opp_seed=
     lap = run_lap(car, grid, driver=Driver(push=push), seed=seed)
     ghost, opp = None, None
     if opponent:
-        spec = load_opponents()["opponents"][opponent]
+        spec = opponent_spec(opponent, opp_condition)
         opp = run_lap(opponent_car(load_car(CAR_FILE), spec), grid,
                       driver=opponent_driver(spec), seed=opp_seed)
         ghost = {"name": spec["name"], "car": spec["car"], "lap": opp}
-    replay_data = build_replay(car, segments, lap, track_path.name, ghost)
+    replay_data = build_replay(car, segments, lap, track_path.name, ghost, location)
     out = Path(out_file)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(replay_data, separators=(",", ":")), encoding="utf-8")
@@ -395,6 +458,12 @@ def main():
     ap.add_argument("command", choices=["parts", "pull", "car_stats", "track", "rival", "street",
                                         "practice", "odds", "race"])
     ap.add_argument("--week", type=int)
+    ap.add_argument("--road", type=int)
+    ap.add_argument("--tune", action="store_true")
+    ap.add_argument("--retune", action="store_true")
+    ap.add_argument("--condition", type=float)
+    ap.add_argument("--opp-condition", type=float)
+    ap.add_argument("--location", choices=["coast", "canyon", "mountain"])
     ap.add_argument("--opponent")
     ap.add_argument("--opp-seed", type=int, default=0)
     ap.add_argument("--source")
@@ -418,15 +487,16 @@ def main():
         elif a.command == "track":
             track(a.track)
         elif a.command == "rival":
-            rival(a.rival, a.seed)
+            rival(a.rival, a.seed, a.condition, a.retune, part_ids)
         elif a.command == "street":
-            street(a.week, a.seed)
+            street(a.road if a.road is not None else a.week, a.seed, a.tune, part_ids)
         elif a.command == "practice":
             practice(a.track, part_ids)
         elif a.command == "odds":
             odds(a.track, a.posted)
         elif a.command == "race":
-            race(a.track, a.push, a.seed, a.out, part_ids, a.opponent, a.opp_seed)
+            race(a.track, a.push, a.seed, a.out, part_ids, a.opponent, a.opp_seed, a.opp_condition,
+                 a.location)
     except Exception as e:                         # report, don't crash the game
         fail(f"{type(e).__name__}: {e}")
 

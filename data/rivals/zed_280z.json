@@ -8,5 +8,6 @@
   "nightly_spread_s": 0.1,
   "payout": "even",
   "notes": "Rung 1 of the Nissan ladder. The car and driver live in data/opponents.json (opponent 'zed_280z'); this file says where he races (his home road) and how he pays.",
-  "opponent": "zed_280z"
+  "opponent": "zed_280z",
+  "location": "coast"
 }

@@ -87,18 +87,14 @@ def test_condition_scales_the_engine(base, data):
 # ---------- difficulty (slow: ~12 s) ----------
 
 def test_zed_odds_near_target(base, data):
-    # Repeat tools/calibrate_opponents.py's own measurement (same seeds and
-    # runs): a STOCK DX at its best push level vs Zed on his home road.
-    # Tolerance 0.10, not one run: the odds fall off a CLIFF with engine
-    # condition (0.76 -> 0.49, 0.77 -> 0.09; VALIDATION_LOG), so the bisection
-    # can't land exactly on 0.45. This test catches a physics change that
-    # quietly makes Zed much easier or harder: recalibrate if it fails.
+    # A STOCK DX at its best push level vs Zed on his home road, measured with
+    # a big FRESH sample (200 runs a side, not the tuner's seeds): the
+    # calibration must hold up on races it never saw. Tolerance 0.12: the
+    # tuner itself uses 40 runs, and near the odds cliff that lands within
+    # about +-0.1 (sim/matchmaking.py). Catches a physics change that quietly
+    # makes Zed much easier or harder: recalibrate if it fails.
     sys.path.insert(0, str(ROOT / "tools"))
-    from calibrate_opponents import RUNS, best_odds, reference_grid
-    from sim.driver import Driver
-    from sim.montecarlo import run_many
+    from calibrate_opponents import reference_grid
+    from sim.matchmaking import measure_odds
     spec = data["opponents"]["zed_280z"]
-    grid = reference_grid(data, spec)
-    player = {p: run_many(base, grid, Driver(push=p), RUNS, seed0=5000).times for p in PUSH_LEVELS}
-    opp = run_many(opponent_car(base, spec), grid, opponent_driver(spec), RUNS, seed0=7000).times
-    assert best_odds(player, opp) == pytest.approx(spec["target_odds"], abs=0.10)
+    assert measure_odds(base, base, spec, reference_grid(data, spec)) ==         pytest.approx(spec["target_odds"], abs=0.12)

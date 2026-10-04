@@ -1,45 +1,30 @@
 extends Control
-## First-launch intro. Tap / click / Enter / Space advances; SKIP ends it.
-##
-## Edit the STORY here (SLIDES). Edit the LOOK in intro.tscn (open it in
-## Godot: select a node, change it in the Inspector) and in theme.tres.
+## The story (Spire's words: voice.gd STORY_*). Two parts:
+##   1. The tape: old touge footage of the $50k night (the FA5 and the
+##      Nissan club's 370Z at the turnout, widgets/turnout_night.gd) with
+##      camcorder OSD and Best Motoring style captions. The crash is the
+##      tape glitching out, then static, then nothing.
+##   2. Faba's texts: a phone thread over six years, ending with the DX and
+##      the warehouse. Messages pop in one at a time.
+## Then the title. Tap to move on; "skip" ends it. LAYOUT lives in
+## intro.tscn; the words live in voice.gd.
 
 signal finished
 
-const STORY_BG := Color(0.475, 0.502, 0.443)    # #798071
-const STORY_TEXT := Color(0.102, 0.059, 0.063)  # #1A0F10
-const ACCENT := Color(0.839, 0.251, 0.271)      # #D64045 (kickers, title)
-const FADE_S := 0.6
+const Voice := preload("res://voice.gd")
+const UI := preload("res://ui.gd")
+const MESSAGE_GAP_S := 0.7       # between messages popping in
 
-const SLIDES := [
-	{"kicker": "SOCAL CANYONS  /  SIX YEARS AGO",
-	 "body": "Everyone on the mountain knew the FA5.\n\nEveryone knew who built it.\n\nAnd who drove it."},
-	{"kicker": "2009 CIVIC SI  /  FA5",
-	 "body": "Your car. Your build. Your line through every corner on the mountain."},
-	{"kicker": "THE LAST RUN",
-	 "body": "A $50,000 pot. Final run of the night.\n\nYou were winning."},
-	{"kicker": "", "body": "One corner too hot.\n\nThe tires let go.", "bg": "crash"},
-	{"kicker": "87 MPH", "body": "Into a tree.", "bg": "crash"},
-	{"kicker": "", "body": "You should have died.\n\nThe FA5 burned. Your right leg never came back the same."},
-	{"kicker": "AFTER", "body": "Faba got you back on your feet.\n\nYou walked away from the scene. You didn't look back."},
-	{"kicker": "SIX YEARS LATER",
-	 "body": "Faba quits his corporate job.\n\nBuys a bone-stock '96 Civic DX coupe. Five-speed."},
-	{"kicker": "THE WAREHOUSE",
-	 "body": "He spends his savings on a warehouse. Home, garage, headquarters.\n\n\"You build it. I drive it.\""},
-	{"kicker": "", "body": "DEADTILDAWN", "title": true},
-]
-
-@onready var kicker: Label = $Margin/Column/Kicker
-@onready var body: Label = $Margin/Column/Body
-@onready var hint: Label = $Hint
-@onready var background: ColorRect = $Background
-@onready var splatter: Control = $Splatter
-
-var index := -1
+var tape_i := -1                 # current tape caption
+var block := 0                   # current day in the thread
+var typing := false              # messages still popping in
+var title_shown := false
 
 
 func _ready() -> void:
-	$Skip.pressed.connect(func(): finished.emit())
+	%Skip.pressed.connect(func(): finished.emit())
+	%Footage.setup(Voice.STORY_BOSS, [], Voice.STORY_FA5)
+	%Footage.frame("chase")                    # portrait: over the FA5's shoulder
 	next_slide()
 
 
@@ -57,35 +42,109 @@ func _unhandled_input(event: InputEvent) -> void:
 		next_slide()
 
 
+## One tap: the next tape caption, the next day of texts, the title, or done.
 func next_slide() -> void:
-	index += 1
-	if index >= SLIDES.size():
+	if title_shown:
 		finished.emit()
 		return
-	show_slide(SLIDES[index])
+	if tape_i < Voice.STORY_TAPE.size() - 1:
+		tape_i += 1
+		show_tape(Voice.STORY_TAPE[tape_i])
+		return
+	if not %Phone.visible:
+		%Tape.visible = false
+		%Phone.visible = true
+		show_block()
+		return
+	if typing:
+		typing = false                       # tap while typing: the rest of the day at once
+		return
+	if block < day_starts().size():
+		show_block()
+		return
+	show_title()
 
 
-func show_slide(slide: Dictionary) -> void:
-	kicker.text = slide.get("kicker", "")
-	kicker.visible = kicker.text != ""
-	body.text = slide["body"]
-	var is_title: bool = slide.get("title", false)
-	body.add_theme_font_size_override("font_size", 96 if is_title else 46)
-	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if is_title else HORIZONTAL_ALIGNMENT_LEFT
-	body.add_theme_color_override("font_color", ACCENT if is_title else STORY_TEXT)
-	kicker.add_theme_color_override("font_color", ACCENT)
-	hint.text = "tap to start" if index == SLIDES.size() - 1 else "tap to continue"
+func show_tape(slide: Dictionary) -> void:
+	%Stamp.text = slide["stamp"]
+	%Caption.text = slide["caption"]
+	var caption: Label = %Caption
+	caption.modulate.a = 0.0
+	create_tween().tween_property(caption, "modulate:a", 1.0, 0.35)
+	var tape: ShaderMaterial = $Tape/Grain.material
+	var black: ColorRect = %Blackout
+	match slide["shot"]:
+		"glitch":                                 # the tape starts to go
+			tape.set_shader_parameter("band", 0.6)
+			tape.set_shader_parameter("bleed", 6.0)
+		"static":                                 # gone: black, heavy tracking noise
+			tape.set_shader_parameter("band", 1.4)
+			tape.set_shader_parameter("bleed", 10.0)
+			black.color.a = 0.85
+		"black":                                  # tape stopped
+			tape.set_shader_parameter("band", 0.0)
+			tape.set_shader_parameter("bleed", 0.0)
+			black.color.a = 1.0
+			%Play.text = "STOP []"
+		_:
+			tape.set_shader_parameter("band", 0.08)
+			tape.set_shader_parameter("bleed", 1.6)
+			black.color.a = 0.0
+	%Hint.text = "tap"
 
-	# Fade the text in; shift the background for the crash slides
-	kicker.modulate.a = 0.0
-	body.modulate.a = 0.0
-	var tween := create_tween().set_parallel(true)
-	tween.tween_property(kicker, "modulate:a", 1.0, FADE_S)
-	tween.tween_property(body, "modulate:a", 1.0, FADE_S).set_delay(0.15)
-	background.color = STORY_BG
-	# Crash slides: the splatter fades in over the background
-	var crash: bool = slide.get("bg", "") == "crash"
-	tween.tween_property(splatter, "modulate:a", 1.0 if crash else 0.0, 0.25)
+
+## Indexes in STORY_TEXTS where each day ("when") starts.
+func day_starts() -> Array:
+	var out := []
+	for i in Voice.STORY_TEXTS.size():
+		if Voice.STORY_TEXTS[i][0] == "when":
+			out.append(i)
+	return out
 
 
+## Pop in the next day of the thread, one message at a time.
+func show_block() -> void:
+	var starts := day_starts()
+	var i0: int = starts[block]
+	var i1: int = starts[block + 1] if block + 1 < starts.size() else Voice.STORY_TEXTS.size()
+	block += 1
+	typing = true
+	for i in range(i0, i1):
+		var msg: Array = Voice.STORY_TEXTS[i]
+		add_message(msg[0], msg[1])
+		if typing and i < i1 - 1:
+			await get_tree().create_timer(MESSAGE_GAP_S).timeout
+	typing = false
+	%Hint.text = "tap"
 
+
+func add_message(who: String, text: String) -> void:
+	var thread: VBoxContainer = %Thread
+	if who == "when":
+		var day := UI.label(thread, text, "TextWhenLabel")
+		day.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	else:
+		var row := HBoxContainer.new()
+		row.alignment = BoxContainer.ALIGNMENT_END if who == "me" else BoxContainer.ALIGNMENT_BEGIN
+		thread.add_child(row)
+		var bubble := PanelContainer.new()
+		bubble.theme_type_variation = "TextMePanel" if who == "me" else "TextFabaPanel"
+		row.add_child(bubble)
+		var label := Label.new()
+		label.theme_type_variation = "TextLabel"
+		label.text = text
+		bubble.add_child(label)
+		bubble.modulate.a = 0.0
+		create_tween().tween_property(bubble, "modulate:a", 1.0, 0.2)
+	await get_tree().process_frame                   # scroll to the newest message
+	var sc: ScrollContainer = %Scroll
+	sc.scroll_vertical = int(sc.get_v_scroll_bar().max_value)
+
+
+func show_title() -> void:
+	title_shown = true
+	%Phone.visible = false
+	%Title.visible = true
+	%Title.modulate.a = 0.0
+	create_tween().tween_property(%Title, "modulate:a", 1.0, 0.6)
+	%Hint.text = "tap to start"

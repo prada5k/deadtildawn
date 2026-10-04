@@ -6,26 +6,24 @@ extends Control
 ## LAYOUT lives in shell.tscn; data hooks use scene unique names (%Name), so
 ## nodes can be moved around freely in the editor.
 
-signal go(target: String)    # "shop", "car", "warehouse", "calendar"
+signal go(target: String)    # "shop", "car", "warehouse", "calendar", "team"
 
 const UI := preload("res://ui.gd")
 
 @onready var nav := {
 	"shop": %ShopButton, "car": %CarButton, "warehouse": %WarehouseButton,
-	"calendar": %CalendarButton,
+	"calendar": %CalendarButton, "team": %ExtraNavButton,
 }
 
 
 func _ready() -> void:
 	for target in nav:
 		nav[target].pressed.connect(func(): go.emit(target))
-	# %ExtraNavButton is the TEAM drawer (Polaroid board, docs/ART_DIRECTION.md): disabled for now
+	# %ExtraNavButton is the TEAM drawer (the Polaroid board)
 
 
 func set_stats(cash: int, rep: int, min_buy_in: int) -> void:
-	%Cash.text = UI.money(cash)
-	# Printed on the receipt: dark ink colors that read on white paper
-	%Cash.add_theme_color_override("font_color", UI.INK if cash >= min_buy_in else UI.INK_BAD)
+	%Cash.text = UI.money(cash)              # money is always green, rep always orange (theme)
 	%Rep.text = "REP %d" % rep
 
 

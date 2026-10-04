@@ -113,7 +113,7 @@ horizontal_alignment = 2
 [node name="Cash" type="Label" parent="Column/TopRail/RailRow/Receipt/StatsBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_type_variation = &"InkHeadingLabel"
+theme_type_variation = &"InkMoneyBigLabel"
 theme_override_font_sizes/font_size = 40
 text = "$250"
 horizontal_alignment = 2
@@ -121,7 +121,7 @@ horizontal_alignment = 2
 [node name="Rep" type="Label" parent="Column/TopRail/RailRow/Receipt/StatsBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_type_variation = &"InkMutedLabel"
+theme_type_variation = &"InkRepLabel"
 text = "REP 0"
 horizontal_alignment = 2
 
@@ -295,8 +295,6 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 96)
 layout_mode = 2
 size_flags_horizontal = 3
-tooltip_text = "Team (coming soon)"
-disabled = true
 theme_type_variation = &"DrawerButton"
 
 [node name="Face" type="VBoxContainer" parent="Column/BottomNavBar/IconBarRow/ExtraNavButton"]

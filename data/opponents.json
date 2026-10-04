@@ -1,5 +1,5 @@
 {
-  "notes": "Opponents: game-tuned cars defined as CHANGES to the base car (data/cars/ej6_dx_coupe_1996.json), using the same effects as parts, plus drivetrain and weight_front. `condition` scales the engine's output (a tired engine on the street): it is calibrated by tools/calibrate_opponents.py so a STOCK DX at its best push level has `target_odds` against them on `calibrate_on` (or the street reference road). The stat card shows the resulting horsepower truthfully. Drivers are authored personalities: push level, consistency (sigma), skill.",
+  "notes": "Opponents: game-tuned cars defined as CHANGES to the base car (data/cars/ej6_dx_coupe_1996.json), using the same effects as parts, plus drivetrain and weight_front. `condition` scales the engine's output (a tired engine on the street): it is calibrated by tools/calibrate_opponents.py so a STOCK DX at its best push level has `target_odds` against them on `calibrate_on` (or the street reference road). The stat card shows the resulting horsepower truthfully. Drivers are authored personalities: push level, consistency (sigma), skill. Oct 2026 (Spire: 'opponents have greater sigma too'): every driver's sigma +0.008 and skill moved halfway to 1.0 (skill shrinks the push target, which made low-skill drivers safe instead of sloppy), so opponents make mistakes and crash like real people. In the game, street racers are re-tuned every night (sim/matchmaking.py) and rivals after you beat them; the condition here is the starting point (rivals) and the default (no --tune).",
   "opponents": {
     "zed_280z": {
       "name": "Zed",
@@ -14,12 +14,12 @@
       },
       "driver": {
         "push": "normal",
-        "sigma": 0.016,
-        "skill": 0.99
+        "sigma": 0.024,
+        "skill": 0.995
       },
       "target_odds": 0.45,
       "calibrate_on": "data/tracks/test_track.txt",
-      "condition": 0.7621
+      "condition": 0.7563
     },
     "lalo_crx": {
       "name": "Lalo",
@@ -32,11 +32,11 @@
       },
       "driver": {
         "push": "hard",
-        "sigma": 0.02,
-        "skill": 0.96
+        "sigma": 0.028,
+        "skill": 0.98
       },
       "target_odds": 0.5,
-      "condition": 0.7621
+      "condition": 0.7515
     },
     "bree_miata": {
       "name": "Bree",
@@ -50,11 +50,11 @@
       },
       "driver": {
         "push": "normal",
-        "sigma": 0.014,
+        "sigma": 0.022,
         "skill": 1.0
       },
       "target_odds": 0.4,
-      "condition": 0.6504
+      "condition": 0.6521
     },
     "dez_ae86": {
       "name": "Dez",
@@ -67,11 +67,11 @@
       },
       "driver": {
         "push": "flat_out",
-        "sigma": 0.02,
-        "skill": 0.97
+        "sigma": 0.028,
+        "skill": 0.985
       },
       "target_odds": 0.45,
-      "condition": 0.8738
+      "condition": 0.9048
     },
     "monk_integra": {
       "name": "Monk",
@@ -85,11 +85,11 @@
       },
       "driver": {
         "push": "normal",
-        "sigma": 0.016,
-        "skill": 0.98
+        "sigma": 0.024,
+        "skill": 0.99
       },
       "target_odds": 0.4,
-      "condition": 0.7316
+      "condition": 0.7214
     },
     "tavo_mustang": {
       "name": "Tavo",
@@ -103,11 +103,11 @@
       },
       "driver": {
         "push": "flat_out",
-        "sigma": 0.024,
-        "skill": 0.93
+        "sigma": 0.032,
+        "skill": 0.965
       },
       "target_odds": 0.55,
-      "condition": 0.9855
+      "condition": 0.9033
     },
     "kiki_rsx": {
       "name": "Kiki",
@@ -121,11 +121,11 @@
       },
       "driver": {
         "push": "hard",
-        "sigma": 0.017,
+        "sigma": 0.025,
         "skill": 1.0
       },
       "target_odds": 0.35,
-      "condition": 0.7113
+      "condition": 0.7502
     },
     "rook_eclipse": {
       "name": "Rook",
@@ -138,11 +138,11 @@
       },
       "driver": {
         "push": "flat_out",
-        "sigma": 0.022,
-        "skill": 0.94
+        "sigma": 0.03,
+        "skill": 0.97
       },
       "target_odds": 0.5,
-      "condition": 0.8434
+      "condition": 0.7944
     },
     "paz_gti": {
       "name": "Paz",
@@ -155,11 +155,11 @@
       },
       "driver": {
         "push": "normal",
-        "sigma": 0.018,
-        "skill": 0.96
+        "sigma": 0.026,
+        "skill": 0.98
       },
       "target_odds": 0.5,
-      "condition": 0.9551
+      "condition": 0.9064
     },
     "junebug_mr2": {
       "name": "Junebug",
@@ -173,11 +173,11 @@
       },
       "driver": {
         "push": "hard",
-        "sigma": 0.019,
-        "skill": 0.97
+        "sigma": 0.027,
+        "skill": 0.985
       },
       "target_odds": 0.45,
-      "condition": 0.8941
+      "condition": 0.8929
     },
     "static_ms3": {
       "name": "Static",
@@ -191,11 +191,11 @@
       },
       "driver": {
         "push": "hard",
-        "sigma": 0.02,
-        "skill": 0.98
+        "sigma": 0.028,
+        "skill": 0.99
       },
       "target_odds": 0.35,
-      "condition": 0.5996
+      "condition": 0.6186
     },
     "wren_prelude": {
       "name": "Wren",
@@ -209,11 +209,11 @@
       },
       "driver": {
         "push": "safe",
-        "sigma": 0.012,
-        "skill": 0.99
+        "sigma": 0.02,
+        "skill": 0.995
       },
       "target_odds": 0.6,
-      "condition": 0.7824
+      "condition": 0.7802
     },
     "cutter_camaro": {
       "name": "Cutter",
@@ -227,11 +227,11 @@
       },
       "driver": {
         "push": "flat_out",
-        "sigma": 0.025,
-        "skill": 0.92
+        "sigma": 0.033,
+        "skill": 0.96
       },
       "target_odds": 0.55,
-      "condition": 1.0465
+      "condition": 0.9128
     }
   },
   "street": [

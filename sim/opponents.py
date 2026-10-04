@@ -48,8 +48,8 @@ def driver_read(spec):
              ("average" if skill >= 0.93 else "sloppy"))
     style = {"safe": "drives within himself", "normal": "drives a steady pace",
              "hard": "pushes hard", "flat_out": "drives on the ragged edge"}[push]
-    consistency = "rarely makes mistakes" if d["sigma"] <= 0.015 else (
-        "loose in the corners" if d["sigma"] >= 0.022 else "fairly consistent")
+    consistency = "rarely makes mistakes" if d["sigma"] <= 0.022 else (
+        "loose in the corners" if d["sigma"] >= 0.03 else "fairly consistent")
     return f"{level.capitalize()}, {style}, {consistency}."
 
 

@@ -42,20 +42,22 @@ func setup(result: Dictionary, info: Dictionary) -> void:
 		["%s (%s)" % [result["rival"], result["rival_car"]], them],
 		["Push", str(result["push"]).replace("_", " ")],
 		["Mistakes", "none" if result["mistakes"].is_empty() else ", ".join(result["mistakes"])],
-		["Cash", "%s%s  ->  %s" % ["+" if result["cash_change"] > 0 else "", UI.money(result["cash_change"]),
-			UI.money(info["cash"])]],
-		["Rep", "%+d  ->  %d" % [result["rep_change"], info["rep"]]],
 	]:
 		UI.stat_row(lines, row[0], row[1], "InkMutedLabel", "InkLabel")
+	# money is always green, rep always orange
+	UI.stat_row(lines, "Cash", "%s%s  ->  %s" % ["+" if result["cash_change"] > 0 else "",
+		UI.money(result["cash_change"]), UI.money(info["cash"])], "InkMutedLabel", "InkMoneyLabel")
+	UI.stat_row(lines, "Rep", "%+d  ->  %d" % [result["rep_change"], info["rep"]], "InkMutedLabel", "InkRepLabel")
 
 	# Tow ticket
 	var dmg: Dictionary = result.get("damage", {})
 	%Damage.visible = not dmg.is_empty()
 	if not dmg.is_empty():
 		var box: VBoxContainer = %DamageLines
-		var t := UI.label(box, "TOW TICKET   -%s" % UI.money(dmg["body_repair"]), "StampLabel")
+		var t := UI.label(box, "TOW TICKET", "StampLabel")
 		t.autowrap_mode = TextServer.AUTOWRAP_OFF
 		t.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		UI.stat_row(box, "Tow + body work", "-%s" % UI.money(dmg["body_repair"]), "InkMutedLabel", "InkMoneyLabel")
 		for n in dmg["destroyed"]:
 			UI.label(box, "DESTROYED: %s" % n, "InkLabel", UI.INK_BAD)
 		for n in dmg["damaged"]:

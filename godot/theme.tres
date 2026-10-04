@@ -12,6 +12,7 @@
 [ext_resource type="Texture2D" uid="uid://04w5g7hhj51y" path="res://textures/drawer_hover.png" id="t_drawer_hover"]
 [ext_resource type="Texture2D" uid="uid://dblniwr742qch" path="res://textures/drawer_open.png" id="t_drawer_open"]
 [ext_resource type="FontFile" uid="uid://cqre8vi3u3afr" path="res://fonts/Doto.ttf" id="6"]
+[ext_resource type="FontFile" uid="uid://dh07wcc4odel" path="res://fonts/VT323-Regular.ttf" id="7"]
 [ext_resource type="Texture2D" uid="uid://dvnpsr6v134or" path="res://textures/gaff.png" id="t_gaff"]
 [ext_resource type="Texture2D" uid="uid://xbj1kh327008" path="res://textures/whiteboard.png" id="t_whiteboard"]
 [ext_resource type="Texture2D" uid="uid://bqmjg2gvdrxjb" path="res://textures/corkboard.png" id="t_cork"]
@@ -667,6 +668,101 @@ border_width_right = 7
 border_width_bottom = 7
 border_color = Color(0.84, 0.2, 0.2, 0.92)
 
+[sub_resource type="StyleBoxFlat" id="memory_photo"]
+content_margin_left = 8.0
+content_margin_top = 8.0
+content_margin_right = 8.0
+content_margin_bottom = 8.0
+bg_color = Color(0.231, 0.173, 0.306, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.13, 0.1, 0.17, 1)
+
+[sub_resource type="StyleBoxFlat" id="phone"]
+content_margin_left = 22.0
+content_margin_top = 30.0
+content_margin_right = 22.0
+content_margin_bottom = 30.0
+bg_color = Color(0.08, 0.08, 0.1, 1)
+border_width_left = 6
+border_width_top = 6
+border_width_right = 6
+border_width_bottom = 6
+border_color = Color(0.24, 0.24, 0.27, 1)
+corner_radius_top_left = 34
+corner_radius_top_right = 34
+corner_radius_bottom_right = 34
+corner_radius_bottom_left = 34
+
+[sub_resource type="StyleBoxFlat" id="text_faba"]
+content_margin_left = 16.0
+content_margin_top = 10.0
+content_margin_right = 16.0
+content_margin_bottom = 12.0
+bg_color = Color(0.25, 0.26, 0.3, 1)
+corner_radius_top_left = 18
+corner_radius_top_right = 18
+corner_radius_bottom_right = 18
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="text_me"]
+content_margin_left = 16.0
+content_margin_top = 10.0
+content_margin_right = 16.0
+content_margin_bottom = 12.0
+bg_color = Color(0.13, 0.42, 0.85, 1)
+corner_radius_top_left = 18
+corner_radius_top_right = 18
+corner_radius_bottom_right = 18
+corner_radius_bottom_left = 18
+
+[sub_resource type="StyleBoxFlat" id="tape_caption"]
+content_margin_left = 16.0
+content_margin_top = 4.0
+content_margin_right = 16.0
+content_margin_bottom = 8.0
+bg_color = Color(0, 0, 0, 0.72)
+border_width_left = 6
+border_color = Color(1, 0.86, 0.18, 1)
+
+[sub_resource type="StyleBoxFlat" id="osd_btn"]
+content_margin_left = 10.0
+content_margin_top = 2.0
+content_margin_right = 10.0
+content_margin_bottom = 4.0
+bg_color = Color(0, 0, 0, 0.45)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.95, 0.95, 0.9, 0.5)
+
+[sub_resource type="StyleBoxFlat" id="osd_btn_hover"]
+content_margin_left = 10.0
+content_margin_top = 2.0
+content_margin_right = 10.0
+content_margin_bottom = 4.0
+bg_color = Color(0, 0, 0, 0.6)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.95, 0.95, 0.9, 1)
+
+[sub_resource type="StyleBoxFlat" id="osd_btn_on"]
+content_margin_left = 10.0
+content_margin_top = 2.0
+content_margin_right = 10.0
+content_margin_bottom = 4.0
+bg_color = Color(0.95, 0.95, 0.9, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.95, 0.95, 0.9, 1)
+
 [sub_resource type="StyleBoxEmpty" id="pick_empty"]
 content_margin_left = 12.0
 content_margin_top = 2.0
@@ -685,6 +781,101 @@ default_font_size = 28
 BenchPanel/base_type = &"PanelContainer"
 BenchPanel/styles/panel = SubResource("bench")
 CardboardPanel/base_type = &"PanelContainer"
+OsdButton/base_type = &"Button"
+OsdButton/colors/font_color = Color(0.95, 0.95, 0.9, 1)
+OsdButton/colors/font_focus_color = Color(0.95, 0.95, 0.9, 1)
+OsdButton/colors/font_hover_color = Color(1, 1, 1, 1)
+OsdButton/colors/font_hover_pressed_color = Color(0.06, 0.05, 0.05, 1)
+OsdButton/colors/font_pressed_color = Color(0.06, 0.05, 0.05, 1)
+OsdButton/colors/font_disabled_color = Color(0.95, 0.95, 0.9, 0.35)
+OsdButton/constants/outline_size = 0
+OsdButton/font_sizes/font_size = 34
+OsdButton/fonts/font = ExtResource("7")
+OsdButton/styles/disabled = SubResource("osd_btn")
+OsdButton/styles/focus = SubResource("empty")
+OsdButton/styles/hover = SubResource("osd_btn_hover")
+OsdButton/styles/normal = SubResource("osd_btn")
+OsdButton/styles/pressed = SubResource("osd_btn_on")
+OsdOnButton/base_type = &"OsdButton"
+OsdOnButton/colors/font_color = Color(0.06, 0.05, 0.05, 1)
+OsdOnButton/colors/font_focus_color = Color(0.06, 0.05, 0.05, 1)
+OsdOnButton/colors/font_hover_color = Color(0.06, 0.05, 0.05, 1)
+OsdOnButton/styles/hover = SubResource("osd_btn_on")
+OsdOnButton/styles/normal = SubResource("osd_btn_on")
+OsdBigButton/base_type = &"OsdButton"
+OsdBigButton/font_sizes/font_size = 52
+OsdLabel/base_type = &"Label"
+OsdLabel/colors/font_color = Color(0.95, 0.95, 0.9, 1)
+OsdLabel/colors/font_shadow_color = Color(0, 0, 0, 0.8)
+OsdLabel/constants/shadow_offset_x = 2
+OsdLabel/constants/shadow_offset_y = 2
+OsdLabel/font_sizes/font_size = 38
+OsdLabel/fonts/font = ExtResource("7")
+TapeCaptionLabel/base_type = &"Label"
+TapeCaptionLabel/colors/font_color = Color(0.98, 0.98, 0.95, 1)
+TapeCaptionLabel/font_sizes/font_size = 34
+TapeCaptionLabel/fonts/font = ExtResource("2")
+TapeCaptionLabel/styles/normal = SubResource("tape_caption")
+PhonePanel/base_type = &"PanelContainer"
+PhonePanel/styles/panel = SubResource("phone")
+TextFabaPanel/base_type = &"PanelContainer"
+TextFabaPanel/styles/panel = SubResource("text_faba")
+TextLabel/base_type = &"Label"
+TextLabel/colors/font_color = Color(0.97, 0.97, 0.98, 1)
+TextLabel/font_sizes/font_size = 28
+TextLabel/fonts/font = ExtResource("1")
+TextMePanel/base_type = &"PanelContainer"
+TextMePanel/styles/panel = SubResource("text_me")
+TextWhenLabel/base_type = &"Label"
+TextWhenLabel/colors/font_color = Color(0.6, 0.61, 0.66, 1)
+TextWhenLabel/font_sizes/font_size = 20
+TextWhenLabel/fonts/font = ExtResource("2")
+MarkerSmallLabel/base_type = &"Label"
+MarkerSmallLabel/colors/font_color = Color(0.133, 0.2, 0.31, 1)
+MarkerSmallLabel/font_sizes/font_size = 17
+MarkerSmallLabel/fonts/font = ExtResource("5")
+MemoryPhotoLabel/base_type = &"Label"
+MemoryPhotoLabel/colors/font_color = Color(0.95, 0.52, 0.22, 1)
+MemoryPhotoLabel/colors/font_shadow_color = Color(0, 0, 0, 0.5)
+MemoryPhotoLabel/constants/shadow_offset_x = 2
+MemoryPhotoLabel/constants/shadow_offset_y = 3
+MemoryPhotoLabel/font_sizes/font_size = 52
+MemoryPhotoLabel/fonts/font = ExtResource("3")
+MemoryPhotoPanel/base_type = &"PanelContainer"
+MemoryPhotoPanel/styles/panel = SubResource("memory_photo")
+InkMoneyBigLabel/base_type = &"Label"
+InkMoneyBigLabel/colors/font_color = Color(0.1, 0.46, 0.22, 1)
+InkMoneyBigLabel/font_sizes/font_size = 38
+InkMoneyBigLabel/fonts/font = ExtResource("3")
+InkMoneyLabel/base_type = &"Label"
+InkMoneyLabel/colors/font_color = Color(0.1, 0.46, 0.22, 1)
+InkMoneyLabel/font_sizes/font_size = 26
+InkMoneyLabel/fonts/font = ExtResource("2")
+InkRepLabel/base_type = &"Label"
+InkRepLabel/colors/font_color = Color(0.82, 0.36, 0.1, 1)
+InkRepLabel/font_sizes/font_size = 24
+InkRepLabel/fonts/font = ExtResource("2")
+MoneyBigLabel/base_type = &"Label"
+MoneyBigLabel/colors/font_color = Color(0.5, 0.86, 0.38, 1)
+MoneyBigLabel/colors/font_outline_color = Color(0.06, 0.025, 0.03, 1)
+MoneyBigLabel/colors/font_shadow_color = Color(0, 0, 0, 0.55)
+MoneyBigLabel/constants/outline_size = 10
+MoneyBigLabel/constants/shadow_offset_x = 3
+MoneyBigLabel/constants/shadow_offset_y = 4
+MoneyBigLabel/font_sizes/font_size = 44
+MoneyBigLabel/fonts/font = ExtResource("3")
+MoneyLabel/base_type = &"Label"
+MoneyLabel/colors/font_color = Color(0.5, 0.86, 0.38, 1)
+MoneyLabel/font_sizes/font_size = 26
+MoneyLabel/fonts/font = ExtResource("2")
+RepLabel/base_type = &"Label"
+RepLabel/colors/font_color = Color(0.95, 0.52, 0.22, 1)
+RepLabel/font_sizes/font_size = 26
+RepLabel/fonts/font = ExtResource("2")
+WhiteboardOrangeLabel/base_type = &"Label"
+WhiteboardOrangeLabel/colors/font_color = Color(0.9, 0.42, 0.08, 1)
+WhiteboardOrangeLabel/font_sizes/font_size = 21
+WhiteboardOrangeLabel/fonts/font = ExtResource("5")
 ClipboardPanel/base_type = &"PanelContainer"
 ClipboardPanel/styles/panel = SubResource("clipboard")
 GaffRedButton/base_type = &"Button"
@@ -769,7 +960,7 @@ FlyerBluePanel/styles/panel = SubResource("flyer_blue")
 FlyerPinkPanel/base_type = &"PanelContainer"
 FlyerPinkPanel/styles/panel = SubResource("flyer_pink")
 FlyerPriceLabel/base_type = &"Label"
-FlyerPriceLabel/colors/font_color = Color(0.7, 0.15, 0.17, 1)
+FlyerPriceLabel/colors/font_color = Color(0.1, 0.46, 0.22, 1)
 FlyerPriceLabel/font_sizes/font_size = 46
 FlyerPriceLabel/fonts/font = ExtResource("3")
 FlyerYellowPanel/base_type = &"PanelContainer"

@@ -9,18 +9,28 @@ extends Node2D
 ## and the dash (gauges, gear, pedals) at the bottom. Touch or mouse works;
 ## keys too: 1-4 cameras, C cycle, Space pause, R restart, Up/Down speed.
 ##
-## Cameras: Overview (whole track), Follow (north-up), Chase (car always points
-## up, the world turns around it), TV (fixed trackside cameras per corner).
+## Cameras: Chase (default: car always points up, the world turns around it),
+## Overview (whole track), Follow (north-up), TV (fixed trackside cameras per
+## corner). Every camera but Overview cuts to the wreck on a crash and to the
+## finish line at the end.
 ##
 ## Head-to-head replays carry the opponent as a "ghost" (pose samples on its own
 ## time base), drawn translucent. A crashed car stops at its crash apex; the
 ## replay ends when Faba finishes or crashes.
 ##
-## Night: the world (grass, trees, road, tire marks) sits under a moonlit
+## Night: the world (scenery, road, tire marks) sits under a moonlit
 ## CanvasModulate and is lit by each car's headlights (PointLight2D). Cars,
 ## labels and effects live on an overlay CanvasLayer that follows the camera,
-## so they stay readable. Broadcast extras: start lights, a gap tower,
-## tire marks, crash sparks/smoke/shake, a finish flash.
+## so they stay readable. The scenery is the road's PLACE (replay "location":
+## coast / canyon / mountain, widgets/scenery.gd).
+##
+## Broadcast (Best Motoring / VHS tape, widgets/vhs.gdshader): REC + camcorder
+## timestamp, viewfinder brackets, camcorder-menu buttons (OsdButton), yellow
+## caption boxes, a gap tower and a live gap bar. The race
+## intro rolls both cars up to the line with hazards on while a flagger counts
+## 3-2-1 with a flashlight. The finish goes slow-mo, cuts to a camera on the
+## line, and holds until the second car crosses. Also: tire marks, crash
+## sparks/smoke/shake, a finish flash.
 ##
 ## Command line (after "--"):
 ##   --replay=<path>   play this replay instead of replays/latest.json
@@ -37,6 +47,10 @@ const LANE_OFFSET_M := 2.0       # car drives the center of the right-hand lane
 const RoadScript := preload("res://widgets/road.gd")
 const CarSprite := preload("res://widgets/car_sprite.gd")
 const RACING_FONT := preload("res://fonts/RacingSansOne-Regular.ttf")
+const VT_FONT := preload("res://fonts/VT323-Regular.ttf")            # camcorder OSD
+const BODY_FONT := preload("res://fonts/BarlowCondensed-Bold.ttf")
+const SceneryScript := preload("res://widgets/scenery.gd")
+const VhsShader := preload("res://widgets/vhs.gdshader")
 const FOLLOW_VIEW_M := 100.0     # meters of road across the screen in follow mode
 const TRACKSIDE_LEAD_M := 150.0  # cut to a corner's camera this far before its entry
 const TRACKSIDE_TRAIL_M := 60.0  # ...and keep it this far past the exit
@@ -57,21 +71,35 @@ const GHOST_MARKER_COLOR := Color(0.45, 0.7, 1.0)
 const WIN_COLOR := Color(0.46, 0.77, 0.4)
 const LOSS_COLOR := Color(0.93, 0.17, 0.24)
 const BANNER_COLOR := Color(1.0, 0.9, 0.4)
-const ACCENT := Color(0.839, 0.251, 0.271)     # #D64045
 const INK := Color(0.06, 0.025, 0.03)
 
 # Night
-const NIGHT_SKY := Color(0.02, 0.025, 0.03)    # beyond the grass
-const MOONLIGHT := Color(0.2, 0.22, 0.33)     # CanvasModulate: everything unlit
-const GRASS := Color(0.16, 0.24, 0.13)
+const NIGHT_SKY := Color(0.02, 0.025, 0.03)    # beyond the scenery
+const MOONLIGHT := Color(0.4, 0.43, 0.6)      # CanvasModulate: everything unlit (bright enough to read the place)
 const HEADLIGHT_COLOR := Color(1.0, 0.93, 0.74)
 const HEADLIGHT_RANGE_M := 60.0
 const HEADLIGHT_HALF_ANGLE := 0.5              # rad (~29 deg)
-const TREE_SPACING_M := 7.0
+const HAZARD := Color(1.0, 0.55, 0.1)
 
 # Broadcast
-const COUNTDOWN_S := 2.4         # three red lamps 0.8 s apart, then green
+const ROLL_S := 1.6              # intro: the cars roll up to the line...
+const ROLL_M := 14.0             # ...from this far back
+const COUNT_STEP_S := 0.8        # then the flagger counts 3, 2, 1
+const COUNTDOWN_S := ROLL_S + 3 * COUNT_STEP_S
+const FINISH_SLOW_M := 45.0      # slow-mo once the leader is this close to the line
+const SLOW_MO := 0.3
+const FINISH_VIEW_M := 70.0      # finish-line camera
+const FINISH_HOLD_S := 4.0       # wait at most this long for the second car
+const GAP_BAR_RANGE_S := 1.0     # gap bar: full deflection at 1 s
 const MARK_COLOR := Color(0.02, 0.02, 0.02, 0.55)
+const CAPTION_YELLOW := Color(1.0, 0.86, 0.18)
+const CAPTION_BG := Color(0.0, 0.0, 0.0, 0.72)
+const REC_RED := Color(1.0, 0.16, 0.12)
+const VIEWFINDER_INSET := 8.0     # px from the screen edge to the corner brackets
+const VIEWFINDER_ARM := 44.0      # px each bracket arm
+const LOCATION_NAMES := {"coast": "PACIFIC COAST HWY", "canyon": "LATIGO CANYON RD",
+	"mountain": "ANGELES CREST HWY"}
+const CLOCK_START_S := 23 * 3600 + 51 * 60 + 40   # the tape's clock at the green: 23:51:40
 
 signal finished_viewing     # embedded mode: player pressed Continue after the finish
 
@@ -94,7 +122,7 @@ var t := 0.0              # playback time (s)
 var idx := 0              # current sample index (t is between idx and idx + 1)
 var playing := true
 var speed_i := 2          # index into SPEEDS (1x)
-var cam_mode: int = CamMode.OVERVIEW
+var cam_mode: int = CamMode.CHASE
 var active_corner := -1
 
 var camera: Camera2D
@@ -117,6 +145,11 @@ var marker: Node2D
 var ghost_car: Node2D
 var ghost_marker: Node2D
 var ghost_tag: Label      # "CRASHED" over a ghost that went off
+var location := "canyon"  # replay "location" (older replays: canyon)
+var road_pts := PackedVector2Array()
+var end_time := 0.0       # replay ends: Faba's finish/crash, or the ghost's finish if later
+var finish_cut := false   # the finish-line camera has taken over
+var flagger: Node2D
 
 
 # ------------------------------------------------------------------ setup
@@ -140,7 +173,7 @@ func _ready() -> void:
 	build_car()
 	build_camera()
 	build_hud()
-	set_cam_mode(CamMode.TRACKSIDE if embedded else CamMode.OVERVIEW)
+	set_cam_mode(CamMode.CHASE)                 # Spire: chase by default, game and viewer
 	countdown = COUNTDOWN_S
 	for a in args:
 		if a == "--selftest" or a.begins_with("--shots="):
@@ -169,6 +202,10 @@ func load_replay(path: String) -> String:
 	lap_time = float(data["lap_time"])
 	dnf = bool(data.get("dnf", false))     # optional, like ghost
 	ghost = data.get("ghost")
+	location = str(data.get("location", "canyon")) if data.get("location") != null else "canyon"
+	end_time = lap_time
+	if ghost != null and not dnf and not bool(ghost["dnf"]) and float(ghost["lap_time"]) > lap_time:
+		end_time = minf(float(ghost["lap_time"]), lap_time + FINISH_HOLD_S)   # watch him cross
 	if ghost != null:
 		ghost_s = ghost["samples"].get("s", [])
 		if ghost_s.is_empty():                 # older replays: distance from the points
@@ -212,6 +249,7 @@ func build_track() -> void:
 	for p in centerline:
 		pts.append(to_world(p[0], p[1]))
 
+	road_pts = pts
 	var rect := Rect2(pts[0], Vector2.ZERO)
 	for p in pts:
 		rect = rect.expand(p)
@@ -284,78 +322,25 @@ func make_car(car_name: String) -> Node2D:
 	return c
 
 
-## Night: moonlight over everything in the world layer, grass around the road,
-## trees along it, and somewhere for the tire marks to go.
+## Night: moonlight over everything in the world layer, the road's place
+## around it (widgets/scenery.gd), and somewhere for the tire marks to go.
 func build_night() -> void:
 	var dark := CanvasModulate.new()
 	dark.color = MOONLIGHT
 	add_child(dark)
 
-	var margin := 400.0 * PX_PER_M
-	var grass := Polygon2D.new()
-	var r := Rect2(track_center - track_size / 2.0, track_size).grow(margin)
-	grass.polygon = PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end,
-		Vector2(r.position.x, r.end.y)])
-	grass.color = GRASS
-	grass.z_index = -20
-	add_child(grass)
-
-	var trees := Node2D.new()
-	trees.z_index = -5
-	var spots := tree_spots()
-	trees.draw.connect(func():
-		for tree in spots:
-			var pos: Vector2 = tree[0]
-			var rad: float = tree[1]
-			var shade: float = tree[2]
-			trees.draw_circle(pos + Vector2(rad * 0.25, rad * 0.3), rad, Color(0.03, 0.05, 0.03))
-			trees.draw_circle(pos, rad, Color(0.1, 0.2, 0.1).lerp(Color(0.16, 0.3, 0.14), shade))
-			trees.draw_circle(pos - Vector2(rad * 0.3, rad * 0.3), rad * 0.55,
-				Color(0.16, 0.3, 0.14).lerp(Color(0.24, 0.4, 0.2), shade)))
-	add_child(trees)
+	var land: Node2D = SceneryScript.new()
+	land.points = road_pts
+	land.corners = corners
+	land.px_per_m = PX_PER_M
+	land.location = location
+	land.glow_layer = overlay              # city lights glow through the night
+	land.z_index = -20
+	add_child(land)
 
 	marks = Node2D.new()
 	marks.z_index = 1
 	add_child(marks)
-
-
-## Tree positions along both sides of the road, never on it (a grid of
-## centerline points makes the "how close is the road" check cheap).
-func tree_spots() -> Array:
-	var centerline: Array = replay["track"]["centerline"]
-	var cell := 20.0 * PX_PER_M
-	var grid := {}
-	var pts := []
-	for c in centerline:
-		var w := to_world(c[0], c[1])
-		pts.append(w)
-		var key := Vector2i(floori(w.x / cell), floori(w.y / cell))
-		if not grid.has(key):
-			grid[key] = []
-		grid[key].append(w)
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 7                                 # same trees every replay of a road
-	var clear := (ROAD_WIDTH_M / 2.0 + 3.5) * PX_PER_M
-	var spots := []
-	var step := int(TREE_SPACING_M)
-	for i in range(0, pts.size() - 1, step):
-		var dir: Vector2 = (pts[mini(i + 1, pts.size() - 1)] - pts[i]).normalized()
-		for side: float in [-1.0, 1.0]:
-			if rng.randf() < 0.3:
-				continue
-			var d := rng.randf_range(8.0, 30.0) * PX_PER_M
-			var pos: Vector2 = pts[i] + dir.orthogonal() * side * d \
-				+ dir * rng.randf_range(-3.0, 3.0) * PX_PER_M
-			var ok := true
-			var key := Vector2i(floori(pos.x / cell), floori(pos.y / cell))
-			for dx in [-1, 0, 1]:
-				for dy in [-1, 0, 1]:
-					for q in grid.get(key + Vector2i(dx, dy), []):
-						if pos.distance_to(q) < clear:
-							ok = false
-			if ok:
-				spots.append([pos, rng.randf_range(2.2, 4.8) * PX_PER_M, rng.randf()])
-	return spots
 
 
 ## A headlight cone texture: light starts at the center and shines to +x
@@ -439,6 +424,42 @@ func build_car() -> void:
 	tail.energy = 0.5
 	add_child(tail)
 	lights["car_tail"] = tail
+	# Hazards for the roll-up (blink until the flagger drops the light)
+	for who in ["car", "ghost"] if ghost != null else ["car"]:
+		var hz := PointLight2D.new()
+		hz.texture = glow
+		hz.texture_scale = 9.0 * PX_PER_M / 64.0
+		hz.color = HAZARD
+		hz.energy = 0.0
+		add_child(hz)
+		lights[who + "_hazard"] = hz
+	build_flagger(cone)
+
+
+## The flagger: stands in the road just past the start line between the cars'
+## noses, counts 3-2-1 with a flashlight, then steps back to the shoulder.
+func build_flagger(cone: Texture2D) -> void:
+	var centerline: Array = replay["track"]["centerline"]
+	var a := to_world(centerline[0][0], centerline[0][1])
+	var b := to_world(centerline[mini(12, centerline.size() - 1)][0], centerline[mini(12, centerline.size() - 1)][1])
+	var ahead := (b - a).normalized()
+	flagger = Node2D.new()
+	flagger.position = a + ahead * 9.0 * PX_PER_M
+	flagger.rotation = ahead.angle() + PI                  # facing the cars
+	flagger.z_index = 12
+	flagger.draw.connect(func():
+		var s := PX_PER_M * 2.0                                # drawn big, like the cars, so he reads
+		flagger.draw_circle(Vector2(0.15, 0.2) * s, 0.55 * s, Color(0, 0, 0, 0.4))   # shadow
+		flagger.draw_circle(Vector2.ZERO, 0.5 * s, Color(0.12, 0.12, 0.14))          # shoulders
+		flagger.draw_circle(Vector2.ZERO, 0.28 * s, Color(0.55, 0.42, 0.33))         # head
+		flagger.draw_line(Vector2(0, 0.35) * s, Vector2(0.7, 0.55) * s, Color(0.12, 0.12, 0.14), 0.22 * s)
+		flagger.draw_circle(Vector2(0.75, 0.55) * s, 0.12 * s, Color(1, 0.95, 0.8)))  # the flashlight
+	overlay.add_child(flagger)
+	var beam := make_headlight(cone, 0.0)
+	beam.position = flagger.position
+	beam.rotation = flagger.rotation
+	beam.texture_scale = 24.0 * PX_PER_M / 256.0
+	lights["flagger"] = beam
 
 
 func build_camera() -> void:
@@ -488,14 +509,40 @@ func racing_label(parent: Node, pos: Vector2, size: int, color := Color.WHITE) -
 	return label
 
 
-## A red stripe along a HUD bar's edge (livery line).
-func stripe(parent: Control, y: float) -> ColorRect:
-	var r := ColorRect.new()
-	r.color = ACCENT
-	r.position = Vector2(0, y)
-	r.size = Vector2(4000, 4)
-	parent.add_child(r)
-	return r
+## Camcorder on-screen display text (VT323, hard shadow, no outline).
+func osd_label(parent: Node, pos: Vector2, size: int, color: Color) -> Label:
+	var label := Label.new()
+	label.position = pos
+	label.add_theme_font_override("font", VT_FONT)
+	label.add_theme_font_size_override("font_size", size)
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
+	label.add_theme_constant_override("shadow_offset_x", 2)
+	label.add_theme_constant_override("shadow_offset_y", 2)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(label)
+	return label
+
+
+## A 2000s touge-video caption: white bold text in a black box, yellow edge.
+func caption(parent: Node, pos: Vector2, size: int) -> Label:
+	var label := Label.new()
+	label.position = pos
+	label.add_theme_font_override("font", BODY_FONT)
+	label.add_theme_font_size_override("font_size", size)
+	label.add_theme_color_override("font_color", Color(0.98, 0.98, 0.95))
+	var box := StyleBoxFlat.new()
+	box.bg_color = CAPTION_BG
+	box.border_width_left = 6
+	box.border_color = CAPTION_YELLOW
+	box.content_margin_left = 14
+	box.content_margin_right = 14
+	box.content_margin_top = 2
+	box.content_margin_bottom = 4
+	label.add_theme_stylebox_override("normal", box)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(label)
+	return label
 
 
 func build_hud() -> void:
@@ -503,46 +550,49 @@ func build_hud() -> void:
 	layer.layer = 2                       # above the overlay (cars, labels)
 	add_child(layer)
 
-	# Top info bar
+	# Top: the tape. REC + camcorder clock, the race caption, the lap clock
 	var top := ColorRect.new()
-	top.color = Color(0.05, 0.03, 0.035, 0.88)
+	top.color = Color(0.0, 0.0, 0.0, 0.55)
+	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(top)
 	hud["top"] = top
-	stripe(top, TOP_BAR_PX - 4)
-	hud["clock"] = racing_label(top, Vector2(28, 34), 60)
-	hud["title"] = add_label(top, Vector2(30, 112), 22, Color(0.7, 0.71, 0.75))
-	hud["title"].text = "%s  /  %s" % [replay["car"]["name"], str(replay["track"]["name"]).get_basename().replace("_", " ")]
-	hud["status"] = racing_label(top, Vector2(30, 140), 26, ACCENT)
+	hud["rec"] = osd_label(top, Vector2(24, 18), 40, REC_RED)
+	hud["rec"].text = "* REC"
+	hud["stamp"] = osd_label(top, Vector2(0, 18), 34, Color(0.95, 0.95, 0.9))
+	hud["caption"] = caption(top, Vector2(24, 70), 26)
+	var place: String = LOCATION_NAMES.get(location, "CANYON ROAD")
+	hud["caption"].text = "%s  //  %s" % [place, ("FABA vs %s" % ghost_name()) if ghost != null else "FABA"]
+	hud["clock"] = racing_label(top, Vector2(24, 112), 54, CAPTION_YELLOW)
+	hud["status"] = osd_label(top, Vector2(0, 128), 30, Color(0.95, 0.95, 0.9))
 
 	# Bottom: camera + playback buttons, then the dash
 	var bottom := ColorRect.new()
 	bottom.color = Color(0.05, 0.03, 0.035, 1.0)
 	layer.add_child(bottom)
 	hud["bottom"] = bottom
-	stripe(bottom, 0)
 
 	var buttons := HBoxContainer.new()
-	buttons.add_theme_constant_override("separation", 8)
+	buttons.add_theme_constant_override("separation", 6)
 	bottom.add_child(buttons)
 	hud["buttons"] = buttons
 	hud["cam_buttons"] = []
 	for i in CAM_NAMES.size():
 		var b := Button.new()
-		b.text = CAM_NAMES[i]
-		b.add_theme_font_size_override("font_size", 22)
+		b.text = CAM_NAMES[i].to_upper()
+		b.theme_type_variation = "OsdButton"            # camcorder menu: white box, inverted when on
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.focus_mode = Control.FOCUS_NONE
 		b.pressed.connect(set_cam_mode.bind(i))
 		buttons.add_child(b)
 		hud["cam_buttons"].append(b)
 	var play := Button.new()
-	play.add_theme_font_size_override("font_size", 22)
+	play.theme_type_variation = "OsdButton"
 	play.focus_mode = Control.FOCUS_NONE
 	play.pressed.connect(toggle_play)
 	buttons.add_child(play)
 	hud["play"] = play
 	var speed := Button.new()
-	speed.add_theme_font_size_override("font_size", 22)
+	speed.theme_type_variation = "OsdButton"
 	speed.focus_mode = Control.FOCUS_NONE
 	speed.pressed.connect(func(): speed_i = (speed_i + 1) % SPEEDS.size())
 	buttons.add_child(speed)
@@ -581,10 +631,28 @@ func build_hud() -> void:
 	hud["brake"] = add_bar(dash, Vector2(BRAKE_X, 70), Vector2(30, PEDAL_H), Color(0.93, 0.17, 0.24))
 	hud["throttle"] = add_bar(dash, Vector2(THROTTLE_X, 70), Vector2(30, PEDAL_H), Color(0.3, 0.8, 0.4))
 
-	hud["banner"] = racing_label(layer, Vector2.ZERO, 54, Color(1.0, 0.9, 0.4))
-	hud["mistake"] = racing_label(layer, Vector2.ZERO, 32, Color(1.0, 0.55, 0.1))
+	hud["banner"] = caption(layer, Vector2.ZERO, 40)
+	hud["banner_gap"] = racing_label(layer, Vector2.ZERO, 96, CAPTION_YELLOW)
+	hud["mistake"] = caption(layer, Vector2.ZERO, 26)
+	hud["count"] = racing_label(layer, Vector2.ZERO, 150, CAPTION_YELLOW)   # 3, 2, 1, GO
 	build_tower(layer)
-	build_start_lights(layer)
+	build_gap_bar(layer)
+	var tape := CanvasLayer.new()          # the VHS look over everything, under nothing
+	tape.layer = 50
+	add_child(tape)
+	var vhs := ColorRect.new()
+	vhs.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vhs.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mat := ShaderMaterial.new()
+	mat.shader = VhsShader
+	vhs.material = mat
+	var finder := Control.new()
+	finder.set_anchors_preset(Control.PRESET_FULL_RECT)
+	finder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	finder.draw.connect(draw_viewfinder.bind(finder))
+	finder.resized.connect(finder.queue_redraw)
+	tape.add_child(finder)
+	tape.add_child(vhs)
 	var flash := ColorRect.new()            # finish flash, full screen
 	flash.color = Color(1, 1, 1, 0)
 	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -593,24 +661,34 @@ func build_hud() -> void:
 	hud["flash"] = flash
 	if embedded:
 		var cont := Button.new()
-		cont.text = "CONTINUE"
-		cont.theme_type_variation = "AccentButton"
+		cont.text = "KEEP GOING >"
+		cont.theme_type_variation = "OsdBigButton"
 		cont.visible = false
 		cont.pressed.connect(func(): finished_viewing.emit())
 		layer.add_child(cont)
 		hud["continue"] = cont
 
 
-## Broadcast gap tower: running order, live interval to the leader, OUT for a crash.
+## Camcorder viewfinder: white corner brackets around the whole frame.
+func draw_viewfinder(finder: Control) -> void:
+	var r := Rect2(Vector2.ZERO, finder.size).grow(-VIEWFINDER_INSET)
+	var col := Color(0.95, 0.95, 0.9, 0.75)
+	for corner: Vector2 in [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]:
+		var inward := (r.get_center() - corner).sign()
+		finder.draw_line(corner, corner + Vector2(inward.x * VIEWFINDER_ARM, 0), col, 3.0)
+		finder.draw_line(corner, corner + Vector2(0, inward.y * VIEWFINDER_ARM), col, 3.0)
+
+
+## Broadcast gap tower: running order, live interval to the leader, OUT for a
+## crash. Tape-era graphic: black box, yellow position numbers, digital gaps.
 func build_tower(layer: CanvasLayer) -> void:
 	var box := PanelContainer.new()
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.04, 0.025, 0.03, 0.86)
-	style.border_width_left = 5
-	style.border_color = ACCENT
-	style.skew = Vector2(0.12, 0)
-	style.content_margin_left = 16
-	style.content_margin_right = 18
+	style.bg_color = CAPTION_BG
+	style.border_width_top = 4
+	style.border_color = CAPTION_YELLOW
+	style.content_margin_left = 12
+	style.content_margin_right = 14
 	style.content_margin_top = 6
 	style.content_margin_bottom = 8
 	box.add_theme_stylebox_override("panel", style)
@@ -624,48 +702,53 @@ func build_tower(layer: CanvasLayer) -> void:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 10)
 		col.add_child(row)
-		var pos := racing_label(row, Vector2.ZERO, 26, Color.WHITE)
-		pos.custom_minimum_size.x = 22
+		var pos := racing_label(row, Vector2.ZERO, 28, CAPTION_YELLOW)
+		pos.custom_minimum_size.x = 24
 		var chip := ColorRect.new()
 		chip.custom_minimum_size = Vector2(8, 26)
 		chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(chip)
-		var name := racing_label(row, Vector2.ZERO, 26, Color.WHITE)
+		var name := osd_label(row, Vector2.ZERO, 34, Color.WHITE)
 		name.custom_minimum_size.x = 120
-		var gap := racing_label(row, Vector2.ZERO, 24, Color(1.0, 0.85, 0.3))
-		gap.custom_minimum_size.x = 92
+		var gap := osd_label(row, Vector2.ZERO, 34, CAPTION_YELLOW)
+		gap.custom_minimum_size.x = 96
 		gap.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		rows.append({"pos": pos, "chip": chip, "name": name, "gap": gap})
 	hud["tower"] = box
 	hud["tower_rows"] = rows
 
 
-## Start lights: three red lamps come on 0.8 s apart, then all go green.
-func build_start_lights(layer: CanvasLayer) -> void:
-	var lamps := Control.new()
-	lamps.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	lamps.size = Vector2(300, 110)
-	lamps.draw.connect(func():
-		var housing := Rect2(Vector2.ZERO, lamps.size)
-		lamps.draw_rect(housing, Color(0.04, 0.03, 0.03, 0.92))
-		lamps.draw_rect(housing, ACCENT, false, 4.0)
-		var elapsed := COUNTDOWN_S - countdown
-		var go := countdown <= 0.0
-		for i in 3:
-			var c := Vector2(60 + i * 90, 55)
-			var on := elapsed >= i * 0.8
-			var col := Color(0.2, 0.95, 0.35) if go else (Color(1.0, 0.12, 0.1) if on else Color(0.22, 0.06, 0.06))
-			if on or go:
-				lamps.draw_circle(c, 40, Color(col, 0.25))         # glow
-			lamps.draw_circle(c, 30, col)
-			lamps.draw_arc(c, 30, 0, TAU, 32, INK, 3.0, true))
-	layer.add_child(lamps)
-	hud["lamps"] = lamps
+## Live gap bar (close races): the needle leans toward whoever's ahead, full
+## deflection at GAP_BAR_RANGE_S; the interval in the middle.
+func build_gap_bar(layer: CanvasLayer) -> void:
+	if ghost == null:
+		return
+	var bar := Control.new()
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.size = Vector2(300, 46)
+	bar.draw.connect(func():
+		var w := bar.size.x
+		var h := 18.0
+		var y := 4.0
+		bar.draw_rect(Rect2(0, y, w, h), CAPTION_BG)
+		var lead: float = bar.get_meta("lead", 0.0)        # + = Faba ahead (s)
+		var f := clampf(lead / GAP_BAR_RANGE_S, -1.0, 1.0)
+		var mid := w / 2.0
+		var col := MARKER_COLOR if f >= 0.0 else GHOST_MARKER_COLOR
+		bar.draw_rect(Rect2(mid, y, -f * mid, h), col)     # Faba leads -> fills to the left
+		bar.draw_line(Vector2(mid, 0), Vector2(mid, y + h + 4), Color.WHITE, 2.0)
+		bar.draw_rect(Rect2(0, y, w, h), CAPTION_YELLOW, false, 2.0)
+		bar.draw_string(VT_FONT, Vector2(4, y + h + 22), "FABA", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, MARKER_COLOR)
+		bar.draw_string(VT_FONT, Vector2(w - 90, y + h + 22), ghost_name().left(8),
+			HORIZONTAL_ALIGNMENT_RIGHT, 86, 24, GHOST_MARKER_COLOR))
+	layer.add_child(bar)
+	hud["gap_bar"] = bar
+	hud["gap_text"] = osd_label(layer, Vector2.ZERO, 30, Color.WHITE)
 
 
 func update_tower(vp: Vector2) -> void:
 	var box: PanelContainer = hud["tower"]
-	box.visible = t < lap_time                 # the finish banner takes over at the end
+	box.visible = t < end_time                 # the finish banner takes over at the end
 	box.reset_size()
 	box.position = Vector2(18, TOP_BAR_PX + 14)
 	var entries := [{"name": "FABA", "color": MARKER_COLOR, "s": value_at("s"),
@@ -695,7 +778,27 @@ func update_tower(vp: Vector2) -> void:
 			var lead: Dictionary = entries[0]
 			var passed := time_at(lead["ss"], lead["ts"], float(e["s"]))
 			row["gap"].text = "+%.2f" % maxf(t - passed, 0.0)
-			row["gap"].add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+			row["gap"].add_theme_color_override("font_color", CAPTION_YELLOW)
+	# Gap bar: + when Faba leads
+	if hud.has("gap_bar"):
+		var bar: Control = hud["gap_bar"]
+		var lead_s := 0.0
+		var both_running: bool = not entries[0]["out"] and not entries[entries.size() - 1]["out"]
+		if entries.size() > 1 and both_running:
+			var trail: Dictionary = entries[1]
+			var lead_e: Dictionary = entries[0]
+			lead_s = maxf(t - time_at(lead_e["ss"], lead_e["ts"], float(trail["s"])), 0.0)
+			if lead_e["name"] != "FABA":
+				lead_s = -lead_s
+		bar.set_meta("lead", lead_s)
+		bar.visible = t < end_time and countdown <= 0.0 and both_running
+		bar.position = Vector2(vp.x - bar.size.x - 18, TOP_BAR_PX + 14)
+		bar.queue_redraw()
+		var gt: Label = hud["gap_text"]
+		gt.visible = bar.visible
+		gt.text = "%+.2f" % lead_s
+		gt.reset_size()
+		gt.position = Vector2(bar.position.x + (bar.size.x - gt.size.x) / 2.0, TOP_BAR_PX + 40)
 
 
 ## Time a car reached distance s, from its (monotonic) s and t samples.
@@ -733,17 +836,22 @@ func update_hud() -> void:
 	var push_text := "THEORETICAL LIMIT"
 	if driver != null:
 		push_text = "%s PUSH" % str(driver["push"]).replace("_", " ").to_upper()
-	hud["status"].text = push_text + ("   vs  %s" % ghost_name() if ghost != null else "")
+	hud["status"].text = push_text
+	hud["status"].reset_size()
+	hud["status"].position.x = vp.x - hud["status"].size.x - 24
+	# Camcorder: blinking REC, the tape's clock running with the race
+	hud["rec"].visible = fmod(Time.get_ticks_msec() / 1000.0, 1.0) < 0.6
+	var secs := CLOCK_START_S + int(t)
+	hud["stamp"].text = "OCT 04 2026  %02d:%02d:%02d" % [secs / 3600 % 24, secs / 60 % 60, secs % 60]
+	hud["stamp"].reset_size()
+	hud["stamp"].position.x = vp.x - hud["stamp"].size.x - 24
 	update_tower(vp)
-	var lamps: Control = hud["lamps"]
-	lamps.visible = countdown > 0.0 or (t < 0.8 and countdown > -1.0 and hud.has("lamps_used"))
-	lamps.position = Vector2((vp.x - lamps.size.x) / 2.0, TOP_BAR_PX + 120)
-	lamps.queue_redraw()
+	update_intro(vp)
 
 	for i in hud["cam_buttons"].size():
 		var b: Button = hud["cam_buttons"][i]
-		b.theme_type_variation = "SelectedButton" if i == cam_mode else ""
-	hud["play"].text = "||" if playing and t < lap_time else ">"
+		b.theme_type_variation = "OsdOnButton" if i == cam_mode else "OsdButton"
+	hud["play"].text = "PAUSE" if playing and t < end_time else "PLAY"
 	hud["speed_btn"].text = "%sx" % str(SPEEDS[speed_i])
 
 	var gear := int(samples["gear"][idx])
@@ -759,21 +867,27 @@ func update_hud() -> void:
 	set_pedal(hud["throttle"], value_at("throttle") * alive, Vector2(THROTTLE_X, 70))
 	set_pedal(hud["brake"], value_at("brake"), Vector2(BRAKE_X, 70))
 
-	# Finish (or crash) banner, a second line against the ghost, and Continue
+	# Finish (or crash) caption, the gap big, and Continue
 	var banner: Label = hud["banner"]
-	banner.visible = t >= lap_time
+	var over := t >= end_time
+	banner.visible = over
 	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var result := banner_result()
 	banner.text = result["text"]
 	banner.add_theme_color_override("font_color", result["color"])
 	banner.reset_size()
 	banner.position = Vector2((vp.x - banner.size.x) / 2, TOP_BAR_PX + 30)
+	var big: Label = hud["banner_gap"]
+	big.visible = over and result["gap"] != ""
+	big.text = result["gap"]
+	big.reset_size()
+	big.position = Vector2((vp.x - big.size.x) / 2, TOP_BAR_PX + 40 + banner.size.y)
 	if hud.has("continue"):
 		var cont: Button = hud["continue"]
-		cont.visible = t >= lap_time
+		cont.visible = over
 		cont.reset_size()
 		cont.size.x = vp.x - 120
-		cont.position = Vector2(60, TOP_BAR_PX + 190)
+		cont.position = Vector2(60, TOP_BAR_PX + 60 + banner.size.y + big.size.y)
 
 	# Mistake callout: from the apex of a mistaken corner until shortly after it
 	var mistake: Label = hud["mistake"]
@@ -784,9 +898,9 @@ func update_hud() -> void:
 			var s0 := float(c["s_start"])
 			var s1 := float(c["s_end"])
 			if c["mistake"] and s_now >= (s0 + s1) / 2.0 and s_now <= s1 + 40.0:
-				mistake.text = "MISTAKE: RAN WIDE AT %s" % str(c["text"]).to_upper()
+				mistake.text = "FABA RUNS WIDE AT %s" % str(c["text"]).to_upper()
 				mistake.reset_size()
-				mistake.position = Vector2((vp.x - mistake.size.x) / 2, TOP_BAR_PX + 110)
+				mistake.position = Vector2((vp.x - mistake.size.x) / 2, TOP_BAR_PX + 120)
 				mistake.visible = true
 
 
@@ -794,30 +908,57 @@ func ghost_name() -> String:
 	return str(ghost["name"]).to_upper()
 
 
-## End-of-replay banner. Same rule as the bridge's race result: a DNF never
-## wins, and if both cars crash nobody wins (no contest).
+## End-of-replay caption. Same rule as the bridge's race result: a DNF never
+## wins, and if both cars crash nobody wins (no contest). "gap" is the big
+## number under it ("" when there isn't one).
 func banner_result() -> Dictionary:
 	var head := "CRASHED AT %s" % str(replay.get("crash_corner", "")).to_upper() if dnf \
 		else "FINISH  %.2f" % lap_time
 	if ghost == null:
-		return {"text": head, "color": LOSS_COLOR if dnf else BANNER_COLOR}
+		return {"text": head, "color": LOSS_COLOR if dnf else Color.WHITE, "gap": ""}
 	var ghost_dnf := bool(ghost["dnf"])
 	var ghost_time := float(ghost["lap_time"])
 	var line := ""
+	var gap := ""
 	var color := LOSS_COLOR
 	if dnf and ghost_dnf:
 		line = "NO CONTEST: %s CRASHED TOO" % ghost_name()
-		color = BANNER_COLOR
+		color = CAPTION_YELLOW
 	elif dnf:
 		line = "%s WINS" % ghost_name()
 	elif ghost_dnf:
-		line = "BEAT %s: CRASHED AT %s" % [ghost_name(), str(ghost["crash_corner"]).to_upper()]
+		line = "BEAT %s: HE CRASHED AT %s" % [ghost_name(), str(ghost["crash_corner"]).to_upper()]
 		color = WIN_COLOR
 	else:
 		var won := lap_time < ghost_time
-		line = "%s %s BY %.2f" % ["BEAT" if won else "LOST TO", ghost_name(), absf(lap_time - ghost_time)]
+		line = "%s %s" % ["BEAT" if won else "LOST TO", ghost_name()]
+		gap = "%s%.2f" % ["-" if won else "+", absf(lap_time - ghost_time)]
 		color = WIN_COLOR if won else LOSS_COLOR
-	return {"text": head + "\n" + line, "color": color}
+	return {"text": head + "\n" + line, "color": color, "gap": gap}
+
+
+## Intro: the roll-up with hazards, then the flagger's 3-2-1 and GO.
+func update_intro(vp: Vector2) -> void:
+	var elapsed := COUNTDOWN_S - countdown
+	var count: Label = hud["count"]
+	var n := 3 - int((elapsed - ROLL_S) / COUNT_STEP_S)
+	count.visible = (countdown > 0.0 and elapsed >= ROLL_S) or (countdown <= 0.0 and t < 0.6 and hud.has("intro_used"))
+	count.text = "GO" if countdown <= 0.0 else str(clampi(n, 1, 3))
+	count.reset_size()
+	count.position = Vector2((vp.x - count.size.x) / 2.0, TOP_BAR_PX + 120)
+	var blink := countdown > 0.0 and fmod(elapsed, 0.5) < 0.25
+	for who in ["car", "ghost"]:
+		if lights.has(who + "_hazard"):
+			lights[who + "_hazard"].energy = 1.3 if blink else 0.0
+	# Flashlight: up on each count, a big sweep down on GO, then off
+	var beam: PointLight2D = lights["flagger"]
+	var k := fmod(elapsed - ROLL_S, COUNT_STEP_S) / COUNT_STEP_S if elapsed >= ROLL_S else 1.0
+	beam.energy = (2.4 * (1.0 - k) if countdown > 0.0 and elapsed >= ROLL_S else 0.0) \
+		+ (3.0 * maxf(1.0 - t / 0.4, 0.0) if countdown <= 0.0 and t < 0.4 else 0.0)
+	# After the start he walks off to the shoulder
+	if countdown <= 0.0 and t > 0.5:
+		flagger.visible = false
+		beam.energy = 0.0
 
 
 func set_pedal(fill: ColorRect, amount: float, base: Vector2) -> void:
@@ -828,7 +969,7 @@ func set_pedal(fill: ColorRect, amount: float, base: Vector2) -> void:
 
 
 func toggle_play() -> void:
-	if t >= lap_time:
+	if t >= end_time:
 		restart()
 	else:
 		playing = not playing
@@ -839,12 +980,12 @@ func toggle_play() -> void:
 func _process(delta: float) -> void:
 	if samples.is_empty():
 		return
-	if countdown > 0.0:                    # start lights: the clock waits for green
-		hud["lamps_used"] = true
+	if countdown > 0.0:                    # intro: the clock waits for the flagger
+		hud["intro_used"] = true
 		if playing:
 			countdown = maxf(countdown - delta, 0.0)
 	elif playing:
-		t = minf(t + delta * SPEEDS[speed_i], lap_time)
+		t = minf(t + delta * SPEEDS[speed_i] * (SLOW_MO if finish_slow() else 1.0), end_time)
 	update_car()
 	fire_events(delta)
 	lay_tire_marks()
@@ -853,6 +994,18 @@ func _process(delta: float) -> void:
 	camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * 16.0 * shake * shake
 	update_hud()
 	prev_t = t
+
+
+## Finish slow-mo: from when the leader is FINISH_SLOW_M from the line until
+## both are across (or the replay ends). Not for crashes.
+func finish_slow() -> bool:
+	if dnf or t >= end_time:
+		return false
+	var length := float(replay["track"]["length"])
+	var lead_s := value_at("s")
+	if ghost != null and not bool(ghost["dnf"]):
+		lead_s = maxf(lead_s, ghost_s_at(t))
+	return lead_s >= length - FINISH_SLOW_M
 
 
 ## One-off moments: crashes (sparks, smoke, shake) and the finish flash.
@@ -988,6 +1141,7 @@ func update_car() -> void:
 	car.position = to_world(value_at("x") + sin(h) * LANE_OFFSET_M,
 		value_at("y") - cos(h) * LANE_OFFSET_M)
 	car.rotation = -h                                 # flip: Godot rotates clockwise
+	car.position -= Vector2.from_angle(car.rotation) * roll_back_px()   # intro: rolling up
 	if crash_age >= 0.0:                              # spun into the trees
 		car.rotation += 0.9 * clampf(crash_age / 0.5, 0.0, 1.0)
 	var braking := value_at("brake") > 0.0
@@ -1000,8 +1154,19 @@ func update_car() -> void:
 	var tail: PointLight2D = lights["car_tail"]
 	tail.position = car.position - nose * 3.4 * PX_PER_M
 	tail.energy = 1.6 if braking else 0.45
+	if lights.has("car_hazard"):
+		lights["car_hazard"].position = car.position
 	if ghost != null:
 		update_ghost()
+
+
+## Intro roll-up: how far behind the line the cars still are (px), easing in.
+func roll_back_px() -> float:
+	var elapsed := COUNTDOWN_S - countdown
+	if countdown <= 0.0 or elapsed >= ROLL_S:
+		return 0.0
+	var f := elapsed / ROLL_S
+	return ROLL_M * PX_PER_M * pow(1.0 - f, 2.0)
 
 
 ## The ghost has its own (coarser) time base, so look up its pose by time.
@@ -1018,6 +1183,9 @@ func update_ghost() -> void:
 	var y := lerpf(float(gs["y"][i]), float(gs["y"][i + 1]), f)
 	ghost_car.position = to_world(x + sin(h) * LANE_OFFSET_M, y - cos(h) * LANE_OFFSET_M)
 	ghost_car.rotation = -h
+	ghost_car.position -= Vector2.from_angle(ghost_car.rotation) * roll_back_px()
+	if lights.has("ghost_hazard"):
+		lights["ghost_hazard"].position = ghost_car.position
 	var ghost_out := bool(ghost["dnf"]) and t >= float(ghost["lap_time"])
 	if ghost_out:
 		ghost_car.rotation += 0.9 * clampf((t - float(ghost["lap_time"])) / 0.5, 0.0, 1.0)
@@ -1059,7 +1227,29 @@ func update_camera(delta: float, snap: bool) -> void:
 	var target_rot := 0.0
 	var cut := snap
 
-	if cam_mode == CamMode.OVERVIEW:
+	var length := float(replay["track"]["length"])
+	if embedded and countdown > 0.0:
+		# Intro: tight on the line, the cars rolling up and the flagger
+		target_pos = flagger.position.lerp(car.position, 0.5)
+		target_zoom = minf(area.size.x, area.size.y) / (40.0 * PX_PER_M)
+		target_rot = 0.0
+	elif cam_mode != CamMode.OVERVIEW and not dnf and (finish_slow() or (t >= lap_time and t <= end_time)):
+		# Finish-line camera: one cut, then hold while they cross
+		if not finish_cut:
+			finish_cut = true
+			cut = true
+		var centerline: Array = replay["track"]["centerline"]
+		var fin: Array = centerline[centerline.size() - 1]
+		target_pos = to_world(fin[0], fin[1])
+		target_zoom = minf(area.size.x, area.size.y) / (FINISH_VIEW_M * PX_PER_M)
+	elif cam_mode != CamMode.OVERVIEW and crash_age >= 0.0 and length > 0.0:
+		# Crash cam: the broadcast cuts tight onto the wreck
+		if active_corner != -2:
+			active_corner = -2
+			cut = true
+		target_pos = car.position
+		target_zoom = minf(area.size.x, area.size.y) / (45.0 * PX_PER_M)
+	elif cam_mode == CamMode.OVERVIEW:
 		var margin := 120.0 * PX_PER_M                # room for labels outside the road
 		target_zoom = minf(area.size.x / (track_size.x + margin), area.size.y / (track_size.y + margin))
 		target_pos = track_center
@@ -1069,13 +1259,6 @@ func update_camera(delta: float, snap: bool) -> void:
 		target_zoom = area.size.x / (CHASE_VIEW_M * PX_PER_M)
 		target_rot = car.rotation + PI / 2.0
 		target_pos = car.position + Vector2.from_angle(car.rotation) * CHASE_LOOKAHEAD_M * PX_PER_M
-	elif cam_mode == CamMode.TRACKSIDE and crash_age >= 0.0:
-		# Crash cam: the broadcast cuts tight onto the wreck
-		if active_corner != -2:
-			active_corner = -2
-			cut = true
-		target_pos = car.position
-		target_zoom = minf(area.size.x, area.size.y) / (45.0 * PX_PER_M)
 	elif cam_mode == CamMode.TRACKSIDE and not corners.is_empty():
 		var i := pick_corner(value_at("s"))
 		if i != active_corner:
@@ -1179,6 +1362,9 @@ func restart() -> void:
 	playing = true
 	countdown = COUNTDOWN_S
 	crash_age = -1.0
+	finish_cut = false
+	if flagger:
+		flagger.visible = true
 	mark_lines = [null, null]
 	for child in marks.get_children():
 		child.queue_free()
@@ -1196,7 +1382,8 @@ func show_message(text: String) -> void:
 ## Headless check: step through the replay and every camera, print what
 ## the viewer sees, then quit. Run with:  godot --headless -- --selftest
 func self_test() -> void:
-	print("SELFTEST samples=%d lap_time=%.2f corners=%d" % [samples["t"].size(), lap_time, corners.size()])
+	print("SELFTEST samples=%d lap_time=%.2f end=%.2f corners=%d location=%s" % [samples["t"].size(),
+		lap_time, end_time, corners.size(), location])
 	for check_t in [0.0, lap_time * 0.25, lap_time * 0.5, lap_time * 0.75, lap_time]:
 		t = check_t
 		update_car()
@@ -1219,13 +1406,13 @@ func self_test() -> void:
 func take_screenshots(folder: String) -> void:
 	DirAccess.make_dir_recursive_absolute(folder)
 	playing = false
-	var moments := {"start": 2.0, "r3_entry": 24.0, "hairpin": 34.5, "finish": lap_time}
+	var moments := {"start": 2.0, "r3_entry": 24.0, "hairpin": 34.5, "finish": end_time}
 	if driver != null:                          # also catch any mistake on camera
 		for c in driver["corners"]:
 			if c["mistake"]:
 				moments["mistake_" + str(c["text"]).replace(" ", "_")] = time_at_s(float(c["s_end"]))
 	for moment in moments:
-		t = minf(float(moments[moment]), lap_time)
+		t = minf(float(moments[moment]), end_time)
 		update_car()
 		for mode in [CamMode.OVERVIEW, CamMode.FOLLOW, CamMode.CHASE, CamMode.TRACKSIDE]:
 			set_cam_mode(mode)

@@ -45,8 +45,7 @@ func short_when(when: String) -> String:
 
 
 ## info: cash/rep/min_buy_in, week, day, week_events ({day: label}),
-## upcoming ([[when, what], ...]), past ([[when, what, result], ...]; result
-## starts with W, L or SKIPPED)
+## upcoming ([[when, what], ...]), past ([[when, who, result, amount, "money" | "rep"], ...])
 func setup(info: Dictionary) -> void:
 	%WeekLabel.text = "WEEK %d" % info["week"]
 	doodle(info.get("last_lost", false))
@@ -78,6 +77,9 @@ func setup(info: Dictionary) -> void:
 	if info["past"].is_empty():
 		UI.label(past, "nothing yet", "WhiteboardSmallLabel")
 	for row in info["past"]:
-		var result: String = row[2]
-		var style := "WhiteboardGreenLabel" if result.begins_with("W ") else "WhiteboardRedSmallLabel"
-		UI.stat_row(past, "%s   %s" % [short_when(row[0]), row[1]], result, "WhiteboardSmallLabel", style)
+		var line := UI.hbox(past, 14)
+		var who := UI.label(line, "%s   %s" % [short_when(row[0]), row[1]], "WhiteboardSmallLabel")
+		who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		UI.label(line, row[2], "WhiteboardSmallLabel")
+		# money in green marker, rep in orange, always
+		UI.label(line, row[3], "WhiteboardGreenLabel" if row[4] == "money" else "WhiteboardOrangeLabel")

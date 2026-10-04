@@ -219,7 +219,7 @@ alignment = 1
 [node name="WagerAmount" type="Label" parent="Column/Scroll/Margin/Body/Wager/Box"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_type_variation = &"BigNumberLabel"
+theme_type_variation = &"MoneyBigLabel"
 text = "$100"
 
 [node name="WagerOdds" type="Label" parent="Column/Scroll/Margin/Body/Wager/Box"]

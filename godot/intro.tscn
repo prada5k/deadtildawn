@@ -1,7 +1,14 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene format=3]
 
 [ext_resource type="Script" path="res://intro.gd" id="1"]
-[ext_resource type="Script" path="res://widgets/splatter.gd" id="2"]
+[ext_resource type="Script" path="res://widgets/turnout_night.gd" id="2"]
+[ext_resource type="Shader" path="res://widgets/vhs.gdshader" id="3"]
+
+[sub_resource type="ShaderMaterial" id="tape_mat"]
+shader = ExtResource("3")
+shader_parameter/bleed = 1.6
+shader_parameter/scanline = 0.1
+shader_parameter/band = 0.08
 
 [node name="Intro" type="Control"]
 layout_mode = 3
@@ -12,7 +19,8 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Tape" type="Control" parent="."]
+unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -20,10 +28,9 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0.475, 0.502, 0.443, 1)
 
-[node name="Splatter" type="Control" parent="."]
-modulate = Color(1, 1, 1, 0)
+[node name="Footage" type="SubViewportContainer" parent="Tape"]
+unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -31,9 +38,11 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
+stretch = true
 script = ExtResource("2")
 
-[node name="Margin" type="MarginContainer" parent="."]
+[node name="Blackout" type="ColorRect" parent="Tape"]
+unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -41,31 +50,134 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-theme_override_constants/margin_left = 56
-theme_override_constants/margin_top = 140
-theme_override_constants/margin_right = 56
-theme_override_constants/margin_bottom = 160
+color = Color(0.02, 0.02, 0.03, 0)
 
-[node name="Column" type="VBoxContainer" parent="Margin"]
+[node name="Play" type="Label" parent="Tape"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 30.0
+offset_top = 40.0
+offset_right = 300.0
+offset_bottom = 90.0
+theme_type_variation = &"OsdLabel"
+theme_override_font_sizes/font_size = 46
+text = "PLAY >"
+
+[node name="Stamp" type="Label" parent="Tape"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -420.0
+offset_top = 44.0
+offset_right = -30.0
+offset_bottom = 90.0
+grow_horizontal = 0
+theme_type_variation = &"OsdLabel"
+text = "NOV 14 2020  23:41"
+horizontal_alignment = 2
+
+[node name="CaptionBox" type="MarginContainer" parent="Tape"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -330.0
+offset_bottom = -180.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme_override_constants/margin_left = 30
+theme_override_constants/margin_right = 30
+
+[node name="Caption" type="Label" parent="Tape/CaptionBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 8
+theme_type_variation = &"TapeCaptionLabel"
+text = "socal canyons. six years ago"
+autowrap_mode = 3
+
+[node name="Grain" type="ColorRect" parent="Tape"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+material = SubResource("tape_mat")
+
+[node name="Phone" type="Control" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Body" type="PanelContainer" parent="Phone"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 40.0
+offset_top = 70.0
+offset_right = -40.0
+offset_bottom = -150.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_type_variation = &"PhonePanel"
+
+[node name="Screen" type="VBoxContainer" parent="Phone/Body"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 30
-alignment = 1
+theme_override_constants/separation = 12
 
-[node name="Kicker" type="Label" parent="Margin/Column"]
+[node name="Contact" type="Label" parent="Phone/Body/Screen"]
 layout_mode = 2
-theme_type_variation = &"HeadingLabel"
-text = "KICKER"
-autowrap_mode = 3
+theme_type_variation = &"TextLabel"
+text = "faba"
+horizontal_alignment = 1
 
-[node name="Body" type="Label" parent="Margin/Column"]
+[node name="Scroll" type="ScrollContainer" parent="Phone/Body/Screen"]
+unique_name_in_owner = true
 layout_mode = 2
-theme_type_variation = &"StoryLabel"
-theme_override_font_sizes/font_size = 46
-text = "Story text goes here."
-autowrap_mode = 3
+size_flags_vertical = 3
+mouse_filter = 2
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 3
+
+[node name="Thread" type="VBoxContainer" parent="Phone/Body/Screen/Scroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 96
+text = "DEADTILDAWN"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="Hint" type="Label" parent="."]
+unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 12
 anchor_top = 1.0
@@ -76,19 +188,20 @@ offset_bottom = -60.0
 grow_horizontal = 2
 grow_vertical = 0
 theme_type_variation = &"MutedLabel"
-theme_override_colors/font_color = Color(0.102, 0.059, 0.063, 0.7)
-text = "tap to continue"
+text = "tap"
 horizontal_alignment = 1
 
 [node name="Skip" type="Button" parent="."]
+unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -180.0
-offset_top = 44.0
-offset_right = -32.0
-offset_bottom = 110.0
+offset_left = -150.0
+offset_top = 110.0
+offset_right = -30.0
+offset_bottom = 150.0
 grow_horizontal = 0
-theme_override_font_sizes/font_size = 24
-text = "SKIP"
+focus_mode = 0
+theme_type_variation = &"OsdButton"
+text = "SKIP >>"

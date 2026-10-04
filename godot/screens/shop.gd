@@ -135,7 +135,7 @@ func setup(info: Dictionary, catalog: Dictionary, inventory: Array, installed: D
 		for line in part["effects_text"]:
 			wrap_label(pad, line, "FlyerTextLabel")
 		var row := UI.hbox(pad, 10)
-		var price := UI.label(row, UI.money(part["price"]), "InkHeadingLabel")
+		var price := UI.label(row, UI.money(part["price"]), "InkMoneyBigLabel")
 		price.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var b := UI.button(row, "buy", func(): buy.emit(part["id"]), "SmallTapeButton")
 		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER

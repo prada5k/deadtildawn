@@ -4,12 +4,11 @@ extends SubViewportContainer
 ## gravel; moon, stars, and city lights down the coast. Still camera.
 ## Call setup(opponent_car_name, faba_parts) once it's in the tree.
 ##
-## The opponent uses the DX body in his replay paint (widgets/car_sprite.gd
-## profile), clean: a placeholder until there's a model per car. At night,
-## behind his own headlights, he mostly reads as a shape.
+## The opponent's car is built from its real proportions and replay paint
+## (widgets/car_model.gd).
 
 const DxModel := preload("res://widgets/dx_model.gd")
-const CarSprite := preload("res://widgets/car_sprite.gd")
+const CarModel := preload("res://widgets/car_model.gd")
 
 const SKY_TOP := Color(0.015, 0.02, 0.06)
 const SKY_HORIZON := Color(0.13, 0.1, 0.2)
@@ -24,6 +23,7 @@ const CITY := [Color(1.0, 0.72, 0.38), Color(1.0, 0.86, 0.6), Color(0.85, 0.9, 1
 const GAP := 3.9                 # m from the middle to each car's center
 
 var vp: SubViewport
+var cam: Camera3D
 var faba_car: Node3D
 var their_car: Node3D
 
@@ -70,41 +70,59 @@ func _ready() -> void:
 	faba_car = DxModel.new()
 	faba_car.position.x = -GAP
 	vp.add_child(faba_car)
-	their_car = DxModel.new()
-	their_car.rough = false
+	their_car = CarModel.new()
 	their_car.position.x = GAP
 	their_car.rotation.y = PI                # facing Faba
 	vp.add_child(their_car)
 	setup("", [])
 
-	var cam := Camera3D.new()
-	cam.fov = 44
+	cam = Camera3D.new()
 	vp.add_child(cam)
-	cam.look_at_from_position(Vector3(0.3, 1.3, 10.6), Vector3(0.0, 2.1, 0.0))   # cars low, sky up top
+	frame("standoff")
 
 
-## Paint the opponent like his replay car and put Faba's parts on the DX.
-func setup(opponent_car: String, faba_parts: Array) -> void:
+## Camera presets. standoff: side on, both cars nose to nose (wide panels).
+## chase: low over the left car's rear quarter, into the other car's
+## headlights (tall, full-screen shots like the story's tape).
+func frame(preset: String) -> void:
+	if preset == "chase":
+		cam.fov = 58
+		cam.look_at_from_position(Vector3(-GAP - 3.6, 1.25, 2.6), Vector3(GAP * 0.6, 1.0, -0.4))
+	else:
+		cam.fov = 44
+		cam.look_at_from_position(Vector3(0.3, 1.3, 10.6), Vector3(0.0, 2.1, 0.0))   # cars low, sky up top
+
+
+## Build the opponent's car and put Faba's parts on the DX. left_car: show
+## another car in the DX's spot (the story's FA5) instead.
+func setup(opponent_car: String, faba_parts: Array, left_car := "") -> void:
 	if faba_car == null:
 		return
-	faba_car.build(faba_parts)
-	headlights(faba_car)
-	their_car.paint_color = CarSprite.profile_for(opponent_car)["paint"] if opponent_car != "" \
-		else Color(0.3, 0.3, 0.32)
-	their_car.build([])
-	headlights(their_car)
+	if left_car != "":
+		faba_car.queue_free()
+		faba_car = CarModel.new()
+		faba_car.position.x = -GAP
+		vp.add_child(faba_car)
+		faba_car.build_car(left_car)
+		headlights(faba_car, faba_car.headlight_positions())
+	else:
+		faba_car.build(faba_parts)
+		headlights(faba_car, [Vector3(2.25, 0.64, -0.56), Vector3(2.25, 0.64, 0.56)])
+	their_car.build_car(opponent_car)
+	headlights(their_car, their_car.headlight_positions())
 
 
-## Two spotlights on the gravel ahead of a car (built with dx_model).
-func headlights(car: Node3D) -> void:
-	for side: float in [-1.0, 1.0]:
+## Spotlights on the gravel ahead of a car, at its headlights (car space).
+func headlights(car: Node3D, at: Array) -> void:
+	for pos: Vector3 in at:
 		var spot := SpotLight3D.new()
 		spot.light_color = HEADLIGHT
 		spot.light_energy = 7.0
 		spot.spot_range = 24.0
 		spot.spot_angle = 26.0
-		spot.position = Vector3(2.25, 0.64, side * 0.56)
+		spot.position = pos
 		car.add_child(spot)
+		var side := signf(pos.z)
 		spot.look_at(spot.global_position + car.global_transform.basis * Vector3(1, -0.1, side * 0.04))
 
 

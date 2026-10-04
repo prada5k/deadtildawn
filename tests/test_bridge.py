@@ -186,12 +186,41 @@ def test_rolled_parts_reach_the_sim():
 
 
 def test_street_contract_and_reproducible():
-    a = call("street", "--week", "2", "--seed", "11")
-    b = call("street", "--week", "2", "--seed", "11")
+    a = call("street", "--road", "2", "--seed", "11")
+    b = call("street", "--road", "2", "--seed", "11")
     assert a["ok"] and a["opponent"] == b["opponent"] and a["stats"] == b["stats"]
     assert set(STAT_KEYS) <= set(a["stats"]) and "posted_time" not in a
-    assert a["track"].startswith("data/tracks/generated/open_week_2")
+    assert a["track"].startswith("data/tracks/generated/open_road_2")
+    assert isinstance(a["engine_condition"], float) and a["style"] == "balanced"
     assert call("track", "--track", a["track"])["ok"]          # the road is a valid track
+    assert call("street", "--week", "2", "--seed", "11")["opponent"] == a["opponent"]   # old name
+
+
+def test_tuned_street_night_is_matched_and_reproducible():
+    # Tuned: the racer is one of the closest cars to the DX and his engine is set for ~50%
+    a = call("street", "--road", "1", "--seed", "4", "--tune")
+    b = call("street", "--road", "1", "--seed", "4", "--tune")
+    assert a["ok"] and a["tuned"] and a["engine_condition"] == b["engine_condition"]
+    assert 0.35 <= a["engine_condition"] <= 2.2
+
+
+def test_rival_condition_is_saved_and_never_softens():
+    stored = call("rival", "--rival", RIVAL, "--seed", "7", "--condition", "0.9")
+    assert stored["engine_condition"] == 0.9 and not stored["retuned"]
+    # Retune vs the stock DX (he was calibrated to ~0.75 for that): never below 0.9
+    r = call("rival", "--rival", RIVAL, "--seed", "7", "--condition", "0.9", "--retune")
+    assert r["retuned"] and r["engine_condition"] >= 0.9
+    # Against a built car he gets stronger than his starting point
+    built = call("rival", "--rival", RIVAL, "--seed", "7", "--retune",
+                 "--parts", "cams_race@0.9,intake_cold_air@0.9,header_421@0.9")
+    assert built["engine_condition"] > call("rival", "--rival", RIVAL, "--seed", "7")["engine_condition"]
+
+
+def test_race_uses_the_saved_opponent_condition(tmp_path):
+    weak, _ = race(tmp_path, "--opp-condition", "0.4")
+    strong, _ = race(tmp_path, "--opp-condition", "1.6")
+    if not weak["opponent_dnf"] and not strong["opponent_dnf"]:
+        assert strong["opponent_time"] < weak["opponent_time"]
 
 
 def test_sources_listed_with_rep_gates_and_loot_hidden():

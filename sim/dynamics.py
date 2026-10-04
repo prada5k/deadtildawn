@@ -66,6 +66,13 @@ class DriveState:
     v: float = 0.0          # m/s
     gear: int = 1
     shift_left: float = 0.0  # s remaining in the current shift
+    shifts: int = 0          # shifts started so far (indexes the driver's shift factors)
+
+
+def shift_duration(car, n, factors=()):
+    """How long shift number n takes: the car's shift time, scaled by the
+    driver's factor for that shift (human timing) if there is one."""
+    return car.shift_time * (factors[n % len(factors)] if factors else 1.0)
 
 
 # ---------------------------------------------------------------- decisions
@@ -156,17 +163,18 @@ def brake_decel(car, k, v, temp=AMBIENT_C):
 
 # ---------------------------------------------------------------- stepping
 
-def advance(car, k, st, dist, s0=0.0, events=None):
+def advance(car, k, st, dist, s0=0.0, events=None, shift_factors=()):
     """Advance the car `dist` meters at full throttle, starting at position s0.
 
     Splits the step exactly at events so results don't depend on step size:
       - reaching the fuel cut (then an upshift starts)
       - the end of a shift (then drive force resumes)
 
-    Shift starts are appended to `events` (a list) if given.
+    Shift starts are appended to `events` (a list) if given. shift_factors:
+    the driver's per-shift duration factors (human timing), () = exact.
     Returns (new_state, elapsed_time, limit_at_start, accel_at_start).
     """
-    v, gear, shift_left = st.v, st.gear, st.shift_left
+    v, gear, shift_left, shifts = st.v, st.gear, st.shift_left, st.shifts
     remaining, elapsed, first_limit, first_a = dist, 0.0, None, 0.0
 
     for _ in range(10_000):
@@ -184,7 +192,8 @@ def advance(car, k, st, dist, s0=0.0, events=None):
                     events.append(ShiftEvent(gear, new_gear, s0 + dist - remaining,
                                              v, rpm_from_speed(car, v, gear)))
                 gear = new_gear
-                shift_left = car.shift_time
+                shift_left = shift_duration(car, shifts, shift_factors)
+                shifts += 1
 
         shifting = shift_left > 0
         a, limit = drive_accel(car, k, v, gear, shifting)
@@ -223,4 +232,4 @@ def advance(car, k, st, dist, s0=0.0, events=None):
     else:
         raise RuntimeError("advance() did not converge; too many sub-steps")
 
-    return DriveState(v, gear, shift_left), elapsed, first_limit, first_a
+    return DriveState(v, gear, shift_left, shifts), elapsed, first_limit, first_a

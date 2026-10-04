@@ -64,3 +64,58 @@ const FABA_WON := "did you expect anything else"
 const FABA_LOST := "fuck that foo"
 const FABA_CRASHED := "brah fuckkkkk we might be cooked"
 const FABA_NO_CONTEST := "come on son"
+
+
+# ---------------------------------------------------------------- TEAM board
+# Memories: Polaroids that unlock at milestones. DRAFTS in Spire's style
+# (Claude wrote these from his sample lines) -- Spire rewrites them.
+# id: [photo text, caption]
+const MEMORIES := {
+	"first_win": ["W", "first W. faba wouldnt shut up about it"],
+	"first_crash": ["!!", "we dont talk about this one"],
+	"beat_rival": ["ZED", "zed finally caught one"],
+	"streak3": ["3", "three straight. locked in fr"],
+	"big_bet": ["$$$", "bet half the shop on it lmao"],
+	"legendary": ["Q", "pulled a unicorn out the crate"],
+}
+const MEMORY_ORDER := ["first_win", "first_crash", "beat_rival", "streak3", "big_bet", "legendary"]
+
+
+# ---------------------------------------------------------------- the story (intro)
+# DRAFTS by Claude in Spire's style -- Spire rewrites every line.
+# Part 1, the tape: old touge footage, Best Motoring style captions.
+# shot: "turnout" (the FA5 and the 370 at the turnout), "glitch" (the tape
+# starts to go), "static" (it's gone), "black" (tape stopped).
+const STORY_TAPE := [
+	{"stamp": "NOV 14 2020  23:41", "shot": "turnout", "caption": "socal canyons. six years ago"},
+	{"stamp": "NOV 14 2020  23:42", "shot": "turnout", "caption": "everybody on the mountain knew the FA5. i built it. i drove it"},
+	{"stamp": "NOV 14 2020  23:44", "shot": "turnout", "caption": "50k on the line. the nissan club's top dog in his 370"},
+	{"stamp": "NOV 14 2020  23:51", "shot": "turnout", "caption": "last run of the night. i was up on him"},
+	{"stamp": "NOV 14 2020  23:52", "shot": "glitch", "caption": "one corner too hot"},
+	{"stamp": "NOV 14 2020  23:52", "shot": "static", "caption": "87 mph. into a tree"},
+	{"stamp": "", "shot": "black", "caption": "the FA5 burned. my right leg never came back right"},
+]
+# Part 2, Faba's texts. ["when", date] starts a new day in the thread;
+# ["faba", text] or ["me", text] is a message.
+const STORY_TEXTS := [
+	["when", "MAR 2021"],
+	["faba", "u up?"],
+	["me", "cant sleep"],
+	["faba", "im outside. bringing food"],
+	["when", "AUG 2023"],
+	["faba", "u ever think about going back up the mountain"],
+	["me", "no"],
+	["when", "OCT 2026"],
+	["faba", "i quit my job lol"],
+	["me", "????"],
+	["faba", "and i bought a civic"],
+	["me", "bro what"],
+	["faba", "96 DX. 5 speed. stock as hell"],
+	["faba", "and a warehouse"],
+	["faba", "you build it. i drive it"],
+	["me", "the 370 still running the mountain?"],
+	["faba", "every friday"],
+	["me", "send me the address"],
+]
+const STORY_FA5 := "2009 Honda Civic Si (FA5)"
+const STORY_BOSS := "2009 Nissan 370Z"

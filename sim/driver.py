@@ -39,6 +39,17 @@ CORRECTION_WAVELENGTHS = (9.0, 15.0, 23.0)   # m, along the corner arc
 CORRECTION_PER_SIGMA = 0.4    # total correction amplitude = 0.4 x sigma (0.8% of speed at sigma 0.02)
 CRASH_MARGIN = 0.025          # an attempt more than 2.5% over the limit is a CRASH (DNF)
 
+# Human timing (Spire, Oct 2026): real drivers don't launch or shift like a
+# machine. Each run draws a launch reaction and a duration factor per shift,
+# from their own random stream (the corner plan is unchanged by them).
+# Variances add: sigma_run^2 ~ sigma_corners^2 + REACTION_SD^2 + n_shifts * (SHIFT_SD * shift_time)^2
+REACTION_MEAN = 0.20          # s from the green to the car moving
+REACTION_SD = 0.07            # s
+REACTION_RANGE = (0.10, 0.45)
+SHIFT_SD = 0.175              # relative: 0.40 s shift -> 0.07 s sd
+SHIFT_RANGE = (0.6, 1.6)      # factor limits (no instant or endless shifts)
+SHIFT_DRAWS = 64              # more than any run uses
+
 
 def per_corner_probability(run_probability, corners=REFERENCE_CORNERS):
     """P(mistake in one corner) from P(at least one mistake in `corners` corners):
@@ -95,6 +106,23 @@ def correction(a, s):
     """Driver speed correction (fraction) at track position s inside corner a."""
     return sum(amp * math.sin(2 * math.pi * (s - a.s_start) / wl + ph)
                for amp, wl, ph in a.corrections)
+
+
+@dataclass(frozen=True)
+class Timing:
+    reaction: float = 0.0             # s standing at the line after the green
+    shift_factors: tuple = ()         # shift n lasts shift_time * shift_factors[n]
+
+
+def draw_timing(seed):
+    """A run's launch reaction and shift factors, reproducible from its seed
+    (a separate stream from the corner plan's, so plans don't change)."""
+    import random
+    rng = random.Random(f"{seed}-timing")
+    clip = lambda x, lo_hi: min(max(x, lo_hi[0]), lo_hi[1])     # noqa: E731
+    reaction = clip(rng.gauss(REACTION_MEAN, REACTION_SD), REACTION_RANGE)
+    factors = tuple(clip(rng.gauss(1.0, SHIFT_SD), SHIFT_RANGE) for _ in range(SHIFT_DRAWS))
+    return Timing(reaction, factors)
 
 
 def plan_corners(driver, corners, rng):

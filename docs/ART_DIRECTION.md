@@ -81,6 +81,12 @@ roads have a fixed place; open roads rotate. Gauges: Type R cluster (done).
 
 1. Foundation + home (fonts, theme, textures, drawer nav, home screen) - DONE
 2. CAR lift, `$$$` corkboard + reveal, CAL whiteboard - DONE (rough pass, Oct 2026)
-3. Race night at the turnout - DONE (rough pass: meeting + results; opponent reuses the DX body)
-4. Replay locations
-5. TEAM board
+3. Race night at the turnout - DONE (rough pass: meeting + results; opponents built from their
+   real proportions, widgets/car_model.gd)
+4. Replay locations - DONE (rough pass: coast / canyon / mountain scenery, Best Motoring / VHS
+   broadcast, roll-up + flagger intro, gap bar, slow-mo finish)
+5. TEAM board - DONE (rough pass: Polaroids, driver / builder / record cards, memories)
+6. Story - DONE (rough pass: VHS tape of the $50k night vs the 370Z, then Faba's texts; Claude's
+   draft lines in voice.gd, Spire rewrites)
+
+Rules from Overhaul 2: money is ALWAYS green, rep is ALWAYS orange.

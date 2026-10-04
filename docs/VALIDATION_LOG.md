@@ -76,3 +76,12 @@ Not validated against measured data (no RWD car or crash data exists); checked a
 - **Opponent calibration** (engine condition, bisection, 40 runs per side): Zed's saved condition 0.7621 gives best-push odds 0.38 (target 0.45). The odds are a cliff: 0.76 -> 0.49, 0.77 -> 0.09 (table in PHYSICS_updates_E.md), so 7 bisection steps can't land on the target. The test checks +/-0.10 as a drift alarm.
 - **Found while testing:** opponents almost never crash. Skill scales the target ($f 	imes$ skill), so "flat out" Cutter (skill 0.92) aims at 0.907 of the limit, below Faba's Safe (0.947): 0.0006% per run vs Faba's 12.2% flat out. The riskiest opponent (Kiki, hard, skill 1.0) crashes ~0.5% of runs.
 - **Bug fixed:** `driver_study` built histogram bins from max(times) = inf once any run crashed (garbage plot, inf in the table). It now plots finished runs and reports the crash rate.
+
+## Overhaul 2: human timing, matchmaking, shakier opponents (Oct 2026)
+
+Not validated against measured data (no launch-reaction or shift-time data for Faba exists); checked against hand calcs, Spire's targets, and fresh-seed Monte Carlo. Theoretical-limit runs (no driver) are unchanged, so every graded validation target still passes.
+
+- **Human timing** (PHYSICS_updates_F 6.z): launch reaction N(0.20, 0.07) s, shift duration x N(1, 0.175). Mean driver lap +0.20 s. Run spread (test track, 30 runs): safe 0.083 -> 0.109 s, normal 0.105 -> 0.108 s, Zed 0.100 -> 0.127 s. Claude's first estimate (~0.2 s) was wrong: a longer shift costs ~0.03 s of lap, not its full length (worked in 6.z).
+- **Opponent drivers:** sigma +0.008, skill halfway to 1.0 (data/opponents.json notes). Recalibrated with the new two-pass tuner (`tools/calibrate_opponents.py`, 40 runs per job): Zed 0.756, Lalo 0.751, Bree 0.652, Dez 0.905, Monk 0.721, Tavo 0.903, Kiki 0.750, Rook 0.794, Paz 0.906, Junebug 0.893, Static 0.619, Wren 0.780, Cutter 0.913.
+- **Calibration check, fresh seeds:** Zed (target 0.45) measures 0.40 at 200 runs a side (test tolerance 0.12). A 40-run fresh check had read 0.62: near the odds cliff, small samples wander +-0.1 or more, so checks use `measure_odds()` (200 runs, parallel).
+- **Nightly tuning** (6.w): Zed tuned to 0.50 vs the stock DX measures 0.50 +- 0.12 on fresh seeds (tested). Found while building it: the first one-pass ladder (17% steps) gave 0.80 on fresh seeds, because the odds fall from ~1 to ~0 across a condition window ~0.03 wide; fixed with a fine second pass.

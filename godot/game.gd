@@ -27,6 +27,7 @@ const CarScene := preload("res://screens/car.tscn")
 const CalendarScene := preload("res://screens/calendar.tscn")
 const ShopScene := preload("res://screens/shop.tscn")
 const RevealScene := preload("res://screens/reveal.tscn")
+const TeamScene := preload("res://screens/team.tscn")
 const MeetingScene := preload("res://screens/meeting.tscn")
 const ResultsScene := preload("res://screens/results.tscn")
 const ShellScene := preload("res://screens/shell.tscn")
@@ -36,16 +37,18 @@ const LOCATIONS := {
 	"car": "BAY 1 // THE DX",
 	"calendar": "THE WHITEBOARD",
 	"shop": "PARTS $$$",
+	"team": "THE BOARD",
 }
 
 const SAVE_PATH := "user://save.json"
 const TEST_SAVE_PATH := "user://test_save.json"   # --gametest / --gameshots: never touch the real save
-const SAVE_VERSION := 5
+const SAVE_VERSION := 6
 const START_CASH := 250
 const MIN_BUY_IN := 100
 const WAGER_STEP := 10
-const REP_WIN := 10
-const SKIP_REP_COST := 5 * REP_WIN   # chicken-out fee: five wins' worth of rep
+const REP_OPEN_WIN := 4             # beating a street racer on an open road
+const REP_RIVAL_WIN := 15            # beating the rival: the night that moves you up
+const SKIP_REP_COST := 50            # chicken-out fee
 const LOOT_CHANCE := 0.05            # chance a win also drops an unopened part ("loot" pull)
 const SCRAP_RATE := 0.25             # selling a spare: price x rate x (0.5 + quality)
 const NEW_QUALITY := 0.5             # shop parts are new in box: exactly the catalog spec
@@ -56,6 +59,7 @@ const DAMAGE_CHANCE := 0.40          # per installed part, on a crash
 const DESTROY_CHANCE := 0.10         # per installed part, on a crash
 const REPAIR_RATE := 0.30            # repairing a damaged part: 30% of its price
 const RIVAL_FILE := "data/rivals/zed_280z.json"
+const RIVAL_ID := "zed_280z"           # the rival file's id (state["rivals"] key)
 const PUSH_ORDER := ["safe", "normal", "hard", "flat_out"]
 const RARITY_COLORS := {
 	"common": Color(0.75, 0.76, 0.8), "rare": Color(0.35, 0.6, 1.0),
@@ -63,7 +67,7 @@ const RARITY_COLORS := {
 
 # Calendar: a week is 7 days; race nights fall on these days (0 = Monday)
 const DAY_NAMES := ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
-const RACE_DAYS := [4, 5]        # Friday and Saturday nights
+const RACE_DAYS := [4, 5, 6]     # Fri + Sat open roads, every 2nd Sunday the rival
 
 var save_path := SAVE_PATH
 var state := {}            # saved: cash, rep, week, day, history, night, intro_seen
@@ -116,7 +120,8 @@ func _ready() -> void:
 func new_state() -> Dictionary:
 	return {"version": SAVE_VERSION, "cash": START_CASH, "rep": 0, "week": 1, "day": 0,
 		"history": [], "night": {}, "intro_seen": false,
-		"inventory": [], "installed": {}, "pity": {}, "next_uid": 1}
+		"inventory": [], "installed": {}, "pity": {}, "next_uid": 1,
+		"rivals": {}, "stats": {}}
 
 
 func load_game() -> void:
@@ -168,6 +173,11 @@ func migrate(data: Dictionary) -> Dictionary:
 		if not night.is_empty() and not night.has("opponent"):
 			data["night"] = {}       # an old posted-time night: redraw it as a card
 		v = 5
+	if v < 6:                        # v5 -> v6: new schedule (4 open : 1 rival), tuned
+		data["night"] = {}           # opponents, rival progress, team stats
+		data["rivals"] = {}
+		data["stats"] = {}
+		v = 6
 	data["version"] = v
 	return data
 
@@ -186,16 +196,24 @@ func reset_game() -> void:
 
 # ------------------------------------------------------------------ calendar
 
-## Events in a given week: [{"day", "type", "title"}]. Friday: the rival on
-## his home road. Saturday: this week's generated open road vs a street racer.
+## Events in a given week: [{"day", "type", "title", "road"?}]. Friday and
+## Saturday: open roads vs street racers (two different generated roads a
+## week). Every 2nd Sunday: the rival on his home road. 4 open : 1 rival.
+## Open road n's style rotates technical -> balanced -> flowing (the bridge
+## generates the same road for the same n); style also picks the replay's place.
 const OPEN_STYLES := ["technical", "balanced", "flowing"]
+const RIVAL_EVERY_WEEKS := 2
 
 
 func events_for_week(week: int) -> Array:
-	return [
-		{"day": 4, "type": "rival", "title": "Zed (280Z) on his home road"},
-		{"day": 5, "type": "open", "title": "Open road (%s), street racer" % OPEN_STYLES[(week - 1) % 3]},
-	]
+	var out := []
+	for i in 2:
+		var road := 2 * (week - 1) + i + 1               # open road number: 1, 2, 3, ...
+		out.append({"day": 4 + i, "type": "open", "road": road,
+			"title": "Open road (%s), street racer" % OPEN_STYLES[(road - 1) % 3]})
+	if week % RIVAL_EVERY_WEEKS == 0:
+		out.append({"day": 6, "type": "rival", "title": "Zed (280Z) on his home road"})
+	return out
 
 
 func when(week: int, day: int) -> String:
@@ -301,6 +319,8 @@ func _go(target: String) -> void:
 			show_intro()
 		"shop":
 			show_shop()
+		"team":
+			show_team()
 		"race":
 			show_briefing()
 
@@ -503,6 +523,7 @@ func buy_part(id: String) -> void:
 		show_shop()
 		return
 	state["cash"] = int(state["cash"]) - int(p["price"])
+	stat_add("spent", int(p["price"]))
 	var inst := add_instance(id, NEW_QUALITY, true, "shop", p["effects_text"])
 	shop_message = "Bought and installed: %s." % p["name"]
 	install_part(p["slot"], inst["uid"], false)
@@ -521,6 +542,8 @@ func do_pull(source: String) -> void:
 		show_shop()
 		return
 	state["cash"] = int(state["cash"]) - int(src["price"])
+	stat_add("spent", int(src["price"]))
+	stat_add("pulls", 1)
 	pull_paid = int(src["price"])
 	save_game()                                   # paid: a crash or quit can't refund it
 	show_message("PULLING", "%s..." % src["name"])
@@ -559,6 +582,8 @@ func show_reveal(inst: Dictionary, stage := "box") -> void:
 	add_child(r)
 	screen = r
 	var reveal_now := func():
+		if not inst["revealed"]:
+			note_roll(inst, p)
 		inst["revealed"] = true
 		save_game()
 	r.dyno_pressed.connect(func():
@@ -589,6 +614,8 @@ func repair_instance(uid: String) -> void:
 		show_shop()
 		return
 	state["cash"] = int(state["cash"]) - cost
+	stat_add("spent", cost)
+	stat_add("repairs", 1)
 	inst["damaged"] = false
 	car_stats = {}
 	save_game()
@@ -623,6 +650,106 @@ func install_part(slot: String, uid: String, refresh := true) -> void:
 		show_car()
 
 
+# ------------------------------------------------------------------ team
+
+## TEAM stats that history alone can't give (saved in state["stats"]).
+func stat_add(key: String, amount: int) -> void:
+	state["stats"][key] = int(state["stats"].get(key, 0)) + amount
+
+
+## A dynoed roll: remember the best one; a legendary is a memory.
+func note_roll(inst: Dictionary, part: Dictionary) -> void:
+	var best: Dictionary = state["stats"].get("best_roll", {})
+	if best.is_empty() or float(inst["quality"]) > float(best["q"]):
+		state["stats"]["best_roll"] = {"name": part["name"], "q": float(inst["quality"])}
+	if part.get("rarity", "") == "legendary":
+		unlock("legendary")
+
+
+func unlock(memory: String) -> void:
+	var mem: Dictionary = state["stats"].get("memories", {})
+	if not mem.has(memory):
+		mem[memory] = when(state["week"], state["day"])
+		state["stats"]["memories"] = mem
+
+
+## Milestones from a race result (and the bet behind it).
+func note_memories(result: Dictionary) -> void:
+	state["stats"]["biggest_bet"] = maxi(int(state["stats"].get("biggest_bet", 0)), int(result["wager"]))
+	if result["won"]:
+		unlock("first_win")
+		if result.get("rival_night", false):
+			unlock("beat_rival")
+	if result["dnf"]:
+		unlock("first_crash")
+	var races: Array = state["history"].filter(func(r): return (not r.get("skipped", false)
+		and not r.get("no_contest", false)))
+	if streak(races, true) >= 3:
+		unlock("streak3")
+	if int(result["wager"]) >= int(state["cash"] - result["cash_change"]) * Voice.BIG_BET_SHARE \
+			and int(result["wager"]) > MIN_BUY_IN:
+		unlock("big_bet")
+
+
+## Everything the board shows, worked out from history + stats.
+func team_info() -> Dictionary:
+	var races: Array = state["history"].filter(func(r): return not r.get("skipped", false))
+	var wins := races.filter(func(r): return r["won"]).size()
+	var crashes := races.filter(func(r): return r.get("dnf", false)).size()
+	var mistakes := 0
+	var pushes := {}
+	var best := {}                       # road -> best finished time
+	var vs := {}                         # rival -> [wins, losses]
+	var net := 0
+	for r in races:
+		mistakes += r.get("mistakes", []).size()
+		pushes[r.get("push", "?")] = int(pushes.get(r.get("push", "?"), 0)) + 1
+		net += int(r.get("cash_change", 0))
+		var road: String = str(r.get("track", "")).get_file().get_basename().replace("_", " ")
+		if road != "" and not r.get("dnf", false) and r.has("time"):
+			best[road] = minf(float(best.get(road, INF)), float(r["time"]))
+		if r.get("rival_night", false):
+			var rec: Array = vs.get(r["rival"], [0, 0])
+			rec[0 if r["won"] else 1] += 1
+			vs[r["rival"]] = rec
+	var fav := "-"
+	for k in pushes:
+		if fav == "-" or int(pushes[k]) > int(pushes[fav]):
+			fav = k
+	var st: Dictionary = state["stats"]
+	var roll: Dictionary = st.get("best_roll", {})
+	var mem: Dictionary = st.get("memories", {})
+	var memories := []
+	for id in Voice.MEMORY_ORDER:
+		memories.append({"photo": Voice.MEMORIES[id][0], "caption": Voice.MEMORIES[id][1],
+			"unlocked": mem.has(id), "when": mem.get(id, "")})
+	var best_rows := []
+	for road in best:
+		best_rows.append([road, "%.2f s" % best[road]])
+	var vs_rows := []
+	for name in vs:
+		vs_rows.append(["vs %s" % name, "%d - %d" % [vs[name][0], vs[name][1]]])
+	return {
+		"faba": [["Races", str(races.size())], ["Wins", str(wins)], ["Crashes", str(crashes)],
+			["Mistakes per race", "%.1f" % (float(mistakes) / maxi(races.size(), 1))],
+			["Favorite push", str(fav).replace("_", " ")]] + best_rows,
+		"builder": [["Pulls", str(int(st.get("pulls", 0)))],
+			["Best roll", "-" if roll.is_empty() else "%s (Q %d%%)" % [roll["name"], int(round(float(roll["q"]) * 100))]],
+			["Spent on the car", UI.money(int(st.get("spent", 0)))],
+			["Parts lost to crashes", str(int(st.get("destroyed", 0)))],
+			["Repairs", str(int(st.get("repairs", 0)))]],
+		"record": [["Record", "%d W - %d L" % [wins, races.size() - wins]],
+			["Net cash", "%s%s" % ["+" if net > 0 else "", UI.money(net)]],
+			["Biggest bet", UI.money(int(st.get("biggest_bet", 0)))]] + vs_rows,
+		"memories": memories,
+		"parts_on": installed_part_ids(),
+	}
+
+
+func show_team() -> void:
+	open_hub(TeamScene, "team").setup(team_info())
+
+
 func show_calendar() -> void:
 	var info := common_info()
 	var week := int(state["week"])
@@ -640,11 +767,14 @@ func show_calendar() -> void:
 	var hist: Array = state["history"]
 	for i in range(hist.size() - 1, maxi(hist.size() - 6, -1), -1):
 		var r: Dictionary = hist[i]
+		# [when, who, result, amount, "money" or "rep"]
 		if r.get("skipped", false):
-			past.append([r.get("when", "-"), "vs %s" % r["rival"], "%s  %d rep" % [Voice.BOARD_SKIPPED, int(r["rep_change"])]])
+			past.append([r.get("when", "-"), "vs %s" % r["rival"], Voice.BOARD_SKIPPED,
+				"%d rep" % int(r["rep_change"]), "rep"])
 		else:
-			past.append([r.get("when", "-"), "vs %s" % r["rival"],
-				"%s  %+d" % ["W" if r["won"] else "L", int(r["cash_change"])]])
+			var mark := "NC" if r.get("no_contest", false) else ("W" if r["won"] else "L")
+			past.append([r.get("when", "-"), "vs %s" % r["rival"], mark,
+				"%s%s" % ["+" if int(r["cash_change"]) > 0 else "", UI.money(int(r["cash_change"]))], "money"])
 	info["past"] = past
 	var races := hist.filter(func(r): return not r.get("skipped", false) and not r.get("no_contest", false))
 	info["last_lost"] = not races.is_empty() and not races[-1]["won"]     # sad face on the board
@@ -674,9 +804,11 @@ func show_briefing() -> void:
 		show_message("WORD ON THE STREET", "Finding out who's running tonight.")
 		var seed := str(randi() % 1000000)
 		if ev["type"] == "open":
-			bridge.request("night", ["street", "--week", str(ev["week"]), "--seed", seed])
+			# Matched to the DX as it sits tonight, tuned to a coin flip
+			bridge.request("night", ["street", "--road", str(ev["road"]), "--seed", seed, "--tune"]
+				+ parts_args())
 		else:
-			bridge.request("night", ["rival", "--rival", RIVAL_FILE, "--seed", seed])
+			bridge.request("night", rival_args(seed))
 		return
 	if track_info.is_empty():
 		show_message("SCOUTING", "Driving the road in daylight.")
@@ -692,6 +824,19 @@ func show_briefing() -> void:
 		bridge.request("parts", ["parts"])
 		return
 	show_meeting()
+
+
+## The rival's card: his saved engine (he keeps what he had), re-tuned
+## against the DX as it is now only if Faba beat him last time. Rivals never
+## fully keep up: building between rival nights is how you climb.
+func rival_args(seed: String) -> Array:
+	var args := ["rival", "--rival", RIVAL_FILE, "--seed", seed]
+	var r: Dictionary = state["rivals"].get(RIVAL_ID, {})
+	if r.has("condition"):
+		args += ["--condition", str(r["condition"])]
+	if r.get("retune", false):
+		args += ["--retune"] + parts_args()
+	return args
 
 
 ## Push levels as Faba describes them: no numbers, just what you're risking.
@@ -757,7 +902,9 @@ func send_it() -> void:
 	var out := ProjectSettings.globalize_path("user://replays/race.json")
 	bridge.request("race", ["race", "--track", state["night"]["track"], "--push", choice["push"],
 		"--seed", str(randi() % 1000000), "--out", out,
-		"--opponent", state["night"]["opponent"], "--opp-seed", str(randi() % 1000000)] + parts_args())
+		"--opponent", state["night"]["opponent"], "--opp-seed", str(randi() % 1000000),
+		"--opp-condition", str(state["night"]["engine_condition"]),
+		"--location", str(state["night"].get("location", "canyon"))] + parts_args())
 
 
 ## Consequences of a crash: body repair, and a damage roll on every installed
@@ -778,6 +925,7 @@ func crash_damage() -> Dictionary:
 		elif roll < DESTROY_CHANCE + DAMAGE_CHANCE:
 			inst["damaged"] = true
 			damaged.append(name)
+	stat_add("destroyed", destroyed.size())
 	var body := mini(BODY_REPAIR, int(state["cash"]))   # can't go below $0
 	state["cash"] = int(state["cash"]) - body
 	return {"damaged": damaged, "destroyed": destroyed, "body_repair": body}
@@ -791,7 +939,8 @@ func apply_result(r: Dictionary) -> Dictionary:
 	var no_contest: bool = r["no_contest"]
 	var wager := int(choice["wager"])
 	var cash_change := 0 if no_contest else (wager if won else -wager)
-	var rep_change := REP_WIN if won else (REP_CRASH if r["dnf"] else REP_LOSS)
+	var rival_night: bool = night.get("id", "") != "street"
+	var rep_change: int = (REP_RIVAL_WIN if rival_night else REP_OPEN_WIN) if won 		else (REP_CRASH if r["dnf"] else REP_LOSS)
 	var result := {
 		"when": when(ev["week"], ev["day"]),
 		"rival": night["name"], "rival_car": night["car"],
@@ -800,13 +949,19 @@ func apply_result(r: Dictionary) -> Dictionary:
 		"opponent_crash_corner": r["opponent_crash_corner"],
 		"won": won, "no_contest": no_contest, "push": r["push"], "seed": r["seed"],
 		"wager": wager, "cash_change": cash_change, "rep_change": rep_change,
-		"mistakes": r["mistakes"], "parts": parts_args(), "loot": "", "damage": {}}
+		"mistakes": r["mistakes"], "parts": parts_args(), "loot": "", "damage": {},
+		"track": night.get("track", ""), "rival_night": rival_night}
 	state["cash"] = int(state["cash"]) + cash_change
 	state["rep"] = maxi(int(state["rep"]) + rep_change, 0)
 	if r["dnf"]:
 		result["damage"] = crash_damage()
 		car_stats = {}                   # the car changed (parts damaged or gone)
+	if rival_night and won:              # beat him: he upgrades before the next time
+		var rv: Dictionary = state["rivals"].get(night["id"], {})
+		rv["retune"] = true
+		state["rivals"][night["id"]] = rv
 	state["history"].append(result)
+	note_memories(result)
 	state["night"] = {}
 	advance_past(ev)
 	save_game()
@@ -871,6 +1026,8 @@ The pull was refunded (%s)." % UI.money(pull_paid)
 		"night":
 			data["event"] = event_key(next_event())
 			state["night"] = data
+			if data["id"] != "street":       # remember the rival's engine (he keeps it)
+				state["rivals"][data["id"]] = {"condition": data["engine_condition"], "retune": false}
 			save_game()
 			track_info = {}            # a new night can be a new road: drop the old map
 			show_briefing()
@@ -918,6 +1075,13 @@ func game_test() -> void:
 	print("GAMETEST migrate v1: ", migrate({"version": 1, "cash": 300, "rep": 5, "history": [], "night": {"x": 1}}))
 	var ev := next_event()
 	print("GAMETEST next event: %s, %s" % [when(ev["week"], ev["day"]), ev["title"]])
+	# Schedule hand calc: open roads Fri + Sat every week, the rival every 2nd
+	# Sunday -> weeks 1-2 hold 4 open nights and 1 rival night (4 : 1)
+	var two_weeks := events_for_week(1) + events_for_week(2)
+	check(two_weeks.filter(func(e): return e["type"] == "open").size() == 4
+		and two_weeks.filter(func(e): return e["type"] == "rival").size() == 1
+		and int(two_weeks[-1]["day"]) == 6 and int(two_weeks[3]["road"]) == 4,
+		"schedule: 4 open (roads 1-4) and 1 rival (week 2, Sunday)")
 	bridge.request("car_stats", ["car_stats"])
 	var r: Array = await bridge.replied
 	print("GAMETEST car: %s, %d hp, dyno points %d" % [r[1]["name"], r[1]["hp"], r[1]["dyno"].size()])
@@ -1012,6 +1176,21 @@ func game_test() -> void:
 	var nc := apply_result(crashed)
 	check(int(state["cash"]) == 350 and int(state["rep"]) == 10 and not nc["won"],
 		"no contest: cash %d (expect 350), rep %d (expect 10)" % [state["cash"], state["rep"]])
+	# Rep hand calc: a rival win is +15 and makes him re-tune; a street win is +4.
+	var won_race := crashed.duplicate()
+	won_race.merge({"won": true, "no_contest": false, "dnf": false, "opponent_dnf": false}, true)
+	state["rep"] = 0
+	state["rivals"] = {}
+	state["night"] = card
+	apply_result(won_race)
+	check(int(state["rep"]) == 15 and state["rivals"][card["id"]].get("retune", false),
+		"rival win: rep %d (expect 15), he re-tunes next time" % state["rep"])
+	check(rival_args("1").has("--retune"), "the next rival card asks for a re-tune")
+	var street_card := card.duplicate()
+	street_card["id"] = "street"
+	state["night"] = street_card
+	apply_result(won_race)
+	check(int(state["rep"]) == 19, "street win: rep %d (expect 15 + 4 = 19)" % state["rep"])
 	# A damaged part stays in its slot but is off the car until repaired.
 	# Hand calc: rsb_19 is $180, repair 30% = $54: $500 -> $446.
 	var c := add_instance("rsb_19", 0.5, true, "shop")
@@ -1024,15 +1203,21 @@ func game_test() -> void:
 		"repair: cash %d (expect 446), back on the car %s" % [state["cash"], parts_args()])
 	print("GAMETEST migrate v3: %s" % [migrate({"version": 3, "cash": 1, "rep": 0, "week": 1, "day": 0,
 		"history": [], "night": {}, "owned_parts": ["rsb_19"], "installed": {"rear_sway": "rsb_19"}})])
-	bridge.request("night", ["street", "--week", "3", "--seed", "8"])
+	bridge.request("night", ["street", "--road", "3", "--seed", "8", "--tune"])
 	r = await bridge.replied
-	print("GAMETEST open road week 3: %s in a %s (%d hp) on %s" % [r[1]["name"], r[1]["car"],
-		r[1]["stats"]["hp"], r[1]["style"]])
-	check(r[1].has("opponent") and not r[1].has("posted_time"), "street night is a stat card")
+	print("GAMETEST open road 3 (tuned): %s in a %s (%d hp, condition %.3f) on %s" % [r[1]["name"],
+		r[1]["car"], r[1]["stats"]["hp"], r[1]["engine_condition"], r[1]["style"]])
+	check(r[1].has("opponent") and not r[1].has("posted_time") and r[1]["tuned"],
+		"street night is a tuned stat card")
 	var old_night := migrate({"version": 4, "cash": 1, "rep": 0, "week": 1, "day": 0, "history": [],
 		"installed": {}, "inventory": [], "pity": {}, "next_uid": 1,
 		"night": {"name": "Zed", "posted_time": 49.6, "event": "1-4"}})
-	check(old_night["night"].is_empty() and old_night["version"] == 5, "v4 -> v5 redraws an old posted-time night")
+	check(old_night["night"].is_empty() and old_night["version"] == SAVE_VERSION,
+		"v4 -> current redraws an old posted-time night")
+	var v5 := migrate({"version": 5, "cash": 1, "rep": 0, "week": 2, "day": 4, "history": [],
+		"installed": {}, "inventory": [], "pity": {}, "next_uid": 1, "night": {"name": "Zed", "event": "2-4"}})
+	check(v5["night"].is_empty() and v5.has("rivals") and v5.has("stats") and v5["version"] == 6,
+		"v5 -> v6: new schedule redraws the night, adds rival progress + team stats")
 	print("GAMETEST migrate v2: %s" % [migrate({"version": 2, "cash": 1, "rep": 0, "week": 1, "day": 0, "history": [], "night": {}}).keys()])
 	state["rep"] = 10
 	skip_night()
@@ -1050,11 +1235,21 @@ func game_shots(folder: String) -> void:
 	DirAccess.make_dir_recursive_absolute(folder)
 	state = new_state()
 	show_intro()
+	await get_tree().create_timer(0.5).timeout
 	await snap(folder, "0a_intro")
-	for i in 3:
+	for i in 4:                                   # to "one corner too hot": the tape glitching
 		screen.next_slide()
 	await get_tree().create_timer(0.8).timeout
 	await snap(folder, "0b_intro_crash")
+	for i in 3:                                   # past the tape: Faba's texts
+		screen.next_slide()
+	await get_tree().create_timer(2.5).timeout
+	await snap(folder, "0c_intro_texts")
+	screen.next_slide()
+	await get_tree().create_timer(2.0).timeout
+	screen.next_slide()
+	await get_tree().create_timer(8.0).timeout
+	await snap(folder, "0d_intro_texts_late")
 	bridge.request("car_stats", ["car_stats"])
 	car_stats = (await bridge.replied)[1]
 	show_warehouse()
@@ -1106,6 +1301,17 @@ func game_shots(folder: String) -> void:
 	state["history"] = [state["history"][0]]      # last race a win: the rival gets the finger
 	show_calendar()
 	await snap(folder, "1c_calendar_win")
+	state["stats"] = {"pulls": 3, "spent": 900, "repairs": 1, "biggest_bet": 150,
+		"best_roll": {"name": "Cold air intake", "q": 0.86},
+		"memories": {"first_win": "FRI, WEEK 1", "big_bet": "SAT, WEEK 1"}}
+	state["history"][0]["rival_night"] = true
+	state["history"][0]["track"] = "data/tracks/test_track.txt"
+	state["history"][0]["time"] = 49.62
+	show_team()
+	await snap(folder, "1f_team")
+	hub_content.get_node("%Scroll").scroll_vertical = 2000
+	await snap(folder, "1f_team_memories")
+	state["stats"] = {}
 	state["history"] = []
 	state["week"] = 1
 	state["day"] = 0
@@ -1123,13 +1329,22 @@ func game_shots(folder: String) -> void:
 	await snap(folder, "2_meeting_bet")
 	var out := ProjectSettings.globalize_path("user://replays/shots.json")
 	bridge.request("race", ["race", "--track", state["night"]["track"], "--push", "hard", "--seed", "21",
-		"--out", out, "--opponent", state["night"]["opponent"], "--opp-seed", "21"])
+		"--out", out, "--opponent", state["night"]["opponent"], "--opp-seed", "21",
+		"--location", str(state["night"].get("location", "canyon"))])
 	var r: Dictionary = (await bridge.replied)[1]
 	var result := apply_result(r)
 	show_race(out, result)
+	await get_tree().process_frame
+	viewer.countdown = viewer.COUNTDOWN_S - 0.7                  # rolling up, hazards on
+	await snap(folder, "5_race_rollup")
+	viewer.countdown = viewer.COUNTDOWN_S - 2.0                  # the flagger: "3"
+	await snap(folder, "5_race_count")
+	viewer.countdown = 0.0
 	viewer.t = viewer.lap_time * 0.5
 	await snap(folder, "5_race_mid")
-	viewer.t = viewer.lap_time
+	viewer.t = minf(viewer.lap_time, viewer.end_time) - 0.2        # slow-mo at the line
+	await snap(folder, "5_race_finishline")
+	viewer.t = viewer.end_time
 	await snap(folder, "5_race_finish")
 	show_results(result)
 	await snap(folder, "6_results")

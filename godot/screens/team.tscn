@@ -1,0 +1,171 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://screens/team.gd" id="1"]
+[ext_resource type="Script" path="res://widgets/overlook.gd" id="2"]
+[ext_resource type="Script" path="res://widgets/lift_bay.gd" id="3"]
+[ext_resource type="Texture2D" uid="uid://bh57thicmbofh" path="res://textures/pin.png" id="4"]
+
+[node name="Team" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="Scroll" type="ScrollContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+horizontal_scroll_mode = 0
+
+[node name="Cork" type="PanelContainer" parent="Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"CorkPanel"
+
+[node name="Box" type="VBoxContainer" parent="Scroll/Cork"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="Photos" type="HBoxContainer" parent="Scroll/Cork/Box"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="FabaPhoto" type="PanelContainer" parent="Scroll/Cork/Box/Photos"]
+layout_mode = 2
+size_flags_horizontal = 3
+rotation = -0.03
+theme_type_variation = &"PolaroidPanel"
+
+[node name="Col" type="VBoxContainer" parent="Scroll/Cork/Box/Photos/FabaPhoto"]
+layout_mode = 2
+
+[node name="Pin" type="TextureRect" parent="Scroll/Cork/Box/Photos/FabaPhoto/Col"]
+custom_minimum_size = Vector2(28, 28)
+layout_mode = 2
+size_flags_horizontal = 4
+texture = ExtResource("4")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="FabaShot" type="SubViewportContainer" parent="Scroll/Cork/Box/Photos/FabaPhoto/Col"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 200)
+layout_mode = 2
+mouse_filter = 2
+stretch = true
+script = ExtResource("2")
+
+[node name="Caption" type="Label" parent="Scroll/Cork/Box/Photos/FabaPhoto/Col"]
+layout_mode = 2
+theme_type_variation = &"MarkerLabel"
+theme_override_font_sizes/font_size = 22
+text = "faba // drives it"
+
+[node name="MePhoto" type="PanelContainer" parent="Scroll/Cork/Box/Photos"]
+layout_mode = 2
+size_flags_horizontal = 3
+rotation = 0.025
+theme_type_variation = &"PolaroidPanel"
+
+[node name="Col" type="VBoxContainer" parent="Scroll/Cork/Box/Photos/MePhoto"]
+layout_mode = 2
+
+[node name="Pin" type="TextureRect" parent="Scroll/Cork/Box/Photos/MePhoto/Col"]
+custom_minimum_size = Vector2(28, 28)
+layout_mode = 2
+size_flags_horizontal = 4
+texture = ExtResource("4")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="MeShot" type="SubViewportContainer" parent="Scroll/Cork/Box/Photos/MePhoto/Col"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 200)
+layout_mode = 2
+mouse_filter = 2
+stretch = true
+script = ExtResource("3")
+
+[node name="Caption" type="Label" parent="Scroll/Cork/Box/Photos/MePhoto/Col"]
+layout_mode = 2
+theme_type_variation = &"MarkerLabel"
+theme_override_font_sizes/font_size = 22
+text = "me // builds it"
+
+[node name="FabaCard" type="PanelContainer" parent="Scroll/Cork/Box"]
+layout_mode = 2
+rotation = 0.008
+theme_type_variation = &"PaperPanel"
+
+[node name="Col" type="VBoxContainer" parent="Scroll/Cork/Box/FabaCard"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Title" type="Label" parent="Scroll/Cork/Box/FabaCard/Col"]
+layout_mode = 2
+theme_type_variation = &"FlyerTitleLabel"
+text = "FABA // DRIVER"
+
+[node name="FabaStats" type="VBoxContainer" parent="Scroll/Cork/Box/FabaCard/Col"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="BuilderCard" type="PanelContainer" parent="Scroll/Cork/Box"]
+layout_mode = 2
+rotation = -0.01
+theme_type_variation = &"PaperPanel"
+
+[node name="Col" type="VBoxContainer" parent="Scroll/Cork/Box/BuilderCard"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Title" type="Label" parent="Scroll/Cork/Box/BuilderCard/Col"]
+layout_mode = 2
+theme_type_variation = &"FlyerTitleLabel"
+text = "ME // BUILDER"
+
+[node name="BuilderStats" type="VBoxContainer" parent="Scroll/Cork/Box/BuilderCard/Col"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="RecordCard" type="PanelContainer" parent="Scroll/Cork/Box"]
+layout_mode = 2
+rotation = 0.006
+theme_type_variation = &"ReceiptPanel"
+
+[node name="Col" type="VBoxContainer" parent="Scroll/Cork/Box/RecordCard"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Title" type="Label" parent="Scroll/Cork/Box/RecordCard/Col"]
+layout_mode = 2
+theme_type_variation = &"FlyerTitleLabel"
+text = "THE RECORD"
+
+[node name="RecordStats" type="VBoxContainer" parent="Scroll/Cork/Box/RecordCard/Col"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="MemoriesTitle" type="Label" parent="Scroll/Cork/Box"]
+layout_mode = 2
+size_flags_horizontal = 0
+rotation = -0.02
+theme_type_variation = &"TapeLabel"
+text = "memories"
+
+[node name="Memories" type="GridContainer" parent="Scroll/Cork/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 14
+theme_override_constants/v_separation = 18
+columns = 3

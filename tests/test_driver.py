@@ -236,3 +236,40 @@ def test_skill_scales_the_target_and_the_risk():
     weak = Driver(push="hard", skill=0.95)
     assert weak.f == pytest.approx(PUSH_LEVELS["hard"] * 0.95)
     assert weak.crash_chance_per_corner() < full.crash_chance_per_corner()
+
+
+# ---------- human timing: launch reaction + shift durations ----------
+
+def test_timing_draws_are_reproducible_and_bounded():
+    from sim.driver import REACTION_RANGE, SHIFT_RANGE, draw_timing
+    a, b = draw_timing(7), draw_timing(7)
+    assert a == b and draw_timing(8) != a
+    assert REACTION_RANGE[0] <= a.reaction <= REACTION_RANGE[1]
+    assert all(SHIFT_RANGE[0] <= f <= SHIFT_RANGE[1] for f in a.shift_factors)
+
+
+def test_timing_averages_out():
+    # Hand calc: the draws are N(0.20 s, 0.07 s) and N(1, 0.175), clipped
+    # almost symmetrically, so 2000 reactions average 0.20 s within ~0.01 s
+    # and the shift factors average 1.0 within ~0.01.
+    from sim.driver import REACTION_MEAN, draw_timing
+    draws = [draw_timing(s) for s in range(2000)]
+    assert sum(d.reaction for d in draws) / 2000 == pytest.approx(REACTION_MEAN, abs=0.01)
+    assert sum(d.shift_factors[0] for d in draws) / 2000 == pytest.approx(1.0, abs=0.01)
+
+
+def test_reaction_delays_the_whole_run(car, grid):
+    # The car leaves the line `reaction` seconds after the green: the first
+    # sample is at t = reaction and the lap includes it.
+    from sim.driver import draw_timing
+    lap = run_lap(car, grid, driver=Driver(push="normal", sigma=0.0), seed=3)
+    r = draw_timing(3).reaction
+    assert lap.telemetry.t[0] == pytest.approx(r) and lap.lap_time == lap.telemetry.t[-1]
+
+
+def test_the_corner_plan_ignores_timing(car, grid):
+    # Timing has its own random stream: the first corner's attempt is still the
+    # first gauss draw from random.Random(seed), exactly as before timing existed
+    d = Driver(push="hard")
+    lap = run_lap(car, grid, driver=d, seed=11)
+    assert lap.corner_log[0].attempt == pytest.approx(random.Random(11).gauss(d.f, d.sigma))

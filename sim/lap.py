@@ -20,9 +20,9 @@ import random
 from dataclasses import dataclass, field
 
 from .brakes import rotor_temp_after
-from .driver import apply_plan, plan_corners
+from .driver import Timing, apply_plan, draw_timing, plan_corners
 from .dynamics import (DriveState, advance, brake_decel, brake_forces,
-                       car_constants, should_downshift)
+                       car_constants, shift_duration, should_downshift)
 from .forces import drag
 from .powertrain import effective_mass, engine_rpm, rpm_from_speed, wheel_force
 from .telemetry import ShiftEvent, Telemetry
@@ -74,30 +74,33 @@ def run_lap(car, grid, temp_start=AMBIENT_C, ambient=AMBIENT_C, tol=1e-6, max_it
 
     driver=None: the theoretical limit (validation runs). With a Driver, each
     corner gets a random attempt (reproducible from `seed`), or pass a fixed
-    `plan` (list of CornerAttempt) to script one.
+    `plan` (list of CornerAttempt) to script one. A driver also has human
+    timing (driver.draw_timing): a launch reaction and per-shift durations.
     """
     k = car_constants(car)
     v_limit = [corner_speed(k, c) for c in grid.curvature]
     brake_scale = 1.0
+    timing = Timing()
     if driver is not None:
         if plan is None:
             plan = plan_corners(driver, grid.corners, random.Random(seed))
         v_limit = apply_plan(grid, v_limit, plan)
         brake_scale = min(driver.f, 1.0)
+        timing = draw_timing(seed)
     temps = [temp_start] * len(grid.s)       # first guess: rotors never heat up
     prev_time = None
     for it in range(1, max_iter + 1):
         env = braking_envelope(car, k, grid.s, v_limit, temps, brake_scale)
-        result = _forward_pass(car, k, grid, v_limit, env, temp_start, ambient)
+        result = _forward_pass(car, k, grid, v_limit, env, temp_start, ambient, timing.shift_factors)
         result.iterations = it
         result.driver, result.seed, result.corner_log = driver, seed, plan or []
         if prev_time is not None and abs(result.lap_time - prev_time) < tol:
-            return _apply_crash(result, plan)
+            return _apply_crash(_apply_reaction(result, timing.reaction), plan)
         prev_time, temps = result.lap_time, result.telemetry.brake_temp
     raise RuntimeError("run_lap: brake temperature iteration did not converge")
 
 
-def _forward_pass(car, k, grid, v_limit, env, temp_start, ambient):
+def _forward_pass(car, k, grid, v_limit, env, temp_start, ambient, shift_factors=()):
     s = grid.s
     tel = Telemetry()
     st = DriveState()
@@ -107,7 +110,8 @@ def _forward_pass(car, k, grid, v_limit, env, temp_start, ambient):
     for i in range(len(s) - 1):
         step = s[i + 1] - s[i]
         events = []
-        new, dt, limit, a = advance(car, k, st, step, s0=s[i], events=events)
+        new, dt, limit, a = advance(car, k, st, step, s0=s[i], events=events,
+                                    shift_factors=shift_factors)
         heat = 0.0   # W into one front rotor during this step
 
         if new.v > env[i + 1]:
@@ -115,7 +119,7 @@ def _forward_pass(car, k, grid, v_limit, env, temp_start, ambient):
             v_next = env[i + 1]
             a = (v_next ** 2 - st.v ** 2) / (2 * step)
             dt = 2 * step / (st.v + v_next)
-            gear, shift_left = st.gear, max(st.shift_left - dt, 0.0)
+            gear, shift_left, shifts = st.gear, max(st.shift_left - dt, 0.0), st.shifts
             resist = drag(car, st.v) + k.f_roll
 
             coast = resist / k.m_brake           # decel from drag + rolling alone
@@ -132,7 +136,8 @@ def _forward_pass(car, k, grid, v_limit, env, temp_start, ambient):
                 if shift_left <= 0 and should_downshift(car, v_next, gear):
                     tel.shifts.append(ShiftEvent(gear, gear - 1, s[i + 1], v_next,
                                                  rpm_from_speed(car, v_next, gear)))
-                    gear, shift_left = gear - 1, car.shift_time
+                    gear, shift_left = gear - 1, shift_duration(car, shifts, shift_factors)
+                    shifts += 1
             else:
                 # Holding or gently changing speed: partial throttle (feathering).
                 # Gentle slowing (less than coasting) still needs SOME throttle.
@@ -141,7 +146,7 @@ def _forward_pass(car, k, grid, v_limit, env, temp_start, ambient):
                 f_avail = 0.0 if shift_left > 0 else wheel_force(car, st.v, gear)
                 throttle = min(max(f_needed / f_avail, 0.0), 1.0) if f_avail > 0 else 0.0
 
-            new = DriveState(v_next, gear, shift_left)
+            new = DriveState(v_next, gear, shift_left, shifts)
         else:
             tel.shifts.extend(events)   # only keep shifts that actually happened
             throttle, brake = (0.0 if limit == "shift" else 1.0), 0.0
@@ -165,6 +170,18 @@ def _record(tel, car, s, t, st, a, limit, throttle, brake, temp):
     tel.throttle.append(throttle)
     tel.brake.append(brake)
     tel.brake_temp.append(temp)
+
+
+def _apply_reaction(result, reaction):
+    """The driver's launch reaction: the car sits at the line for `reaction`
+    seconds after the green, so every sample happens that much later (the
+    first one, at the start line, is at t = reaction; a replay holds the car
+    there until then). One sample per node, as always."""
+    if reaction <= 0:
+        return result
+    result.telemetry.t = [t + reaction for t in result.telemetry.t]
+    result.lap_time += reaction
+    return result
 
 
 def _apply_crash(result, plan):
