@@ -23,6 +23,7 @@ Every change to the model gets a row: what changed, the physical reason, and the
 | 3 | Braking with forward load transfer + per-tire load sensitivity (fixed-point iteration); sequential shifting with no money shifts | Overloaded front tires gain less grip than unloaded rears lose (predicted ~4.8% grip loss, ~138 ft) | 9.92 s (+0.2%) | 17.74 s (+0.2%) | 80.3 mph (+0.3%) | 138.1 ft (in range) | 121.5 mph | PASS |
 | 4 | Brake heat + fade: rotor energy balance, pad mu vs temperature, capacity ratio 1.3, fixed-point iteration over the lap | Heat from braking must go somewhere; pads lose friction when hot | 9.92 s (+0.2%) | 17.74 s (+0.2%) | 80.3 mph (+0.3%) | 138.1 ft (cold, unchanged) | 121.5 mph | PASS (fade checked by hand calcs; no measured fade data exists) |
 | 5 | Cornering: lateral load transfer (roll stiffness split, wheel lift), per-tire load sensitivity, axle-limited balance; load-sensitive FWD traction | Outside tires gain less grip than inside tires lose; the most-loaded axle saturates first (understeer) | 9.92 s (+0.2%) | 17.74 s (+0.2%) | 80.3 mph (+0.3%) | 138.1 ft (unchanged) | 121.5 mph | PASS; skidpad 0.832 g (report-only band 0.75-0.85 g) |
+| 6 | RWD traction option (`Car.drivetrain`; load-sensitive rear axle, fixed point); crash model (attempt > 1.025 = DNF, run ends at the apex) | A RWD car's driven axle gains load under acceleration; a big enough overshoot leaves the road instead of running wide | 9.92 s (+0.2%) | 17.74 s (+0.2%) | 80.3 mph (+0.3%) | 138.1 ft (unchanged) | 121.5 mph | PASS (stock DX is FWD: unchanged); RWD hand calc 5926 N = sim at constant mu |
 
 ## Notes
 
@@ -65,3 +66,13 @@ Every input has a distinct, explainable effect (zero bars included: brakes never
 ## Milestone D: driver model
 
 Not validated against measured data (no driver data exists); checked against Spire's tuning targets instead. Analytic per-run mistake chances: exactly 2.0 / 5.0 / 35.0 / 75.0%. Sampled (20,000 plans per level): within 1.5% of target. Monte Carlo on the test track: 3 / 7 / 34 / 77% of runs had a mistake. Theoretical-limit runs (no driver) are unchanged, so all validation results stand.
+
+## Head-to-head: RWD, crashes, opponents
+
+Not validated against measured data (no RWD car or crash data exists); checked against hand calcs and Spire's targets.
+
+- **RWD traction:** 50/50 DX, constant mu 0.9: hand calc 5926 N, sim 5926 N (same to 0.1 N). With load-sensitive tires 5815 N (0.53 g). Same car FWD at 50/50: 4325 N (0.40 g). Tested.
+- **Crash rates** (analytic, per 5-corner run): 0.02 / 0.09 / 2.1 / 12.2% (safe / normal / hard / flat out). Sampled: 100,000 flat-out corners within 4 standard errors of 2.56% per corner. Tested.
+- **Opponent calibration** (engine condition, bisection, 40 runs per side): Zed's saved condition 0.7621 gives best-push odds 0.38 (target 0.45). The odds are a cliff: 0.76 -> 0.49, 0.77 -> 0.09 (table in PHYSICS_updates_E.md), so 7 bisection steps can't land on the target. The test checks +/-0.10 as a drift alarm.
+- **Found while testing:** opponents almost never crash. Skill scales the target ($f 	imes$ skill), so "flat out" Cutter (skill 0.92) aims at 0.907 of the limit, below Faba's Safe (0.947): 0.0006% per run vs Faba's 12.2% flat out. The riskiest opponent (Kiki, hard, skill 1.0) crashes ~0.5% of runs.
+- **Bug fixed:** `driver_study` built histogram bins from max(times) = inf once any run crashed (garbage plot, inf in the table). It now plots finished runs and reports the crash rate.

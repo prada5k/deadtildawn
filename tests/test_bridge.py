@@ -1,5 +1,5 @@
 """Tests for the Godot <-> Python bridge (tools/game_bridge.py): the JSON
-contract the game relies on, and the rival difficulty rule."""
+contract the game relies on. (Opponent difficulty: tests/test_opponents.py.)"""
 import json
 import subprocess
 import sys
@@ -37,19 +37,57 @@ def test_errors_come_back_as_json():
     assert r["ok"] is False and "error" in r
 
 
-def test_rival_difficulty_hits_target():
-    # At the rival's BASE time, the player's best push level wins ~45% of runs
-    rival = call("rival", "--rival", RIVAL, "--seed", "1")
-    odds = call("odds", "--track", TRACK, "--posted", str(rival["base_time"]))
-    best = max(p["win"] for p in odds["push_levels"].values())
-    assert best == pytest.approx(0.45, abs=1 / 60 + 1e-9)     # within one run of 60
+STAT_KEYS = ("name", "hp", "torque_lbft", "weight_kg", "hp_per_tonne", "drivetrain",
+             "zero_60_s", "skidpad_g")
 
 
-def test_rival_posted_time_is_seeded():
-    a = call("rival", "--rival", RIVAL, "--seed", "7")
-    b = call("rival", "--rival", RIVAL, "--seed", "7")
-    c = call("rival", "--rival", RIVAL, "--seed", "8")
-    assert a["posted_time"] == b["posted_time"] != c["posted_time"]
+def test_rival_is_a_stat_card():
+    # Head-to-head: the card IS the information. No posted time, no odds.
+    r = call("rival", "--rival", RIVAL, "--seed", "7")
+    assert r["ok"] and r["opponent"] == "zed_280z" and r["track"] == TRACK
+    assert set(STAT_KEYS) <= set(r["stats"]) and r["stats"]["drivetrain"] == "RWD"
+    assert r["condition"] in ("tired", "worn", "healthy", "fresh") and r["driver_read"]
+    assert "posted_time" not in r and "win" not in str(r)
+
+
+def race(tmp_path, *extra, push="hard", seed="5", opp_seed="5"):
+    out = tmp_path / "race.json"
+    r = call("race", "--track", TRACK, "--push", push, "--seed", seed, "--out", str(out),
+             "--opponent", "zed_280z", "--opp-seed", opp_seed, *extra)
+    return r, json.loads(out.read_text(encoding="utf-8"))
+
+
+def test_head_to_head_race_contract(tmp_path):
+    r, replay = race(tmp_path)
+    assert r["ok"]
+    for key in ("lap_time", "dnf", "crash_corner", "opponent_time", "opponent_dnf",
+                "opponent_crash_corner", "won", "no_contest", "mistakes"):
+        assert key in r, key
+    # won follows the DNF rule: a DNF never wins, both out = no contest
+    mine = float("inf") if r["dnf"] else r["lap_time"]
+    theirs = float("inf") if r["opponent_dnf"] else r["opponent_time"]
+    assert r["no_contest"] == (r["dnf"] and r["opponent_dnf"])
+    assert r["won"] == (not r["no_contest"] and mine < theirs)
+
+
+def test_replay_carries_the_ghost(tmp_path):
+    r, replay = race(tmp_path)
+    g = replay["ghost"]
+    assert g["name"] == "Zed" and g["car"] == "1977 Nissan 280Z"
+    assert g["lap_time"] == pytest.approx(r["opponent_time"], abs=1e-3)
+    assert g["dnf"] == r["opponent_dnf"]
+    n = len(g["samples"]["t"])
+    assert n > 10 and all(len(g["samples"][k]) == n for k in ("x", "y", "heading"))
+    assert g["samples"]["t"][-1] == pytest.approx(g["lap_time"], abs=1e-3)
+    assert replay["dnf"] == r["dnf"] and replay["crash_corner"] == r["crash_corner"]
+
+
+def test_player_crash_in_the_replay(tmp_path):
+    # Flat out, seed 2 crashes at R7 (found by search; 12% of flat-out runs crash)
+    r, replay = race(tmp_path, push="flat_out", seed="2", opp_seed="2")
+    assert r["dnf"] and r["crash_corner"] == "R7 65" and not r["won"]
+    assert replay["dnf"] and replay["lap_time"] == pytest.approx(r["lap_time"], abs=1e-3)
+    assert replay["samples"]["t"][-1] == pytest.approx(r["lap_time"], abs=1e-3)   # ends at the crash
 
 
 def test_race_writes_a_viewer_replay(tmp_path):
@@ -116,14 +154,13 @@ def test_car_stats_with_parts():
     assert mod["weight_kg"] == stock["weight_kg"] - 40
 
 
-def test_parts_change_practice_but_not_the_rival():
-    # Practice data depends on installed parts; the rival's posted time doesn't
-    a = call("practice", "--track", TRACK)
-    b = call("practice", "--track", TRACK, "--parts", "interior_strip")
-    assert sum(b["push_levels"]["normal"]["times"]) < sum(a["push_levels"]["normal"]["times"])
-    r1 = call("rival", "--rival", RIVAL, "--seed", "5")
-    r2 = call("rival", "--rival", RIVAL, "--seed", "5")
-    assert r1["base_time"] == r2["base_time"]
+def test_parts_change_the_race_but_not_the_opponent(tmp_path):
+    # Same seeds: stripping 40 kg makes Faba faster; Zed's run is untouched
+    # (opponents don't track the player's upgrades)
+    stock, _ = race(tmp_path, push="normal")
+    light, _ = race(tmp_path, "--parts", "interior_strip", push="normal")
+    assert light["lap_time"] < stock["lap_time"]
+    assert light["opponent_time"] == stock["opponent_time"]
 
 
 def test_pull_contract():
@@ -141,7 +178,8 @@ def test_rolled_parts_reach_the_sim():
 def test_street_contract_and_reproducible():
     a = call("street", "--week", "2", "--seed", "11")
     b = call("street", "--week", "2", "--seed", "11")
-    assert a["ok"] and a["posted_time"] == b["posted_time"] and a["name"] == b["name"]
+    assert a["ok"] and a["opponent"] == b["opponent"] and a["stats"] == b["stats"]
+    assert set(STAT_KEYS) <= set(a["stats"]) and "posted_time" not in a
     assert a["track"].startswith("data/tracks/generated/open_week_2")
     assert call("track", "--track", a["track"])["ok"]          # the road is a valid track
 

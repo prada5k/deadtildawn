@@ -12,7 +12,12 @@ extends Node2D
 ## Cameras: Overview (whole track), Follow (north-up), Chase (car always points
 ## up, the world turns around it), TV (fixed trackside cameras per corner).
 ##
+## Head-to-head replays carry the opponent as a "ghost" (pose samples on its own
+## time base), drawn translucent. A crashed car stops at its crash apex; the
+## replay ends when Faba finishes or crashes.
+##
 ## Command line (after "--"):
+##   --replay=<path>   play this replay instead of replays/latest.json
 ##   --selftest        step through the replay headless, print checks, quit
 ##   --shots=<folder>  save stills from every camera at several moments, quit
 
@@ -38,6 +43,14 @@ const CHASE_VIEW_M := 110.0      # meters across the screen in chase mode
 const CHASE_LOOKAHEAD_M := 22.0  # chase camera looks ahead so the car sits low on screen
 const PEDAL_H := 210.0
 const GaugeScript := preload("res://gauge.gd")
+const CAR_COLOR := Color(0.86, 0.1, 0.12)
+const MARKER_COLOR := Color(1.0, 0.85, 0.2)
+const GHOST_COLOR := Color(0.85, 0.87, 0.9)
+const GHOST_ALPHA := 0.55
+const GHOST_MARKER_COLOR := Color(0.45, 0.7, 1.0)
+const WIN_COLOR := Color(0.46, 0.77, 0.4)
+const LOSS_COLOR := Color(0.93, 0.17, 0.24)
+const BANNER_COLOR := Color(1.0, 0.9, 0.4)
 
 signal finished_viewing     # embedded mode: player pressed Continue after the finish
 
@@ -46,15 +59,15 @@ const CAM_NAMES := ["Overview", "Follow", "Chase", "TV"]
 
 # Set these before adding the viewer to the tree (game.gd does); defaults = standalone
 var replay_path := REPLAY_PATH
-var rival_name := ""
-var rival_time := -1.0      # posted time to beat; < 0 = no rival
 var embedded := false       # inside the game: Continue button, broadcast cameras
 
 var replay: Dictionary = {}
 var samples: Dictionary = {}
 var corners: Array = []
 var driver = null          # Dictionary, or null for a theoretical-limit run
-var lap_time := 0.0
+var lap_time := 0.0        # finish time, or the crash time for a DNF
+var dnf := false
+var ghost = null           # Dictionary (opponent: name, lap_time, dnf, samples), or null
 
 var t := 0.0              # playback time (s)
 var idx := 0              # current sample index (t is between idx and idx + 1)
@@ -71,12 +84,19 @@ var track_size := Vector2.ONE
 var hud := {}             # name -> HUD node
 var corner_labels := []   # [Label, corner midpoint, outward direction], rescaled with the zoom
 var marker: Node2D
+var ghost_car: Node2D
+var ghost_marker: Node2D
+var ghost_tag: Label      # "CRASHED" over a ghost that went off
 
 
 # ------------------------------------------------------------------ setup
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(Color(0.16, 0.2, 0.15))   # grass
+	var args := OS.get_cmdline_user_args()
+	for a in args:
+		if a.begins_with("--replay="):
+			replay_path = a.trim_prefix("--replay=")
 	var err := load_replay(replay_path)
 	if err != "":
 		show_message(err)
@@ -86,7 +106,6 @@ func _ready() -> void:
 	build_camera()
 	build_hud()
 	set_cam_mode(CamMode.TRACKSIDE if embedded else CamMode.OVERVIEW)
-	var args := OS.get_cmdline_user_args()
 	if "--selftest" in args:
 		self_test()
 	for a in args:
@@ -109,6 +128,8 @@ func load_replay(path: String) -> String:
 	corners = data["track"]["corners"]
 	driver = data.get("driver")            # optional block (older replays don't have it)
 	lap_time = float(data["lap_time"])
+	dnf = bool(data.get("dnf", false))     # optional, like ghost
+	ghost = data.get("ghost")
 	return ""
 
 
@@ -195,43 +216,72 @@ func rect_poly(x: float, y: float, w: float, h: float) -> PackedVector2Array:
 	return PackedVector2Array([Vector2(x, y), Vector2(x + w, y), Vector2(x + w, y + h), Vector2(x, y + h)])
 
 
-func build_car() -> void:
-	# Top-down Civic: +x is the front of the car
+## Top-down Civic-shaped car: +x is the front.
+func make_car(color: Color) -> Node2D:
 	var l := CAR_LENGTH_M * PX_PER_M
 	var w := CAR_WIDTH_M * PX_PER_M
-	car = Node2D.new()
-	car.z_index = 10
+	var node := Node2D.new()
 
 	var body := Polygon2D.new()
 	body.polygon = PackedVector2Array([
 		Vector2(-l / 2, -w / 2), Vector2(l * 0.38, -w / 2), Vector2(l / 2, -w * 0.3),
 		Vector2(l / 2, w * 0.3), Vector2(l * 0.38, w / 2), Vector2(-l / 2, w / 2)])
-	body.color = Color(0.86, 0.1, 0.12)
-	car.add_child(body)
+	body.color = color
+	node.add_child(body)
 
 	var cabin := Polygon2D.new()
 	cabin.polygon = rect_poly(-l * 0.22, -w * 0.38, l * 0.42, w * 0.76)
 	cabin.color = Color(0.1, 0.1, 0.14)
-	car.add_child(cabin)
+	node.add_child(cabin)
+	return node
 
-	brake_lights = Polygon2D.new()
-	brake_lights.polygon = rect_poly(-l / 2, -w / 2, l * 0.05, w)
-	brake_lights.color = Color(0.35, 0.0, 0.0)
-	car.add_child(brake_lights)
 
-	add_child(car)
-
-	# Ring around the car that stays the same size on screen (visible when zoomed out)
-	marker = Node2D.new()
-	marker.z_index = 11
+## Ring around a car that stays the same size on screen (visible when zoomed out).
+func make_ring(color: Color) -> Node2D:
+	var node := Node2D.new()
 	var ring := Line2D.new()
 	var pts := PackedVector2Array()
 	for i in 33:
 		pts.append(Vector2.from_angle(TAU * i / 32.0) * MARKER_RADIUS_PX)
 	ring.points = pts
 	ring.width = 3.0
-	ring.default_color = Color(1.0, 0.85, 0.2)
-	marker.add_child(ring)
+	ring.default_color = color
+	node.add_child(ring)
+	return node
+
+
+func build_car() -> void:
+	# The ghost first, underneath: when the cars overlap, Faba's stays on top
+	if ghost != null:
+		ghost_car = make_car(GHOST_COLOR)
+		ghost_car.modulate.a = GHOST_ALPHA
+		ghost_car.z_index = 8
+		add_child(ghost_car)
+		ghost_marker = make_ring(GHOST_MARKER_COLOR)
+		ghost_marker.z_index = 9
+		add_child(ghost_marker)
+		ghost_tag = Label.new()
+		ghost_tag.text = "CRASHED"
+		ghost_tag.add_theme_font_size_override("font_size", 36)
+		ghost_tag.add_theme_color_override("font_color", LOSS_COLOR)
+		ghost_tag.add_theme_color_override("font_outline_color", Color.BLACK)
+		ghost_tag.add_theme_constant_override("outline_size", 10)
+		ghost_tag.z_index = 21
+		ghost_tag.visible = false
+		add_child(ghost_tag)
+
+	car = make_car(CAR_COLOR)
+	car.z_index = 10
+	var l := CAR_LENGTH_M * PX_PER_M
+	var w := CAR_WIDTH_M * PX_PER_M
+	brake_lights = Polygon2D.new()
+	brake_lights.polygon = rect_poly(-l / 2, -w / 2, l * 0.05, w)
+	brake_lights.color = Color(0.35, 0.0, 0.0)
+	car.add_child(brake_lights)
+	add_child(car)
+
+	marker = make_ring(MARKER_COLOR)
+	marker.z_index = 11
 	add_child(marker)
 
 
@@ -376,11 +426,11 @@ func update_hud() -> void:
 	buttons.size = Vector2(vp.x - 28, 64)
 	hud["dash"].position = Vector2((vp.x - 720.0) / 2.0, 100)
 
-	hud["clock"].text = "%.2f" % t + (" / %.2f" % rival_time if rival_time > 0 else "")
+	hud["clock"].text = "%.2f" % t
 	var push_text := "THEORETICAL LIMIT"
 	if driver != null:
 		push_text = "%s PUSH" % str(driver["push"]).replace("_", " ").to_upper()
-	hud["status"].text = push_text + ("   vs  %s" % rival_name.to_upper() if rival_time > 0 else "")
+	hud["status"].text = push_text + ("   vs  %s" % ghost_name() if ghost != null else "")
 
 	for i in hud["cam_buttons"].size():
 		var b: Button = hud["cam_buttons"][i]
@@ -400,16 +450,13 @@ func update_hud() -> void:
 	set_pedal(hud["throttle"], value_at("throttle"), Vector2(616, 70))
 	set_pedal(hud["brake"], value_at("brake"), Vector2(656, 70))
 
-	# Finish banner (two lines with a rival) and Continue
+	# Finish (or crash) banner, a second line against the ghost, and Continue
 	var banner: Label = hud["banner"]
 	banner.visible = t >= lap_time
 	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	banner.text = "FINISH  %.2f" % lap_time
-	if rival_time > 0:
-		var gap := absf(lap_time - rival_time)
-		var won := lap_time < rival_time
-		banner.text += "\n%s %s BY %.2f" % ["BEAT" if won else "LOST TO", rival_name.to_upper(), gap]
-		banner.add_theme_color_override("font_color", Color(0.46, 0.77, 0.4) if won else Color(0.93, 0.17, 0.24))
+	var result := banner_result()
+	banner.text = result["text"]
+	banner.add_theme_color_override("font_color", result["color"])
 	banner.reset_size()
 	banner.position = Vector2((vp.x - banner.size.x) / 2, TOP_BAR_PX + 30)
 	if hud.has("continue"):
@@ -432,6 +479,36 @@ func update_hud() -> void:
 				mistake.reset_size()
 				mistake.position = Vector2((vp.x - mistake.size.x) / 2, TOP_BAR_PX + 24)
 				mistake.visible = true
+
+
+func ghost_name() -> String:
+	return str(ghost["name"]).to_upper()
+
+
+## End-of-replay banner. Same rule as the bridge's race result: a DNF never
+## wins, and if both cars crash nobody wins (no contest).
+func banner_result() -> Dictionary:
+	var head := "CRASHED AT %s" % str(replay.get("crash_corner", "")).to_upper() if dnf \
+		else "FINISH  %.2f" % lap_time
+	if ghost == null:
+		return {"text": head, "color": LOSS_COLOR if dnf else BANNER_COLOR}
+	var ghost_dnf := bool(ghost["dnf"])
+	var ghost_time := float(ghost["lap_time"])
+	var line := ""
+	var color := LOSS_COLOR
+	if dnf and ghost_dnf:
+		line = "NO CONTEST: %s CRASHED TOO" % ghost_name()
+		color = BANNER_COLOR
+	elif dnf:
+		line = "%s WINS" % ghost_name()
+	elif ghost_dnf:
+		line = "BEAT %s: CRASHED AT %s" % [ghost_name(), str(ghost["crash_corner"]).to_upper()]
+		color = WIN_COLOR
+	else:
+		var won := lap_time < ghost_time
+		line = "%s %s BY %.2f" % ["BEAT" if won else "LOST TO", ghost_name(), absf(lap_time - ghost_time)]
+		color = WIN_COLOR if won else LOSS_COLOR
+	return {"text": head + "\n" + line, "color": color}
 
 
 func set_pedal(fill: ColorRect, amount: float, base: Vector2) -> void:
@@ -494,6 +571,25 @@ func update_car() -> void:
 	car.rotation = -h                                 # flip: Godot rotates clockwise
 	var braking := value_at("brake") > 0.0
 	brake_lights.color = Color(1.0, 0.1, 0.1) if braking else Color(0.35, 0.0, 0.0)
+	if ghost != null:
+		update_ghost()
+
+
+## The ghost has its own (coarser) time base, so look up its pose by time.
+## Past its last sample it stays put: at the finish, or at the crash apex.
+func update_ghost() -> void:
+	var gs: Dictionary = ghost["samples"]
+	var ts: Array = gs["t"]
+	var i := clampi(ts.bsearch(t, false) - 1, 0, ts.size() - 2)
+	var t0 := float(ts[i])
+	var t1 := float(ts[i + 1])
+	var f := 0.0 if t1 <= t0 else clampf((t - t0) / (t1 - t0), 0.0, 1.0)
+	var h := lerp_angle(float(gs["heading"][i]), float(gs["heading"][i + 1]), f)
+	var x := lerpf(float(gs["x"][i]), float(gs["x"][i + 1]), f)
+	var y := lerpf(float(gs["y"][i]), float(gs["y"][i + 1]), f)
+	ghost_car.position = to_world(x + sin(h) * LANE_OFFSET_M, y - cos(h) * LANE_OFFSET_M)
+	ghost_car.rotation = -h
+	ghost_tag.visible = bool(ghost["dnf"]) and t >= float(ghost["lap_time"])
 
 
 # ------------------------------------------------------------------ cameras
@@ -591,6 +687,17 @@ func rescale_overlays() -> void:
 	marker.position = car.position
 	marker.scale = Vector2.ONE * inv
 	marker.visible = cam_mode == CamMode.OVERVIEW or cam_mode == CamMode.TRACKSIDE
+	if ghost != null:
+		ghost_marker.position = ghost_car.position
+		ghost_marker.scale = marker.scale
+		ghost_marker.visible = marker.visible
+		ghost_tag.scale = Vector2.ONE * LABEL_SCREEN_SCALE * inv
+		ghost_tag.pivot_offset = ghost_tag.size / 2.0
+		ghost_tag.rotation = camera.rotation
+		ghost_tag.reset_size()
+		# Centered just above the car on screen, whatever the camera's rotation
+		var above := Vector2(0, -(MARKER_RADIUS_PX + 20.0) * inv).rotated(camera.rotation)
+		ghost_tag.position = ghost_car.position + above - ghost_tag.size / 2.0
 
 
 # ------------------------------------------------------------------ input
@@ -651,6 +758,10 @@ func self_test() -> void:
 		print("t=%7.2f s=%7.1f m  pos=(%7.1f, %7.1f) m  v=%5.1f km/h  gear=%d  corner_cam=%d" % [
 			t, value_at("s"), car.position.x / PX_PER_M, -car.position.y / PX_PER_M,
 			value_at("v") * 3.6, int(samples["gear"][idx]), active_corner])
+		if ghost != null:
+			print("          ghost pos=(%7.1f, %7.1f) m  crashed_tag=%s" % [
+				ghost_car.position.x / PX_PER_M, -ghost_car.position.y / PX_PER_M, ghost_tag.visible])
+	print("BANNER " + banner_result()["text"].replace("\n", " | "))
 	print("SELFTEST OK")
 	get_tree().quit()
 

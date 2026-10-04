@@ -8,7 +8,8 @@ from sim.braking import stopping_distance
 from sim.car import load_car
 from sim.dynamics import brake_decel, car_constants
 from sim.forces import axle_grip, axle_loads, drag, static_mu
-from sim.lap import run_lap
+from sim.driver import CornerAttempt, Driver
+from sim.lap import finish_time, run_lap
 from sim.track import (discretize, load_track, parse_pace_notes, severity_radius,
                        track_xy, find_crossings)
 from sim.units import FT_TO_M, MPH_TO_MS
@@ -283,3 +284,32 @@ def test_old_test_track_crossed_itself():
 def test_test_track_has_no_crossings(segments):
     # v2 (L1 hairpin) is a buildable flat road
     assert find_crossings(segments) == []
+
+
+# ---------- crashes (DNF) ----------
+
+@pytest.fixture(scope="module")
+def crashed(car, segments):
+    # Scripted: clean through the first corner, crash in the second
+    grid = discretize(segments, 0.1)
+    plan = [CornerAttempt(text, 1.04 if i == 1 else 0.95, i == 1, s0, s1, crash=i == 1)
+            for i, (text, s0, s1) in enumerate(grid.corners)]
+    return run_lap(car, grid, driver=Driver(), plan=plan), grid
+
+
+def test_crash_ends_the_run_at_the_apex(crashed):
+    lap, grid = crashed
+    text, s0, s1 = grid.corners[1]
+    assert lap.dnf and lap.crash_corner == text
+    assert lap.telemetry.s[-1] == pytest.approx((s0 + s1) / 2, abs=0.1)   # one step of ds
+    assert lap.lap_time == lap.telemetry.t[-1]                            # time of the crash
+    assert len(lap.telemetry.t) == len(lap.telemetry.v) == len(lap.telemetry.brake_temp)
+
+
+def test_dnf_never_beats_a_finished_run(crashed, lap):
+    # The crashed run's clock stopped early, so its raw lap_time is SHORTER
+    # than a full lap: compare with finish_time(), never lap_time
+    dnf, _ = crashed
+    assert dnf.lap_time < lap.lap_time
+    assert finish_time(dnf) == math.inf and finish_time(lap) == lap.lap_time
+    assert finish_time(lap) < finish_time(dnf)

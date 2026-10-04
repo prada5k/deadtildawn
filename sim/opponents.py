@@ -3,9 +3,9 @@
 An opponent's car is the base car with CHANGES applied (the same effects
 parts use, plus drivetrain and weight split), so every opponent runs through
 exactly the same physics as the player. Their driver has a push level,
-consistency (sigma) and skill; skill is calibrated by
-tools/calibrate_opponents.py so difficulty can be tuned without lying about
-the car on the stat card.
+consistency (sigma) and skill, all authored. Difficulty is tuned by the
+engine's `condition` (calibrated by tools/calibrate_opponents.py); the stat
+card shows the resulting horsepower, so the card never lies about the car.
 """
 import json
 from dataclasses import replace

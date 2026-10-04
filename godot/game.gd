@@ -8,14 +8,17 @@ extends Node
 ##
 ## The Python sim does all physics through the bridge (bridge.gd).
 ##
+## Races are head-to-head: Faba and the night's opponent both run the road in
+## the sim, and the replay shows the opponent as a ghost car.
+##
 ## Rules that protect the game from save-scumming:
-##   - a race night's posted time is drawn once and saved
-##   - the race result is applied and saved BEFORE the replay plays
+##   - a race night's opponent is drawn once and saved
+##   - the race result (and any crash damage) is applied and saved BEFORE the
+##     replay plays
 
 const UI := preload("res://ui.gd")
 const Bridge := preload("res://bridge.gd")
 const TrackMap := preload("res://track_map.gd")
-const PracticeChart := preload("res://widgets/practice_chart.gd")
 const Viewer := preload("res://main.gd")
 const IntroScene := preload("res://intro.tscn")
 const WarehouseScene := preload("res://screens/warehouse.tscn")
@@ -31,6 +34,7 @@ const LOCATIONS := {
 }
 
 const SAVE_PATH := "user://save.json"
+const TEST_SAVE_PATH := "user://test_save.json"   # --gametest / --gameshots: never touch the real save
 const SAVE_VERSION := 4
 const START_CASH := 250
 const MIN_BUY_IN := 100
@@ -56,10 +60,10 @@ const RARITY_COLORS := {
 const DAY_NAMES := ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
 const RACE_DAYS := [4, 5]        # Friday and Saturday nights
 
+var save_path := SAVE_PATH
 var state := {}            # saved: cash, rep, week, day, history, night, intro_seen
 var car_stats := {}        # bridge replies, cached for the session
 var track_info := {}
-var practice := {}
 var catalog := {}          # bridge "parts" reply (slots + parts with exact effects)
 var shop_message := ""
 var pending_race := {}     # race reply + result, held while a loot pull resolves
@@ -80,8 +84,11 @@ func _ready() -> void:
 	RenderingServer.set_default_clear_color(UI.BG)
 	bridge = Bridge.new()
 	add_child(bridge)
-	load_game()
 	var args := OS.get_cmdline_user_args()
+	for a in args:
+		if a == "--gametest" or a.begins_with("--gameshots="):
+			save_path = TEST_SAVE_PATH
+	load_game()
 	if "--gametest" in args:
 		game_test()           # the test awaits replies itself: don't also run the game's handler
 		return
@@ -108,9 +115,9 @@ func new_state() -> Dictionary:
 
 func load_game() -> void:
 	state = new_state()
-	if not FileAccess.file_exists(SAVE_PATH):
+	if not FileAccess.file_exists(save_path):
 		return
-	var data = JSON.parse_string(FileAccess.get_file_as_string(SAVE_PATH))
+	var data = JSON.parse_string(FileAccess.get_file_as_string(save_path))
 	if typeof(data) != TYPE_DICTIONARY:
 		return
 	state = migrate(data)
@@ -155,12 +162,12 @@ func migrate(data: Dictionary) -> Dictionary:
 
 
 func save_game() -> void:
-	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	var f := FileAccess.open(save_path, FileAccess.WRITE)
 	f.store_string(JSON.stringify(state, "  "))
 
 
 func reset_game() -> void:
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(save_path))
 	state = new_state()
 	save_game()
 	show_warehouse()
@@ -554,14 +561,13 @@ func sell_instance(uid: String) -> void:
 
 
 ## Swap what's in a slot ("" = back to stock). The car changed, so its stats
-## and practice runs are stale.
+## are stale.
 func install_part(slot: String, uid: String, refresh := true) -> void:
 	if uid == "":
 		state["installed"].erase(slot)
 	else:
 		state["installed"][slot] = uid
 	car_stats = {}
-	practice = {}
 	save_game()
 	if refresh:
 		show_car()
@@ -812,8 +818,7 @@ func apply_result(r: Dictionary) -> Dictionary:
 func show_race(replay_path: String, result: Dictionary) -> void:
 	clear_screen()
 	viewer = Viewer.new()
-	viewer.replay_path = replay_path
-	viewer.rival_name = result["rival"]
+	viewer.replay_path = replay_path        # the opponent rides along as the replay's ghost
 	viewer.embedded = true
 	viewer.finished_viewing.connect(show_results.bind(result))
 	add_child(viewer)
@@ -886,8 +891,7 @@ func _on_reply(tag: String, data: Dictionary) -> void:
 			data["event"] = event_key(next_event())
 			state["night"] = data
 			save_game()
-			track_info = {}            # a new night can be a new road:
-			practice = {}              # drop the old road's map and practice runs
+			track_info = {}            # a new night can be a new road: drop the old map
 			show_briefing()
 		"pull":
 			on_pulled(data)
@@ -902,9 +906,6 @@ func _on_reply(tag: String, data: Dictionary) -> void:
 		"track":
 			track_info = data
 			show_briefing()
-		"practice":
-			practice = data
-			show_briefing()
 		"race":
 			var result := apply_result(data)
 			if result["won"] and randf() < LOOT_CHANCE:
@@ -917,8 +918,19 @@ func _on_reply(tag: String, data: Dictionary) -> void:
 
 # ------------------------------------------------------------------ self-test
 
+var test_failures := 0     # game_test only
+
+
+## One pass/fail line. Expected values come from hand calcs in the comments.
+func check(ok: bool, what: String) -> void:
+	print("GAMETEST %s %s" % ["ok  " if ok else "FAIL", what])
+	if not ok:
+		test_failures += 1
+
+
 func game_test() -> void:
-	## Headless end-to-end check: one full race night, printed. Run with
+	## Headless end-to-end check: one full race night plus the game rules,
+	## printed. Exits with code 1 if any check fails. Run with
 	##   godot --headless --path godot -- --gametest
 	state = new_state()
 	print("GAMETEST bridge: ", bridge.ready_to_use() if bridge.ready_to_use() != "" else "ok")
@@ -930,20 +942,30 @@ func game_test() -> void:
 	print("GAMETEST car: %s, %d hp, dyno points %d" % [r[1]["name"], r[1]["hp"], r[1]["dyno"].size()])
 	bridge.request("rival", ["rival", "--rival", RIVAL_FILE, "--seed", "42"])
 	r = await bridge.replied
-	state["night"] = r[1]
-	print("GAMETEST rival: %s (%s), posted %.3f s" % [r[1]["name"], r[1]["car"], r[1]["posted_time"]])
-	bridge.request("practice", ["practice", "--track", r[1]["track"]])
-	r = await bridge.replied
-	practice = r[1]
-	print("GAMETEST practice runs: %d per push level" % practice["runs"])
+	var card: Dictionary = r[1]
+	state["night"] = card
+	print("GAMETEST rival: %s (%s), %d hp, %s engine, '%s'" % [card["name"], card["car"],
+		card["stats"]["hp"], card["condition"], card["driver_read"]])
+	check(not card.has("posted_time"), "rival card has no posted time (head-to-head)")
 	choice = {"push": "hard", "wager": 100}
 	var out := ProjectSettings.globalize_path("user://replays/race.json")
-	bridge.request("race", ["race", "--track", state["night"]["track"], "--push", "hard", "--seed", "9", "--out", out])
+	bridge.request("race", ["race", "--track", card["track"], "--push", "hard", "--seed", "9",
+		"--out", out, "--opponent", card["opponent"], "--opp-seed", "9"])
 	r = await bridge.replied
-	var result := apply_result(r[1])
-	print("GAMETEST race: %.3f s vs %.3f s -> %s, cash %d, practice %d/%d" % [
-		result["time"], result["posted"], "WIN" if result["won"] else "LOSS", state["cash"],
-		result["practice_beat"], result["practice_runs"]])
+	var race: Dictionary = r[1]
+	var result := apply_result(race)
+	print("GAMETEST race: %s vs %s -> %s, cash %d, rep %d" % [
+		"DNF" if race["dnf"] else "%.3f s" % race["lap_time"],
+		"DNF" if race["opponent_dnf"] else "%.3f s" % race["opponent_time"],
+		"NO CONTEST" if result["no_contest"] else ("WIN" if result["won"] else "LOSS"),
+		state["cash"], state["rep"]])
+	# Hand calc: start $250 and 0 rep; +-$100 wager; a crash also pays $150 body
+	var expect_cash := 250 + (0 if race["no_contest"] else (100 if race["won"] else -100)) \
+		- (150 if race["dnf"] else 0)
+	check(int(state["cash"]) == maxi(expect_cash, 0), "race cash %d (expect %d)" % [state["cash"], expect_cash])
+	var replay = JSON.parse_string(FileAccess.get_file_as_string(out))
+	check(replay is Dictionary and replay.get("ghost") is Dictionary
+		and replay["ghost"]["samples"]["t"].size() > 10, "replay carries the opponent as a ghost")
 	print("GAMETEST calendar after race: %s" % when(state["week"], state["day"]))
 	bridge.request("parts", ["parts"])
 	catalog = (await bridge.replied)[1]
@@ -972,11 +994,55 @@ func game_test() -> void:
 	var cash_before := int(state["cash"])
 	sell_instance(inst["uid"])
 	print("GAMETEST sold spare: +%d cash" % (int(state["cash"]) - cash_before))
+
+	# A crash, forced (a real one is a 2% roll at hard push): the consequences.
+	# Hand calc: $500 - $100 wager - $150 body = $250; rep 30 - 20 = 10.
+	seed(1)
+	state["inventory"] = []
+	var a := add_instance("interior_strip", 0.5, true, "shop")
+	var b := add_instance("rsb_19", 0.5, true, "shop")
+	state["installed"] = {"interior": a["uid"], "rear_sway": b["uid"]}
+	state["cash"] = 500
+	state["rep"] = 30
+	state["night"] = card
+	choice = {"push": "flat_out", "wager": 100}
+	var crashed := {"won": false, "no_contest": false, "dnf": true, "crash_corner": "R3 90",
+		"lap_time": 30.0, "opponent_time": 49.5, "opponent_dnf": false, "opponent_crash_corner": "",
+		"push": "flat_out", "seed": 0, "mistakes": ["R3 90"]}
+	var dmg: Dictionary = apply_result(crashed)["damage"]
+	print("GAMETEST crash damage: damaged %s, destroyed %s" % [dmg["damaged"], dmg["destroyed"]])
+	check(int(state["cash"]) == 250, "crash cash %d (expect 250)" % state["cash"])
+	check(int(state["rep"]) == 10, "crash rep %d (expect 10)" % state["rep"])
+	check(state["installed"].size() == 2 - dmg["destroyed"].size(), "destroyed parts leave the car")
+	# Both crash = no contest: wager back, but the body bill and crash rep still hit.
+	# Hand calc: $500 - $0 - $150 = $350; rep 30 - 20 = 10.
+	state["inventory"] = []
+	state["installed"] = {}
+	state["cash"] = 500
+	state["rep"] = 30
+	state["night"] = card
+	crashed["no_contest"] = true
+	crashed["opponent_dnf"] = true
+	var nc := apply_result(crashed)
+	check(int(state["cash"]) == 350 and int(state["rep"]) == 10 and not nc["won"],
+		"no contest: cash %d (expect 350), rep %d (expect 10)" % [state["cash"], state["rep"]])
+	# A damaged part stays in its slot but is off the car until repaired.
+	# Hand calc: rsb_19 is $180, repair 30% = $54: $500 -> $446.
+	var c := add_instance("rsb_19", 0.5, true, "shop")
+	state["installed"] = {"rear_sway": c["uid"]}
+	c["damaged"] = true
+	check(parts_args().is_empty(), "a damaged part is off the car")
+	state["cash"] = 500
+	repair_instance(c["uid"])
+	check(int(state["cash"]) == 446 and not c["damaged"] and parts_args().size() == 2,
+		"repair: cash %d (expect 446), back on the car %s" % [state["cash"], parts_args()])
 	print("GAMETEST migrate v3: %s" % [migrate({"version": 3, "cash": 1, "rep": 0, "week": 1, "day": 0,
 		"history": [], "night": {}, "owned_parts": ["rsb_19"], "installed": {"rear_sway": "rsb_19"}})])
 	bridge.request("night", ["street", "--week", "3", "--seed", "8"])
 	r = await bridge.replied
-	print("GAMETEST open road week 3: %s in a %s on %s, posted %.2f" % [r[1]["name"], r[1]["car"], r[1]["style"], r[1]["posted_time"]])
+	print("GAMETEST open road week 3: %s in a %s (%d hp) on %s" % [r[1]["name"], r[1]["car"],
+		r[1]["stats"]["hp"], r[1]["style"]])
+	check(r[1].has("opponent") and not r[1].has("posted_time"), "street night is a stat card")
 	print("GAMETEST migrate v2: %s" % [migrate({"version": 2, "cash": 1, "rep": 0, "week": 1, "day": 0, "history": [], "night": {}}).keys()])
 	state["rep"] = 10
 	skip_night()
@@ -984,8 +1050,8 @@ func game_test() -> void:
 	state["rep"] = 60
 	skip_night()
 	print("GAMETEST skip with 60 rep: rep %d, %s" % [state["rep"], when(state["week"], state["day"])])
-	print("GAMETEST OK")
-	get_tree().quit()
+	print("GAMETEST OK" if test_failures == 0 else "GAMETEST FAILED: %d checks" % test_failures)
+	get_tree().quit(0 if test_failures == 0 else 1)
 
 
 ## Stills of every screen for review (needs a display, not --headless):
@@ -1046,16 +1112,19 @@ func game_shots(folder: String) -> void:
 	state["night"] = (await bridge.replied)[1]
 	bridge.request("track", ["track", "--track", state["night"]["track"]])
 	track_info = (await bridge.replied)[1]
-	bridge.request("practice", ["practice", "--track", state["night"]["track"]])
-	practice = (await bridge.replied)[1]
+	bridge.request("car_stats", ["car_stats"])        # parts were cleared above: stock card
+	car_stats = (await bridge.replied)[1]
 	choice = {"push": "hard", "wager": 150}
 	show_meeting()
 	await snap(folder, "2_meeting")
 	var out := ProjectSettings.globalize_path("user://replays/shots.json")
-	bridge.request("race", ["race", "--track", state["night"]["track"], "--push", "hard", "--seed", "21", "--out", out])
+	bridge.request("race", ["race", "--track", state["night"]["track"], "--push", "hard", "--seed", "21",
+		"--out", out, "--opponent", state["night"]["opponent"], "--opp-seed", "21"])
 	var r: Dictionary = (await bridge.replied)[1]
 	var result := apply_result(r)
 	show_race(out, result)
+	viewer.t = viewer.lap_time * 0.5
+	await snap(folder, "5_race_mid")
 	viewer.t = viewer.lap_time
 	await snap(folder, "5_race_finish")
 	show_results(result)

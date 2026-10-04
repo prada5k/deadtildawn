@@ -8,6 +8,7 @@ signal pull(source: String)
 signal buy(part_id: String)     # commons only
 signal sell(uid: String)
 signal reveal(uid: String)
+signal repair(uid: String)      # damaged in a crash: off the car until repaired
 
 const UI := preload("res://ui.gd")
 const RARITY_COLORS := {
@@ -17,6 +18,7 @@ const RARITY_COLORS := {
 	"legendary": Color(1.0, 0.78, 0.25),
 }
 const SCRAP_RATE := 0.25        # keep in sync with game.gd
+const REPAIR_RATE := 0.30       # keep in sync with game.gd
 
 
 func _ready() -> void:
@@ -39,6 +41,24 @@ func setup(info: Dictionary, catalog: Dictionary, inventory: Array, installed: D
 	msg.visible = message != ""
 	var list: VBoxContainer = %List
 	var spendable := int(info["cash"]) - int(info["min_buy_in"])
+
+	# Damaged in a crash: first, because it's what you need after a bad night
+	var damaged := inventory.filter(func(i): return i.get("damaged", false))
+	if not damaged.is_empty():
+		UI.label(list, "DAMAGED", "HeadingLabel")
+		for inst in damaged:
+			var part := part_by_id(catalog, inst["part"])
+			var card := UI.vbox(UI.panel(list), 4)
+			var top := UI.hbox(card, 10)
+			var n := UI.label(top, "%s  (Q %d%%)" % [part["name"], int(round(float(inst["quality"]) * 100))])
+			n.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			UI.label(top, str(part["rarity"]).to_upper(), "", RARITY_COLORS[part["rarity"]])
+			UI.label(card, "In its slot but off the car until repaired."
+				if inst["uid"] in installed.values() else "On the shelf, broken.", "MutedLabel")
+			var cost := int(round(float(part["price"]) * REPAIR_RATE))
+			var b := UI.button(card, "REPAIR %s" % UI.money(cost),
+				func(): repair.emit(inst["uid"]), "AccentButton")
+			b.disabled = cost > spendable
 
 	# Pulls
 	UI.label(list, "PULLS", "HeadingLabel")
@@ -88,8 +108,9 @@ func setup(info: Dictionary, catalog: Dictionary, inventory: Array, installed: D
 		var b := UI.button(row, "BUY", func(): buy.emit(part["id"]), "AccentButton")
 		b.disabled = int(part["price"]) > spendable
 
-	# Spares: owned, revealed, not installed
-	var spares := inventory.filter(func(i): return i["revealed"] and not i["uid"] in installed.values())
+	# Spares: owned, revealed, not installed, not damaged (those are listed above)
+	var spares := inventory.filter(func(i): return (i["revealed"] and not i.get("damaged", false)
+		and not i["uid"] in installed.values()))
 	UI.label(list, "SPARES", "HeadingLabel")
 	if spares.is_empty():
 		UI.label(list, "Nothing on the shelf.", "MutedLabel")

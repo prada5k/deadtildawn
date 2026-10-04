@@ -13,17 +13,16 @@ Commands:
   rival     --rival FILE                  rival's stat card (car + driver read) + home road
   street    --week W --seed N             this week's open road (generated) + a random
                                           street racer's stat card
-  race      ... --opponent ID --opp-seed N   head-to-head: both cars run the road; the
-                                          replay carries the opponent as a ghost
-  practice  --track FILE [--parts a,b]    practice runs per push level (time + mistake flag)
-  odds      --track FILE --posted T       win odds for every push level (dev tools only:
-                                          the game shows practice runs, not odds)
   race      --track FILE --push P --seed N --out FILE.json [--parts a,b]
-                                          run the race, write the replay
+            [--opponent ID --opp-seed N]  run the race and write the replay; with an
+                                          opponent, both cars run the road (head to
+                                          head) and the replay carries it as a ghost
+  practice  --track FILE [--parts a,b]    runs per push level (dev tool; the game
+                                          no longer uses it)
+  odds      --track FILE --posted T       win odds vs a fixed time (dev tool)
 
-Odds and races use the SAME solver settings (GAME_DS), so the odds are honest.
-Rival times are anchored to the STOCK car: upgrades make the player faster,
-they never make the rival faster.
+Races and odds use the SAME solver settings (GAME_DS). Opponents never track
+the player's upgrades: parts make Faba faster, never the opponent.
 Time distributions are cached per car + track + settings (runs/cache/).
 """
 import argparse

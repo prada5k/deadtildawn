@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from sim.car import load_car
-from sim.driver import (PUSH_LEVELS, RUN_MISTAKE_TARGETS, CornerAttempt, Driver,
+from sim.driver import (CRASH_MARGIN, PUSH_LEVELS, RUN_MISTAKE_TARGETS, CornerAttempt, Driver,
                         corner_speed_factor, per_corner_probability, plan_corners)
 from sim.lap import run_lap
 from sim.track import discretize, load_track
@@ -199,3 +199,40 @@ def test_feathering_into_the_apex(car, grid):
     assert all(br == 0.0 for _, br in entry)
     assert all(0.0 < th < 0.2 for th, _ in entry)
     assert max(th for th, _ in entry) - min(th for th, _ in entry) > 0.02   # never steady
+
+
+# ---------- crashes (attempt > 1 + CRASH_MARGIN = DNF) ----------
+
+@pytest.mark.parametrize("push, per_run", [
+    ("safe", 0.00024), ("normal", 0.0009), ("hard", 0.0207), ("flat_out", 0.1217)])
+def test_crash_chance_per_run(push, per_run):
+    # Spire's crash table: P(attempt > 1.025) per corner from the normal tail,
+    # then 1 - (1 - p)^5 for a 5-corner run
+    p = Driver(push=push).crash_chance_per_corner()
+    assert 1 - (1 - p) ** 5 == pytest.approx(per_run, rel=0.02)
+
+
+def test_sampled_crashes_match_the_analytic_rate():
+    # Monte Carlo check of plan_corners against the analytic tail. Flat out:
+    # p = 0.0256 per corner; 100 000 corners -> standard error 0.0005.
+    driver = Driver(push="flat_out")
+    corners = [("R5 100", 0.0, 50.0)] * 1000
+    rng = random.Random(3)
+    crashes = sum(a.crash for _ in range(100) for a in plan_corners(driver, corners, rng))
+    p = driver.crash_chance_per_corner()
+    assert crashes / 100_000 == pytest.approx(p, abs=4 * (p * (1 - p) / 100_000) ** 0.5)
+
+
+def test_every_crash_is_also_a_mistake():
+    plan = plan_corners(Driver(push="flat_out"), [("R5 100", 0.0, 50.0)] * 5000, random.Random(4))
+    crashes = [a for a in plan if a.crash]
+    assert crashes and all(a.mistake and a.attempt > 1 + CRASH_MARGIN for a in crashes)
+
+
+def test_skill_scales_the_target_and_the_risk():
+    # skill < 1: the driver can only reach part of the push level's target,
+    # so a less skilled driver at the same push is slower AND crashes less
+    full = Driver(push="hard")
+    weak = Driver(push="hard", skill=0.95)
+    assert weak.f == pytest.approx(PUSH_LEVELS["hard"] * 0.95)
+    assert weak.crash_chance_per_corner() < full.crash_chance_per_corner()

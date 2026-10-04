@@ -1,10 +1,11 @@
 """Tests for resistive forces, traction, and the straight-line solver."""
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from sim.car import load_car
-from sim.forces import drag, rolling_resistance, static_mu, traction_limit_fwd
+from sim.forces import drag, rolling_resistance, static_mu, traction_limit, traction_limit_fwd
 from sim.metrics import time_at_distance, time_to_speed
 from sim.straight import run_straight
 from sim.units import MPH_TO_MS
@@ -33,6 +34,29 @@ def long_run(car):
 def test_fwd_traction_limit(car):
     # PHYSICS.md 4.3: mu = 0.9 -> ~5111 N
     assert traction_limit_fwd(car, 0.9) == pytest.approx(5111, rel=0.001)
+
+
+def test_rwd_traction_limit_hand_calc(car):
+    # PHYSICS.md 4.3, RWD: the driven rear axle GAINS load as the car accelerates.
+    # F = mu m g (a/L) / (1 - mu h/L); 50/50 DX, constant mu 0.9 (load_k = 0):
+    # 0.9 * 1112 * 9.81 * 0.5 / (1 - 0.9 * 0.5 / 2.621) = 4908.8 / 0.8283 = 5926 N
+    rwd = replace(car, drivetrain="RWD", weight_front=0.5, mu_0=0.9, load_k=0.0)
+    assert traction_limit(rwd) == pytest.approx(5926, rel=0.001)
+
+
+def test_rwd_load_sensitivity_costs_grip(car):
+    # Load-sensitive tires: the loaded rear tires lose mu -> less than the 5926 N
+    # constant-mu hand calc (sim: 5815 N, VALIDATION_LOG)
+    rwd = replace(car, drivetrain="RWD", weight_front=0.5)
+    assert traction_limit(rwd) == pytest.approx(5815, rel=0.001)
+
+
+def test_rwd_beats_fwd_with_the_same_weight_split(car):
+    # Same car, same 50/50 split: accelerating moves load onto a RWD car's
+    # driven axle and OFF a FWD car's
+    fwd = replace(car, drivetrain="FWD", weight_front=0.5)
+    rwd = replace(car, drivetrain="RWD", weight_front=0.5)
+    assert traction_limit(rwd) > traction_limit(fwd)
 
 
 def test_drag_at_60mph(car):

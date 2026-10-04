@@ -36,7 +36,7 @@ def study(car, track_file, runs, rival=None, out_path=None):
              "-" * (66 + (14 if rival else 0))]
     for d in dists:
         row = (f"{d.push:<10}{PUSH_LEVELS[d.push]:>7.3f}{d.mean:>9.2f}{d.stdev:>8.2f}"
-               f"{min(d.times):>9.2f}{max(d.times):>9.2f}{d.mistake_rate * 100:>13.0f}%")
+               f"{min(d.finished):>9.2f}{max(d.finished):>9.2f}{d.mistake_rate * 100:>13.0f}%")
         if rival:
             row += f"{d.win_probability(rival) * 100:>13.0f}%"
         lines.append(row)
@@ -47,12 +47,14 @@ def study(car, track_file, runs, rival=None, out_path=None):
 
     if out_path:
         fig, ax = plt.subplots(figsize=(10, 5.5), layout="constrained")
-        lo = min(min(d.times) for d in dists)
-        hi = max(max(d.times) for d in dists)
+        # Crashed runs (DNF) have no time (inf): plot finished runs, report DNFs in the label
+        lo = min(min(d.finished) for d in dists)
+        hi = max(max(d.finished) for d in dists)
         bins = [lo + (hi - lo) * i / 40 for i in range(41)]
         for d in dists:
-            ax.hist(d.times, bins=bins, alpha=0.55, color=COLORS[d.push],
-                    label=f"{d.push}: mean {d.mean:.2f} s, mistakes {d.mistake_rate * 100:.0f}%")
+            ax.hist(d.finished, bins=bins, alpha=0.55, color=COLORS[d.push],
+                    label=f"{d.push}: mean {d.mean:.2f} s, mistakes {d.mistake_rate * 100:.0f}%, "
+                          f"crashed {d.dnf_rate * 100:.0f}%")
         if rival:
             ax.axvline(rival, color="black", linestyle="--", label=f"Rival {rival:.2f} s")
         ax.set_xlabel("Run time (s)")

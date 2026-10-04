@@ -35,10 +35,11 @@ data/tracks/    pace-note tracks; generated/ = procedural roads (open_week_N.txt
 data/parts/     catalog.json (24 parts, 14 slots), pulls.json (pull sources, pity, rep gates)
 data/opponents.json   game-tuned opponent cars + drivers (+ calibrated engine condition)
 data/rivals/    rival nights (which opponent, home road, payout)
-tests/          pytest; expected values come from hand calcs in docs/PHYSICS.md
+tests/          pytest; expected values come from hand calcs in the physics spec
 tools/          game_bridge, run_all, validation, plots, maps, compare, fade test, sensitivity,
                 driver_study, export_replay, gen_tracks, calibrate_opponents
-docs/           PHYSICS.md (spec), VALIDATION_LOG.md (every model change), LEARNING_GODOT.md
+docs/           physics spec = `physics writeups/physics main.md` + `PHYSICS_updates_*.md` (one per
+                milestone, section-numbered); VALIDATION_LOG.md (every model change), LEARNING_GODOT.md
 godot/          game.gd, bridge.gd, ui.gd, main.gd (viewer), gauge.gd, track_map.gd,
                 intro.tscn/.gd, screens/ (shell, warehouse, car, calendar, shop, header),
                 widgets/ (pedestal, road, splatter, dyno_chart, practice_chart [unused now])
@@ -49,7 +50,7 @@ runs/           generated reports + caches (gitignored)
 
 ```
 .venv\Scripts\activate
-python -m pytest -q                                   # ~185 tests, ~4 min (split by file if slow)
+python -m pytest -q                                   # ~205 tests, ~2 min (split by file if slow)
 python tools/run_all.py [--track FILE] [--mass -100] [--runs 4]
 python tools/validate_straight.py                     # validation table only
 python tools/export_replay.py [track]                 # -> godot/replays/latest.json
@@ -57,7 +58,7 @@ python tools/gen_tracks.py [--style technical --count 9]   # procedural road she
 python tools/calibrate_opponents.py [--only zed_280z]       # re-tune opponent engine condition
 python tools/game_bridge.py <command> ...             # see the bridge docstring
 ```
-Godot **4.6** (Spire's version; scene files carry `unique_id`). Game: open `godot/project.godot`, F5 (needs the repo's .venv). Viewer alone: open main.tscn, F6.
+Godot: the laptop has **4.7.2** (`Downloads/Program Installations/Godot_v4.7.2-stable_win64.exe/`; use the `_console.exe` for headless); project.godot says 4.5; scene files carry `unique_id`. Game: open `godot/project.godot`, F5 (needs the repo's .venv). Viewer alone: open main.tscn, F6.
 Headless checks: `godot --headless --path godot -- --gametest` (one full night through the bridge); `godot --headless --path godot res://main.tscn -- --selftest` (viewer). Stills (need a display): `-- --gameshots=<folder>`, `res://main.tscn -- --shots=<folder>`.
 Laptop: Windows (ASUS Vivobook S14), VS Code, Python 3.14, Git + GitHub (private repo `deadtildawn`).
 
@@ -65,7 +66,7 @@ Laptop: Windows (ASUS Vivobook S14), VS Code, Python 3.14, Git + GitHub (private
 
 - SI units inside the sim; convert only for display (`sim/units.py`).
 - Car JSON stores inputs only. `Car` is a frozen dataclass; variants via `dataclasses.replace` (parts, opponents) — the stock car is never modified.
-- One job per function; physics functions get hand-calc unit tests. `docs/PHYSICS.md` is the spec: update it with physics changes. Log every model change in `docs/VALIDATION_LOG.md`.
+- One job per function; physics functions get hand-calc unit tests. The physics spec (`docs/physics writeups/physics main.md` + `docs/PHYSICS_updates_*.md`) gets an update file with physics changes. Log every model change in `docs/VALIDATION_LOG.md`.
 - Validation targets come from measured data, never our own predictions. No knob-turning to match data.
 - Fixed-point iteration for circular models (brake temperature over a lap, load transfer vs grip, traction).
 - Results must be step-size converged. Game comparisons always use `GAME_DS`.
@@ -73,7 +74,7 @@ Laptop: Windows (ASUS Vivobook S14), VS Code, Python 3.14, Git + GitHub (private
 - GDScript gotcha (hit 3x): `:=` can't infer a type from untyped Array elements or generic `InputEvent` fields. Type explicitly (`var x: float = ...`, `for side: float in [...]`).
 - Godot layout gotchas: a PanelContainer stretches every child over each other (put ONE container inside); a wrapping Label inside an HBoxContainer collapses to one character per line.
 
-## Physics model (detail in docs/PHYSICS.md)
+## Physics model (detail in the physics spec, see docs/)
 
 - QSS point mass, distance-based integration with event detection (fuel cut, shift end)
 - Track: flat; pace notes like `S 200, R7 65, L1 180`; severity 1-10 = radius 15-500 m (geometric); strict parser; crossing detection
@@ -132,17 +133,16 @@ Sim mass 1112 kg. Redline 6500, fuel cut 6800. All graded validation targets pas
 - Bridge: `stat_sheet(car)`, `opponent_card(oid)`; `rival` and `street` now return a stat card (NO posted time); `race --opponent ID --opp-seed N` runs both cars and returns `won`, `no_contest`, `dnf`, `crash_corner`, `opponent_time`, `opponent_dnf`, `opponent_crash_corner`; replay carries `ghost` {name, car, lap_time, dnf, crash_corner, samples{t,x,y,heading}} plus `dnf`/`crash_corner`.
 - `data/rivals/zed_280z.json` now points at opponent `zed_280z`.
 
-**Done (Godot `game.gd`, NOT yet run end to end):** briefing without practice (night -> track -> car_stats -> catalog -> meeting); stat-card meeting with `PUSH_TALK`; `send_it` passes `--opponent/--opp-seed`; `crash_damage()`; `apply_result()` with all consequences; new `show_results()` (CRASHED / NO CONTEST / damage panel); `parts_args()` skips damaged parts; `repair_instance()`; constants REP_LOSS, REP_CRASH, BODY_REPAIR, DAMAGE_CHANCE, DESTROY_CHANCE, REPAIR_RATE.
+**Done (Godot):** `game.gd` head-to-head flow (briefing -> stat-card meeting -> race with `--opponent` -> consequences -> results); shop DAMAGED section + `repair`; viewer ghost car (own time base, translucent, blue ring, CRASHED tag), crash/no-contest banner using the bridge's win rule, `--replay=<path>` flag; `game_test()` has pass/fail `check()`s with hand-calc expectations (crash, no contest, repair) and exits 1 on failure; test runs use `user://test_save.json`, never the real save.
 
-**Remaining (in this order):**
-1. `screens/shop.gd`: add `signal repair(uid: String)` and a DAMAGED section (each damaged instance with "REPAIR $X", X = price x 0.30). `game.gd` already connects `shop.repair`, so the shop screen ERRORS until this exists.
-2. `main.gd` (viewer): draw the ghost car from `replay.ghost.samples` by time (semi-transparent, different color); if the ghost DNFs, stop it at its last sample with a "CRASHED" tag. If Faba DNFs, the replay ends at the crash: show "CRASHED AT <corner>" instead of FINISH. Finish banner compares against the ghost (game.gd no longer sets `rival_time`; derive it from the ghost).
-3. `game.gd` cleanup: remove `PracticeChart` preload, the `practice` var, the `"practice"` reply branch and stale comments ("posted time" in the header docstring, `install_part` comment); rewrite `game_test()` and `game_shots()` for head-to-head (they still use practice/posted_time).
-4. Tests: rewrite the 4 failing bridge tests for the new contract (`test_rival_difficulty_hits_target`, `test_rival_posted_time_is_seeded`, `test_parts_change_practice_but_not_the_rival`, `test_street_contract_and_reproducible`); add tests for RWD traction (hand calc above), crash rates vs `crash_chance_per_corner`, DNF never wins (`finish_time`), `race --opponent` fields + ghost in the replay, opponent cards. 107 physics/tool tests and the gacha/parts/driver tests currently pass.
-5. Run the Godot headless checks (4.6), then play a few nights by hand to judge difficulty.
-6. Docs: PHYSICS.md (RWD traction, crash model), VALIDATION_LOG.md entry (RWD check, crash rates, opponent calibration). `data/street_racers.json` is now unused (street racers come from opponents.json): delete it.
+**Done (tests + docs):** 205 tests pass (RWD hand calc, crash rates, DNF lap, `tests/test_opponents.py`, head-to-head bridge contract). Spec update `docs/PHYSICS_updates_E.md`; VALIDATION_LOG row 6 + notes. `driver_study` plot fixed for DNF runs. `data/street_racers.json` deleted.
 
-**Open design questions:** should opponents upgrade as the player does (ladder rule)? Should a crash ever destroy the car itself (pink-slip-like)? Retune rep gates and crash numbers after playtesting.
+**Remaining:**
+1. Spire: play a few nights by hand (F5) to judge difficulty. Headless checks pass.
+2. Decide (see open questions): opponent crash risk, the odds cliff, close-race readability in the replay.
+3. Update the shop.tscn Note label (still says "check them in practice").
+
+**Open design questions:** should opponents upgrade as the player does (ladder rule)? Should a crash ever destroy the car itself (pink-slip-like)? Retune rep gates and crash numbers after playtesting. **Opponents almost never crash:** skill multiplies the push target, so "flat out" Cutter (skill 0.92) aims below Faba's Safe; should low skill raise sigma instead? **Odds cliff:** Zed's odds go 0.49 -> 0.09 for a 1% engine change; one $350 part takes them 0.38 -> 0.78 (PHYSICS_updates_E 6.y). **Close races are unreadable in the replay:** both cars share a lane and overlap; options: ghost in the other lane, a live gap readout, or both.
 
 ## Parking lot
 
