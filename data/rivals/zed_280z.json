@@ -5,7 +5,8 @@
   "club": "Nissan club, rung 1",
   "track": "data/tracks/test_track.txt",
   "best_push_odds": 0.45,
-  "nightly_spread_s": 0.10,
+  "nightly_spread_s": 0.1,
   "payout": "even",
-  "notes": "Placeholder name: rename freely. Posted time = the time your best push level beats 45% of the time, plus nightly randomness."
+  "notes": "Rung 1 of the Nissan ladder. The car and driver live in data/opponents.json (opponent 'zed_280z'); this file says where he races (his home road) and how he pays.",
+  "opponent": "zed_280z"
 }

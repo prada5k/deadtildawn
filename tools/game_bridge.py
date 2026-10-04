@@ -10,9 +10,11 @@ Commands:
                                           (--parts entries may carry a quality: cams_race@0.83)
   car_stats [--parts a,b]                 stat sheet + dyno for the car with these parts
   track     --track FILE                  layout for the briefing (no car)
-  rival     --rival FILE --seed N         rival card + tonight's posted time
+  rival     --rival FILE                  rival's stat card (car + driver read) + home road
   street    --week W --seed N             this week's open road (generated) + a random
-                                          street racer and their posted time
+                                          street racer's stat card
+  race      ... --opponent ID --opp-seed N   head-to-head: both cars run the road; the
+                                          replay carries the opponent as a ghost
   practice  --track FILE [--parts a,b]    practice runs per push level (time + mistake flag)
   odds      --track FILE --posted T       win odds for every push level (dev tools only:
                                           the game shows practice runs, not odds)
@@ -81,6 +83,35 @@ def resolve(path):
 
 
 # ------------------------------------------------------------------ commands
+
+def stat_sheet(car):
+    """Numbers for a stat card (the same sheet for the DX and opponents)."""
+    from sim.braking import stopping_distance
+    from sim.forces import limiting_axle, max_lateral_accel
+    from sim.metrics import time_to_speed
+    from sim.powertrain import torque_at
+    from sim.straight import run_straight
+    from sim.units import FT_TO_M, G, HP_TO_W, LBFT_TO_NM, MPH_TO_MS, RPM_TO_RADS
+    hp = max(torque_at(car, r) * r * RPM_TO_RADS for r in range(1000, 6800, 25)) / HP_TO_W
+    tq = max(torque_at(car, r) for r in range(1000, 6800, 25)) / LBFT_TO_NM
+    q = run_straight(car, 402.336, ds=0.5)
+    return {"name": car.name, "hp": round(hp), "torque_lbft": round(tq), "weight_kg": round(car.mass),
+            "hp_per_tonne": round(hp / (car.mass / 1000)), "drivetrain": car.drivetrain,
+            "zero_60_s": round(time_to_speed(q, 60 * MPH_TO_MS), 2),
+            "skidpad_g": round(max_lateral_accel(car) / G, 3),
+            "balance": "understeer" if limiting_axle(car) == "front" else "oversteer",
+            "sixty_zero_ft": round(stopping_distance(car, 60 * MPH_TO_MS) / FT_TO_M)}
+
+
+def opponent_card(oid):
+    from sim.car import load_car
+    from sim.opponents import (condition_label, driver_read, load_opponents, opponent_car)
+    spec = load_opponents()["opponents"][oid]
+    sheet = stat_sheet(opponent_car(load_car(CAR_FILE), spec))
+    sheet["name"] = spec["car"]
+    return {"opponent": oid, "name": spec["name"], "car": spec["car"], "stats": sheet,
+            "condition": condition_label(spec), "driver_read": driver_read(spec)}
+
 
 def car_stats(part_ids=()):
     from sim.braking import stopping_distance
@@ -251,16 +282,11 @@ def quantile(xs, q):
 
 
 def rival(rival_file, seed):
+    """The rival's stat card on his home road. (No posted time: the race is
+    head-to-head, so the card IS the information.)"""
     spec = json.loads(resolve(rival_file).read_text(encoding="utf-8"))
-    data, cached = distributions(spec["track"])          # STOCK car: rivals don't track upgrades
-    # Base time: where the player's BEST odds (over all push levels) equal the
-    # target. Each push level reaches the target at its own quantile; the best
-    # odds first reach it at the earliest (smallest) of those times.
-    base = min(quantile(d["times"], spec["best_push_odds"]) for d in data.values())
-    posted = base + random.Random(seed).gauss(0.0, spec["nightly_spread_s"])
-    reply(id=spec["id"], name=spec["name"], car=spec["car"], club=spec["club"],
-          track=spec["track"], payout=spec["payout"], base_time=round(base, 3),
-          posted_time=round(posted, 3), seed=seed, cached=cached)
+    reply(id=spec["id"], club=spec["club"], track=spec["track"], payout=spec["payout"],
+          seed=seed, **opponent_card(spec["opponent"]))
 
 
 OPEN_ROAD_STYLES = ["technical", "balanced", "flowing"]
@@ -283,20 +309,13 @@ def open_road(week):
 
 
 def street(week, seed):
-    """A random street racer on this week's open road. Like the rival, the
-    posted time is anchored to the STOCK car on this road."""
+    """A random street racer's stat card on this week's open road."""
     import random
+    from sim.opponents import load_opponents
     track, style = open_road(week)
-    spec = json.loads((ROOT / "data" / "street_racers.json").read_text(encoding="utf-8"))
-    rng = random.Random(seed)
-    racer = rng.choice(spec["racers"])
-    target = rng.uniform(*spec["best_push_odds"])        # some nights are easier than others
-    data, cached = distributions(track)
-    base = min(quantile(d["times"], target) for d in data.values())
-    posted = base + rng.gauss(0.0, spec["nightly_spread_s"])
-    reply(id="street", name=racer["name"], car=racer["car"], club=f"Open road, {style}",
-          track=track, payout="even", base_time=round(base, 3), posted_time=round(posted, 3),
-          seed=seed, week=week, style=style, cached=cached)
+    oid = random.Random(seed).choice(load_opponents()["street"])
+    reply(id="street", club=f"Open road, {style}", track=track, payout="even",
+          seed=seed, week=week, style=style, **opponent_card(oid))
 
 
 def odds(track_file, posted):
@@ -322,23 +341,42 @@ def practice(track_file, part_ids=()):
                            "mistakes": d["mistakes"]} for p, d in data.items()})
 
 
-def race(track_file, push, seed, out_file, part_ids=()):
+def race(track_file, push, seed, out_file, part_ids=(), opponent=None, opp_seed=None):
     from export_replay import build_replay
     from sim.car import load_car
     from sim.driver import Driver
     from sim.lap import run_lap
     from sim.track import discretize, load_track
 
+    from sim.lap import finish_time
+    from sim.opponents import load_opponents, opponent_car, opponent_driver
+
     track_path = resolve(track_file)
     car = player_car(part_ids)
     segments = load_track(track_path)
-    lap = run_lap(car, discretize(segments, GAME_DS), driver=Driver(push=push), seed=seed)
-    replay_data = build_replay(car, segments, lap, track_path.name)
+    grid = discretize(segments, GAME_DS)
+    lap = run_lap(car, grid, driver=Driver(push=push), seed=seed)
+    ghost, opp = None, None
+    if opponent:
+        spec = load_opponents()["opponents"][opponent]
+        opp = run_lap(opponent_car(load_car(CAR_FILE), spec), grid,
+                      driver=opponent_driver(spec), seed=opp_seed)
+        ghost = {"name": spec["name"], "car": spec["car"], "lap": opp}
+    replay_data = build_replay(car, segments, lap, track_path.name, ghost)
     out = Path(out_file)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(replay_data, separators=(",", ":")), encoding="utf-8")
-    reply(lap_time=round(lap.lap_time, 3), push=push, seed=seed, replay=str(out),
-          mistakes=[c.text for c in lap.corner_log if c.mistake])
+    result = {}
+    if opp is not None:
+        # Head-to-head: a DNF never wins; if both crash, nobody wins
+        both_out = lap.dnf and opp.dnf
+        result = {"opponent_time": round(opp.lap_time, 3), "opponent_dnf": opp.dnf,
+                  "opponent_crash_corner": opp.crash_corner,
+                  "no_contest": both_out,
+                  "won": (not both_out) and finish_time(lap) < finish_time(opp)}
+    reply(lap_time=round(lap.lap_time, 3), dnf=lap.dnf, crash_corner=lap.crash_corner,
+          push=push, seed=seed, replay=str(out),
+          mistakes=[c.text for c in lap.corner_log if c.mistake], **result)
 
 
 def main():
@@ -346,6 +384,8 @@ def main():
     ap.add_argument("command", choices=["parts", "pull", "car_stats", "track", "rival", "street",
                                         "practice", "odds", "race"])
     ap.add_argument("--week", type=int)
+    ap.add_argument("--opponent")
+    ap.add_argument("--opp-seed", type=int, default=0)
     ap.add_argument("--source")
     ap.add_argument("--pity", default="{}")
     ap.add_argument("--parts", default="", help="installed part ids, comma-separated")
@@ -375,7 +415,7 @@ def main():
         elif a.command == "odds":
             odds(a.track, a.posted)
         elif a.command == "race":
-            race(a.track, a.push, a.seed, a.out, part_ids)
+            race(a.track, a.push, a.seed, a.out, part_ids, a.opponent, a.opp_seed)
     except Exception as e:                         # report, don't crash the game
         fail(f"{type(e).__name__}: {e}")
 

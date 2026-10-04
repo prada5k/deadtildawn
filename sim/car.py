@@ -50,6 +50,7 @@ class Car:
     brake_capacity: float  # cold front brake force / front grip at max braking
     cool_h0: float         # W/K per rotor, still air
     cool_h1: float         # W/K per rotor per m/s of speed
+    drivetrain: str = "FWD"   # "FWD" or "RWD": which axle the engine drives
 
 
 def load_car(path):
@@ -97,6 +98,7 @@ def load_car(path):
         brake_capacity=_v(br["capacity_ratio"]),
         cool_h0=_v(br["cooling_h0"]),
         cool_h1=_v(br["cooling_h1"]),
+        drivetrain=d.get("drivetrain", "FWD"),
     )
     _check(car)
     return car
@@ -112,5 +114,7 @@ def _check(car):
         raise ValueError("gear ratios must decrease from 1st to top gear")
     if not 0 < car.weight_front < 1:
         raise ValueError("weight_front must be a fraction between 0 and 1")
+    if car.drivetrain not in ("FWD", "RWD"):
+        raise ValueError(f"drivetrain must be FWD or RWD, got {car.drivetrain!r}")
     if car.brake_capacity < 1:
         raise ValueError("brake capacity ratio below 1 means cold brakes can't reach grip")

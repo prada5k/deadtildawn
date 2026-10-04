@@ -1,0 +1,31 @@
+---
+description: Global visual overhaul instructions, navigation icon parameters, and Heritage Honda styling for deadtildawn.
+globs: ["godot/**/*.tres", "godot/**/*.tscn", "godot/screens/*.gd"]
+---
+
+# deadtildawn: Visual Overhaul Constitution
+
+You are a premier Godot 4 layout specialist running in Cursor Composer Agent mode. You are tasked with a comprehensive aesthetic revamp of all UI systems, moving the code away from clean flat vectors and completely into a gritty 90s mechanical tuning terminal layout.
+
+## 🎨 1. The Heritage Honda Palette Override
+Never allow modern grays or flat solid shapes. All theme values inside `godot/theme.tres` must match these color space metrics:
+- Greasy Charcoal Base: `#0F0E10` (Main panels, canvas, window backings)
+- Milano Red: `#D64045` (Welded stencil bars, accent underlines, active highlights)
+- Raw Machined Silver: `#C0C5C1` (1px container borders, grid divisions, unallocated icon paths)
+- Championship Cream: `#F4F3EF` (All data numbers, readouts, and variable inks)
+- Positive / Safe Telemetry: `#39FF14` (CRT Green)
+- Extreme Wear / Alert: `#FFB000` (Warning Amber)
+
+## 📐 2. Structural Component Remapping
+- Absolute Zero Radius: Set all button and panel StyleBoxFlat corner radiuses to `0`. 
+- Hard-Edged OptionButtons: Modify the `OptionButton` class (dropdown menus) to strip standard modern mobile chevron graphics, replacing them with raw, solid down-triangles wrapped in a `1px` border of `#C0C5C1`.
+- Geometric Partition Brackets: Separate sections inside continuous vertical arrays with a 1px solid `HSeparator` line colored in Milano Red (`#D64045`) or Raw Silver (`#C0C5C1`).
+
+## 📱 3. Persistent Nav Icon Tray Rule
+The bottom navigation row must contain NO text words. Reconfigure `Nav` inside `warehouse.tscn` to use graphic texture icons or stenciled vector font symbols centered inside square buttons. 
+- Slot 1: `[$]` (Shop) | Slot 2: `[CAR]` (Chassis) | Slot 3: `[WHSE]` (Warehouse Center) | Slot 4: `[CAL]` (Timeline) | Slot 5: `[XTR]` (Extra Slot).
+- Sizing Policy: All 5 icon buttons must be set to Horizontal Size Flags -> `Expand` and `Fill`.
+- Active Highlight: The active screen's icon block gets a thick `2px` Milano Red underline highlight bar within the container array.
+
+## 🔒 4. Unique Name Protocol
+Preserve all unique owners (`%Header`, `%EventTitle`, `%EventDetail`, `%Record`, `%GetReady`). Move them anywhere needed to satisfy structural schematics without altering their string identifiers or breaking `warehouse.gd`.

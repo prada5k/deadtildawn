@@ -1,0 +1,255 @@
+{
+  "notes": "Opponents: game-tuned cars defined as CHANGES to the base car (data/cars/ej6_dx_coupe_1996.json), using the same effects as parts, plus drivetrain and weight_front. `condition` scales the engine's output (a tired engine on the street): it is calibrated by tools/calibrate_opponents.py so a STOCK DX at its best push level has `target_odds` against them on `calibrate_on` (or the street reference road). The stat card shows the resulting horsepower truthfully. Drivers are authored personalities: push level, consistency (sigma), skill.",
+  "opponents": {
+    "zed_280z": {
+      "name": "Zed",
+      "car": "1977 Nissan 280Z",
+      "drivetrain": "RWD",
+      "weight_front": 0.53,
+      "effects": {
+        "torque_scale": 1.55,
+        "mass_kg": 180,
+        "final_drive": 3.9,
+        "mu_scale": 1.02
+      },
+      "driver": {
+        "push": "normal",
+        "sigma": 0.016,
+        "skill": 0.99
+      },
+      "target_odds": 0.45,
+      "calibrate_on": "data/tracks/test_track.txt",
+      "condition": 0.7621
+    },
+    "lalo_crx": {
+      "name": "Lalo",
+      "car": "1991 Honda CRX Si",
+      "drivetrain": "FWD",
+      "weight_front": 0.62,
+      "effects": {
+        "torque_scale": 1.02,
+        "mass_kg": -200
+      },
+      "driver": {
+        "push": "hard",
+        "sigma": 0.02,
+        "skill": 0.96
+      },
+      "target_odds": 0.5,
+      "condition": 0.7621
+    },
+    "bree_miata": {
+      "name": "Bree",
+      "car": "1994 Mazda MX-5 Miata",
+      "drivetrain": "RWD",
+      "weight_front": 0.52,
+      "effects": {
+        "torque_scale": 1.18,
+        "mass_kg": -120,
+        "mu_scale": 1.03
+      },
+      "driver": {
+        "push": "normal",
+        "sigma": 0.014,
+        "skill": 1.0
+      },
+      "target_odds": 0.4,
+      "condition": 0.6504
+    },
+    "dez_ae86": {
+      "name": "Dez",
+      "car": "1989 Toyota Corolla GT-S (AE86)",
+      "drivetrain": "RWD",
+      "weight_front": 0.53,
+      "effects": {
+        "torque_scale": 1.05,
+        "mass_kg": -40
+      },
+      "driver": {
+        "push": "flat_out",
+        "sigma": 0.02,
+        "skill": 0.97
+      },
+      "target_odds": 0.45,
+      "condition": 0.8738
+    },
+    "monk_integra": {
+      "name": "Monk",
+      "car": "1997 Acura Integra GS-R",
+      "drivetrain": "FWD",
+      "weight_front": 0.62,
+      "effects": {
+        "torque_scale": 1.45,
+        "mass_kg": 60,
+        "mu_scale": 1.03
+      },
+      "driver": {
+        "push": "normal",
+        "sigma": 0.016,
+        "skill": 0.98
+      },
+      "target_odds": 0.4,
+      "condition": 0.7316
+    },
+    "tavo_mustang": {
+      "name": "Tavo",
+      "car": "1993 Ford Mustang LX 5.0",
+      "drivetrain": "RWD",
+      "weight_front": 0.56,
+      "effects": {
+        "torque_scale": 2.15,
+        "mass_kg": 380,
+        "final_drive": 3.08
+      },
+      "driver": {
+        "push": "flat_out",
+        "sigma": 0.024,
+        "skill": 0.93
+      },
+      "target_odds": 0.55,
+      "condition": 0.9855
+    },
+    "kiki_rsx": {
+      "name": "Kiki",
+      "car": "2002 Acura RSX Type-S",
+      "drivetrain": "FWD",
+      "weight_front": 0.62,
+      "effects": {
+        "torque_scale": 1.6,
+        "mass_kg": 170,
+        "mu_scale": 1.04
+      },
+      "driver": {
+        "push": "hard",
+        "sigma": 0.017,
+        "skill": 1.0
+      },
+      "target_odds": 0.35,
+      "condition": 0.7113
+    },
+    "rook_eclipse": {
+      "name": "Rook",
+      "car": "1998 Mitsubishi Eclipse GS-T",
+      "drivetrain": "FWD",
+      "weight_front": 0.63,
+      "effects": {
+        "torque_scale": 2.0,
+        "mass_kg": 250
+      },
+      "driver": {
+        "push": "flat_out",
+        "sigma": 0.022,
+        "skill": 0.94
+      },
+      "target_odds": 0.5,
+      "condition": 0.8434
+    },
+    "paz_gti": {
+      "name": "Paz",
+      "car": "2002 Volkswagen GTI 1.8T",
+      "drivetrain": "FWD",
+      "weight_front": 0.63,
+      "effects": {
+        "torque_scale": 1.85,
+        "mass_kg": 260
+      },
+      "driver": {
+        "push": "normal",
+        "sigma": 0.018,
+        "skill": 0.96
+      },
+      "target_odds": 0.5,
+      "condition": 0.9551
+    },
+    "junebug_mr2": {
+      "name": "Junebug",
+      "car": "1990 Toyota MR2",
+      "drivetrain": "RWD",
+      "weight_front": 0.43,
+      "effects": {
+        "torque_scale": 1.15,
+        "mass_kg": 110,
+        "mu_scale": 1.02
+      },
+      "driver": {
+        "push": "hard",
+        "sigma": 0.019,
+        "skill": 0.97
+      },
+      "target_odds": 0.45,
+      "condition": 0.8941
+    },
+    "static_ms3": {
+      "name": "Static",
+      "car": "2006 Mazdaspeed 3",
+      "drivetrain": "FWD",
+      "weight_front": 0.63,
+      "effects": {
+        "torque_scale": 2.5,
+        "mass_kg": 330,
+        "mu_scale": 1.04
+      },
+      "driver": {
+        "push": "hard",
+        "sigma": 0.02,
+        "skill": 0.98
+      },
+      "target_odds": 0.35,
+      "condition": 0.5996
+    },
+    "wren_prelude": {
+      "name": "Wren",
+      "car": "1999 Honda Prelude Type SH",
+      "drivetrain": "FWD",
+      "weight_front": 0.62,
+      "effects": {
+        "torque_scale": 1.7,
+        "mass_kg": 240,
+        "mu_scale": 1.03
+      },
+      "driver": {
+        "push": "safe",
+        "sigma": 0.012,
+        "skill": 0.99
+      },
+      "target_odds": 0.6,
+      "condition": 0.7824
+    },
+    "cutter_camaro": {
+      "name": "Cutter",
+      "car": "1995 Chevrolet Camaro Z28",
+      "drivetrain": "RWD",
+      "weight_front": 0.56,
+      "effects": {
+        "torque_scale": 2.6,
+        "mass_kg": 470,
+        "final_drive": 3.23
+      },
+      "driver": {
+        "push": "flat_out",
+        "sigma": 0.025,
+        "skill": 0.92
+      },
+      "target_odds": 0.55,
+      "condition": 1.0465
+    }
+  },
+  "street": [
+    "lalo_crx",
+    "bree_miata",
+    "dez_ae86",
+    "monk_integra",
+    "tavo_mustang",
+    "kiki_rsx",
+    "rook_eclipse",
+    "paz_gti",
+    "junebug_mr2",
+    "static_ms3",
+    "wren_prelude",
+    "cutter_camaro"
+  ],
+  "street_reference_track": {
+    "style": "balanced",
+    "seed": 900
+  }
+}

@@ -4,7 +4,9 @@ See docs/PHYSICS.md section 6."""
 import statistics
 from dataclasses import dataclass
 
-from .lap import run_lap
+import math
+
+from .lap import finish_time, run_lap
 
 
 @dataclass
@@ -14,12 +16,22 @@ class Distribution:
     mistakes: list        # bool per run: at least one mistake in that run
 
     @property
+    def finished(self):
+        return [t for t in self.times if not math.isinf(t)]
+
+    @property
+    def dnf_rate(self):
+        return 1 - len(self.finished) / len(self.times)
+
+    @property
     def mean(self):
-        return statistics.mean(self.times)
+        """Mean of FINISHED runs (a DNF has no time)."""
+        return statistics.mean(self.finished)
 
     @property
     def stdev(self):
-        return statistics.stdev(self.times) if len(self.times) > 1 else 0.0
+        f = self.finished
+        return statistics.stdev(f) if len(f) > 1 else 0.0
 
     @property
     def mistake_runs(self):
@@ -40,6 +52,6 @@ def run_many(car, grid, driver, n, seed0=0, temp_start=None):
     times, mistakes = [], []
     for seed in range(seed0, seed0 + n):
         lap = run_lap(car, grid, driver=driver, seed=seed, **kwargs)
-        times.append(lap.lap_time)
+        times.append(finish_time(lap))           # inf for a DNF
         mistakes.append(any(c.mistake for c in lap.corner_log))
     return Distribution(driver.push, times, mistakes)

@@ -10,7 +10,7 @@ See docs/PHYSICS.md sections 4 and 5.
 from dataclasses import dataclass
 
 from .forces import (axle_grip, axle_loads, drag, max_lateral_accel,
-                     rolling_resistance, static_mu, traction_limit_fwd_ls)
+                     rolling_resistance, static_mu, traction_limit)
 from .powertrain import (effective_mass, is_clutch_slipping, overall_ratio,
                          rpm_from_speed, speed_from_rpm, wheel_force)
 from .brakes import pad_mu
@@ -26,7 +26,7 @@ class CarConstants:
     """Per-car values that don't change during a run (computed once)."""
     mu: float          # tire friction at static load (starting guesses only)
     a_lat: float       # m/s^2, max steady cornering acceleration (skidpad)
-    f_traction: float  # N, FWD traction limit (load-sensitive front tires)
+    f_traction: float  # N, driven-axle traction limit (FWD or RWD, load-sensitive tires)
     f_roll: float      # N, rolling resistance
     m_free: float      # kg, body + 2 free wheels (driven side decoupled)
     m_brake: float     # kg, body + 4 wheels (clutch in while braking)
@@ -53,7 +53,7 @@ def car_constants(car):
     return CarConstants(
         mu=mu,
         a_lat=max_lateral_accel(car),
-        f_traction=traction_limit_fwd_ls(car),
+        f_traction=traction_limit(car),
         f_roll=f_roll,
         m_free=car.mass + 2 * car.wheel_inertia / r2,
         m_brake=m_brake,

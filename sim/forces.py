@@ -130,6 +130,26 @@ def limiting_axle(car):
     return "front" if front_cap <= rear_cap else "rear"
 
 
+def traction_limit_rwd_ls(car, tol=1e-9):
+    """RWD traction limit [N]: the driven REAR axle GAINS load as the car
+    accelerates (PHYSICS.md 4.3: F = mu m g (a/L) / (1 - mu h / L) with
+    constant mu). With load-sensitive tires, solve F = axle_grip(rear load at
+    a = F/m) by fixed-point iteration."""
+    f = static_mu(car) * car.mass * G * (1 - car.weight_front)
+    for _ in range(200):
+        _, rear = axle_loads(car, f / car.mass)
+        f_new = axle_grip(car, rear)
+        if abs(f_new - f) < tol:
+            return f_new
+        f = f_new
+    raise RuntimeError("traction_limit_rwd_ls did not converge")
+
+
+def traction_limit(car):
+    """Traction limit of the driven axle [N] for this car's drivetrain."""
+    return traction_limit_rwd_ls(car) if car.drivetrain == "RWD" else traction_limit_fwd_ls(car)
+
+
 def traction_limit_fwd_ls(car, tol=1e-9):
     """FWD traction limit [N] with rearward load transfer AND per-tire load
     sensitivity on the front axle (PHYSICS.md 4.3, 3.3).

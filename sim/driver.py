@@ -37,6 +37,7 @@ MISTAKE_FLOOR = 0.5           # never below half the corner's limit speed
 
 CORRECTION_WAVELENGTHS = (9.0, 15.0, 23.0)   # m, along the corner arc
 CORRECTION_PER_SIGMA = 0.4    # total correction amplitude = 0.4 x sigma (0.8% of speed at sigma 0.02)
+CRASH_MARGIN = 0.025          # an attempt more than 2.5% over the limit is a CRASH (DNF)
 
 
 def per_corner_probability(run_probability, corners=REFERENCE_CORNERS):
@@ -60,10 +61,17 @@ class Driver:
     name: str = "Friend"
     sigma: float = SIGMA_DEFAULT
     push: str = "normal"
+    skill: float = 1.0      # fraction of the push level's target a driver can actually reach
 
     @property
     def f(self):
-        return PUSH_LEVELS[self.push]
+        return PUSH_LEVELS[self.push] * self.skill
+
+    def crash_chance_per_corner(self):
+        """Analytic P(attempt > 1 + CRASH_MARGIN)."""
+        if self.sigma <= 0:
+            return 0.0 if self.f <= 1 + CRASH_MARGIN else 1.0
+        return 1 - NormalDist(self.f, self.sigma).cdf(1.0 + CRASH_MARGIN)
 
     def mistake_chance_per_corner(self):
         """Analytic P(attempt > 1) for this driver at this push level."""
@@ -80,6 +88,7 @@ class CornerAttempt:
     s_start: float
     s_end: float
     corrections: tuple = ()   # ((amplitude, wavelength_m, phase_rad), ...)
+    crash: bool = False       # so far over the limit that the car leaves the road
 
 
 def correction(a, s):
@@ -96,7 +105,8 @@ def plan_corners(driver, corners, rng):
         attempt = rng.gauss(driver.f, driver.sigma) if driver.sigma > 0 else driver.f
         fixes = tuple((amp_each * rng.uniform(0.5, 1.5), wl, rng.uniform(0, 2 * math.pi))
                       for wl in CORRECTION_WAVELENGTHS) if driver.sigma > 0 else ()
-        plan.append(CornerAttempt(text, attempt, attempt > 1.0, s0, s1, fixes))
+        plan.append(CornerAttempt(text, attempt, attempt > 1.0, s0, s1, fixes,
+                                  crash=attempt > 1.0 + CRASH_MARGIN))
     return plan
 
 

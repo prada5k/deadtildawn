@@ -40,6 +40,12 @@ const SKIP_REP_COST := 5 * REP_WIN   # chicken-out fee: five wins' worth of rep
 const LOOT_CHANCE := 0.05            # chance a win also drops an unopened part ("loot" pull)
 const SCRAP_RATE := 0.25             # selling a spare: price x rate x (0.5 + quality)
 const NEW_QUALITY := 0.5             # shop parts are new in box: exactly the catalog spec
+const REP_LOSS := -5                 # every loss costs rep (half a win)
+const REP_CRASH := -20               # putting it in the trees costs more
+const BODY_REPAIR := 150             # tow + body work after any crash
+const DAMAGE_CHANCE := 0.40          # per installed part, on a crash
+const DESTROY_CHANCE := 0.10         # per installed part, on a crash
+const REPAIR_RATE := 0.30            # repairing a damaged part: 30% of its price
 const RIVAL_FILE := "data/rivals/zed_280z.json"
 const PUSH_ORDER := ["safe", "normal", "hard", "flat_out"]
 const RARITY_COLORS := {
@@ -362,7 +368,8 @@ func show_car() -> void:
 		var p := part_by_id(inst["part"])
 		if not options.has(p["slot"]):
 			options[p["slot"]] = []
-		options[p["slot"]].append([inst["uid"], "%s  (Q %d%%)" % [p["name"], quality_pct(inst)]])
+		options[p["slot"]].append([inst["uid"], "%s  (Q %d%%)%s" % [p["name"], quality_pct(inst),
+			"  DAMAGED" if inst.get("damaged", false) else ""]])
 	var car: Control = open_hub(CarScene, "car")
 	car.part_changed.connect(install_part)
 	car.setup(common_info(), car_stats,
@@ -379,6 +386,7 @@ func show_shop() -> void:
 	shop.buy.connect(buy_part)
 	shop.pull.connect(do_pull)
 	shop.sell.connect(sell_instance)
+	shop.repair.connect(repair_instance)
 	shop.reveal.connect(func(uid): show_reveal(instance(uid)))
 	shop.setup(common_info(), catalog, state["inventory"], state["installed"],
 		state["pity"], shop_message)
@@ -391,7 +399,7 @@ func parts_args() -> Array:
 	var entries := []
 	for slot in state["installed"]:
 		var inst := instance(state["installed"][slot])
-		if not inst.is_empty():
+		if not inst.is_empty() and not inst.get("damaged", false):   # damaged = off the car
 			entries.append("%s@%.4f" % [inst["part"], float(inst["quality"])])
 	entries.sort()
 	return [] if entries.is_empty() else ["--parts", ",".join(entries)]
@@ -512,6 +520,25 @@ func show_reveal(inst: Dictionary, revealed := false) -> void:
 		UI.button(footer, "Later", show_shop)
 
 
+## Repair a damaged part (it's off the car until repaired).
+func repair_instance(uid: String) -> void:
+	var inst := instance(uid)
+	if inst.is_empty() or not inst.get("damaged", false):
+		return
+	var p := part_by_id(inst["part"])
+	var cost := int(round(float(p["price"]) * REPAIR_RATE))
+	if not can_spend(cost):
+		shop_message = "Can't: the repair would leave less than the %s buy-in." % UI.money(MIN_BUY_IN)
+		show_shop()
+		return
+	state["cash"] = int(state["cash"]) - cost
+	inst["damaged"] = false
+	car_stats = {}
+	save_game()
+	shop_message = "Repaired %s for %s." % [p["name"], UI.money(cost)]
+	show_shop()
+
+
 ## Sell a spare for scrap. Installed parts must be swapped out first.
 func sell_instance(uid: String) -> void:
 	var inst := instance(uid)
@@ -584,9 +611,9 @@ func show_briefing() -> void:
 	# A saved night belongs to one calendar event; a stale one gets redrawn
 	if not state["night"].is_empty() and state["night"].get("event") != event_key(ev):
 		state["night"] = {}
-	# Draw the night's rival time once and save it (no rerolling by restarting)
+	# Draw the night's opponent once and save it (no rerolling by restarting)
 	if state["night"].is_empty():
-		show_message("WORD ON THE STREET", "Finding out who's running tonight.\n\nThe first time on a road, Faba runs practice laps at every push level. Give it 15-30 seconds.")
+		show_message("WORD ON THE STREET", "Finding out who's running tonight.")
 		var seed := str(randi() % 1000000)
 		if ev["type"] == "open":
 			bridge.request("night", ["street", "--week", str(ev["week"]), "--seed", seed])
@@ -597,9 +624,10 @@ func show_briefing() -> void:
 		show_message("SCOUTING", "Driving the road in daylight.")
 		bridge.request("track", ["track", "--track", state["night"]["track"]])
 		return
-	if practice.is_empty():
-		show_message("PRACTICE", "Faba's running the road at every push level.")
-		bridge.request("practice", ["practice", "--track", state["night"]["track"]] + parts_args())
+	if car_stats.is_empty():
+		show_message("SIZING UP", "Putting both cars side by side.")
+		after_car_stats = "race"
+		bridge.request("car_stats", ["car_stats"] + parts_args())
 		return
 	if catalog.is_empty():
 		after_catalog = "race"
@@ -608,33 +636,68 @@ func show_briefing() -> void:
 	show_meeting()
 
 
+## Push levels as Faba describes them: no numbers, just what you're risking.
+const PUSH_TALK := {
+	"safe": "Well inside the limit. Won't crash. Won't win much either.",
+	"normal": "A steady pace. Mistakes are rare.",
+	"hard": "Right at the edge. Faster, and a real chance of going off.",
+	"flat_out": "Over the edge on purpose. Fastest if it sticks. If it doesn't, the car is in the trees.",
+}
+
+
 func show_meeting() -> void:
 	var night: Dictionary = state["night"]
 	var col := new_screen()
 	UI.label(col, "TONIGHT", "TitleLabel")
-
-	var rival := UI.vbox(UI.panel(col), 4)
-	UI.label(rival, "%s  /  %s" % [str(night["name"]).to_upper(), night["car"]], "HeadingLabel", UI.BAD)
-	UI.label(rival, "%.2f s" % night["posted_time"], "BigNumberLabel")
-	UI.label(rival, "posted time  /  %s  /  %d m, %d corners" % [
-		night["club"], int(track_info["length"]), track_info["corners"].size()], "MutedLabel")
+	UI.label(col, "%s  /  %d m, %d corners" % [night["club"], int(track_info["length"]),
+		track_info["corners"].size()], "MutedLabel")
 
 	var map: Control = TrackMap.new()
 	map.track = track_info
-	map.custom_minimum_size = Vector2(0, 240)
+	map.custom_minimum_size = Vector2(0, 220)
 	UI.panel(col).add_child(map)
 
+	# Stat card: the DX vs tonight's opponent. No odds: you make the call.
+	var card := UI.vbox(UI.panel(col), 4)
+	var head := UI.hbox(card, 8)
+	UI.label(head, "", "MutedLabel").custom_minimum_size.x = 150
+	var you := UI.label(head, "FABA / DX", "HeadingLabel")
+	you.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var them := UI.label(head, str(night["name"]).to_upper(), "HeadingLabel", UI.BAD)
+	them.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	UI.label(card, "%s (%s engine)" % [night["car"], night["condition"]], "MutedLabel")
+	var mine: Dictionary = car_stats
+	var theirs: Dictionary = night["stats"]
+	var rows := [
+		["Power", "%d hp" % mine["hp"], "%d hp" % theirs["hp"]],
+		["Torque", "%d lb-ft" % mine["torque_lbft"], "%d lb-ft" % theirs["torque_lbft"]],
+		["Weight", "%d kg" % mine["weight_kg"], "%d kg" % theirs["weight_kg"]],
+		["Power / weight", "%d hp/t" % mine["hp_per_tonne"], "%d hp/t" % theirs["hp_per_tonne"]],
+		["Drivetrain", "FWD", str(theirs["drivetrain"])],
+		["0-60 mph", "%.2f s" % mine["zero_60_s"], "%.2f s" % theirs["zero_60_s"]],
+		["Skidpad", "%.2f g" % mine["skidpad_g"], "%.2f g" % theirs["skidpad_g"]],
+	]
+	for r in rows:
+		var row := UI.hbox(card, 8)
+		UI.label(row, r[0], "MutedLabel").custom_minimum_size.x = 150
+		var a := UI.label(row, r[1])
+		a.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var b := UI.label(row, r[2])
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	UI.label(card, "Word is: %s" % night["driver_read"], "MutedLabel")
+
 	# Decision area, pinned at the bottom
-	UI.label(footer, "PRACTICE RUNS: HOW HARD DOES FABA PUSH?", "HeadingLabel")
-	UI.label(footer, "Each dot is a practice run. Left of the red line beats %s. Red dots: Faba made a mistake. Tap a row to pick it." % night["name"], "MutedLabel")
-	var chart: Control = PracticeChart.new()
-	chart.practice = practice["push_levels"]
-	chart.posted = float(night["posted_time"])
-	chart.rival_name = str(night["name"])
-	chart.selected = choice["push"]
-	chart.custom_minimum_size = Vector2(0, 300)
-	chart.push_selected.connect(func(p): choice["push"] = p)
-	UI.panel(footer).add_child(chart)
+	UI.label(footer, "HOW HARD DOES FABA PUSH?", "HeadingLabel")
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 8)
+	footer.add_child(grid)
+	for push in PUSH_ORDER:
+		var b := UI.button(grid, str(push).replace("_", " ").to_upper(), _on_push.bind(push),
+			"SelectedButton" if push == choice["push"] else "")
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	UI.label(footer, PUSH_TALK[choice["push"]], "MutedLabel")
 
 	var cash := int(state["cash"])
 	choice["wager"] = clampi(int(choice["wager"]), MIN_BUY_IN, cash)
@@ -663,6 +726,11 @@ func show_meeting() -> void:
 	go.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 
+func _on_push(push: String) -> void:
+	choice["push"] = push
+	show_meeting()
+
+
 ## Chicken out of this race night: no money changes hands, but the scene
 ## notices. Costs SKIP_REP_COST rep; with less than that, you have to race.
 func skip_night() -> void:
@@ -679,41 +747,61 @@ func skip_night() -> void:
 
 
 func send_it() -> void:
-	show_message("LIGHTS OUT", "Faba lines up the DX.\n%s on the line, %s push." % [
-		UI.money(choice["wager"]), str(choice["push"]).replace("_", " ")])
+	show_message("LIGHTS OUT", "Faba lines up the DX next to %s's %s.\n%s on the line, %s push." % [
+		state["night"]["name"], state["night"]["car"], UI.money(choice["wager"]),
+		str(choice["push"]).replace("_", " ")])
 	var out := ProjectSettings.globalize_path("user://replays/race.json")
 	bridge.request("race", ["race", "--track", state["night"]["track"], "--push", choice["push"],
-		"--seed", str(randi() % 1000000), "--out", out] + parts_args())
+		"--seed", str(randi() % 1000000), "--out", out,
+		"--opponent", state["night"]["opponent"], "--opp-seed", str(randi() % 1000000)] + parts_args())
 
 
-## How many practice runs at this push level beat the posted time
-## (shown only AFTER the race, so players can check their read).
-func practice_beat(push: String, posted: float) -> Vector2i:
-	var times: Array = practice["push_levels"][push]["times"]
-	var n := 0
-	for t in times:
-		if float(t) < posted:
-			n += 1
-	return Vector2i(n, times.size())
+## Consequences of a crash: body repair, and a damage roll on every installed
+## part (DAMAGE_CHANCE damaged, DESTROY_CHANCE destroyed outright).
+func crash_damage() -> Dictionary:
+	var damaged := []
+	var destroyed := []
+	for slot in state["installed"].keys():
+		var inst := instance(state["installed"][slot])
+		if inst.is_empty():
+			continue
+		var roll := randf()
+		var name: String = part_by_id(inst["part"]).get("name", inst["part"])
+		if roll < DESTROY_CHANCE:
+			destroyed.append(name)
+			state["installed"].erase(slot)
+			state["inventory"].erase(inst)
+		elif roll < DESTROY_CHANCE + DAMAGE_CHANCE:
+			inst["damaged"] = true
+			damaged.append(name)
+	var body := mini(BODY_REPAIR, int(state["cash"]))   # can't go below $0
+	state["cash"] = int(state["cash"]) - body
+	return {"damaged": damaged, "destroyed": destroyed, "body_repair": body}
 
 
 func apply_result(r: Dictionary) -> Dictionary:
-	## Settle the bet, move the calendar, and save immediately (before the replay).
+	## Settle everything, move the calendar, and save BEFORE the replay plays.
 	var night: Dictionary = state["night"]
 	var ev := next_event()
-	var won: bool = float(r["lap_time"]) < float(night["posted_time"])
+	var won: bool = r["won"]
+	var no_contest: bool = r["no_contest"]
 	var wager := int(choice["wager"])
-	var beat := practice_beat(r["push"], float(night["posted_time"]))
+	var cash_change := 0 if no_contest else (wager if won else -wager)
+	var rep_change := REP_WIN if won else (REP_CRASH if r["dnf"] else REP_LOSS)
 	var result := {
 		"when": when(ev["week"], ev["day"]),
-		"rival": night["name"], "rival_car": night["car"], "posted": night["posted_time"],
-		"time": r["lap_time"], "won": won, "push": r["push"], "seed": r["seed"],
-		"wager": wager, "cash_change": wager if won else -wager,
-		"rep_change": REP_WIN if won else 0, "mistakes": r["mistakes"],
-		"practice_beat": beat.x, "practice_runs": beat.y,
-		"parts": parts_args(), "loot": ""}
-	state["cash"] = int(state["cash"]) + int(result["cash_change"])
-	state["rep"] = int(state["rep"]) + int(result["rep_change"])
+		"rival": night["name"], "rival_car": night["car"],
+		"time": r["lap_time"], "dnf": r["dnf"], "crash_corner": r["crash_corner"],
+		"opponent_time": r["opponent_time"], "opponent_dnf": r["opponent_dnf"],
+		"opponent_crash_corner": r["opponent_crash_corner"],
+		"won": won, "no_contest": no_contest, "push": r["push"], "seed": r["seed"],
+		"wager": wager, "cash_change": cash_change, "rep_change": rep_change,
+		"mistakes": r["mistakes"], "parts": parts_args(), "loot": "", "damage": {}}
+	state["cash"] = int(state["cash"]) + cash_change
+	state["rep"] = maxi(int(state["rep"]) + rep_change, 0)
+	if r["dnf"]:
+		result["damage"] = crash_damage()
+		car_stats = {}                   # the car changed (parts damaged or gone)
 	state["history"].append(result)
 	state["night"] = {}
 	advance_past(ev)
@@ -726,7 +814,6 @@ func show_race(replay_path: String, result: Dictionary) -> void:
 	viewer = Viewer.new()
 	viewer.replay_path = replay_path
 	viewer.rival_name = result["rival"]
-	viewer.rival_time = float(result["posted"])
 	viewer.embedded = true
 	viewer.finished_viewing.connect(show_results.bind(result))
 	add_child(viewer)
@@ -735,24 +822,36 @@ func show_race(replay_path: String, result: Dictionary) -> void:
 func show_results(result: Dictionary) -> void:
 	var col := new_screen()
 	var won: bool = result["won"]
-	UI.spacer(col, false).custom_minimum_size.y = 40
-	var big := UI.label(col, "YOU WON" if won else "YOU LOST", "TitleLabel", UI.GOOD if won else UI.BAD)
-	big.add_theme_font_size_override("font_size", 96)
-	var margin := absf(float(result["time"]) - float(result["posted"]))
-	UI.label(col, "%s by %.3f s" % ["Ahead" if won else "Behind", margin], "BigNumberLabel")
+	UI.spacer(col, false).custom_minimum_size.y = 30
+	var title := "YOU WON" if won else ("NO CONTEST" if result["no_contest"] else
+		("CRASHED" if result["dnf"] else "YOU LOST"))
+	var big := UI.label(col, title, "TitleLabel", UI.GOOD if won else UI.BAD)
+	big.add_theme_font_size_override("font_size", 88)
+	var faba := "DNF (off at %s)" % result["crash_corner"] if result["dnf"] else "%.3f s" % result["time"]
+	var them := "DNF (off at %s)" % result["opponent_crash_corner"] if result["opponent_dnf"] \
+		else "%.3f s" % result["opponent_time"]
+	if not result["dnf"] and not result["opponent_dnf"]:
+		var gap := absf(float(result["time"]) - float(result["opponent_time"]))
+		UI.label(col, "%s by %.3f s" % ["Ahead" if won else "Behind", gap], "BigNumberLabel")
 	var info := UI.vbox(UI.panel(col), 6)
-	UI.stat_row(info, "Faba", "%.3f s" % result["time"])
-	UI.stat_row(info, str(result["rival"]), "%.3f s" % result["posted"])
+	UI.stat_row(info, "Faba", faba)
+	UI.stat_row(info, "%s (%s)" % [result["rival"], result["rival_car"]], them)
 	UI.stat_row(info, "Push", str(result["push"]).replace("_", " "))
 	UI.stat_row(info, "Mistakes", "none" if result["mistakes"].is_empty() else ", ".join(result["mistakes"]))
-	UI.stat_row(info, "Cash", "%s%s  ->  %s" % ["+" if won else "", UI.money(result["cash_change"]), UI.money(state["cash"])])
-	UI.stat_row(info, "Rep", "+%d  ->  %d" % [result["rep_change"], state["rep"]])
-	# The reveal: how good was the read? (hidden before the race on purpose)
-	var reveal := UI.vbox(UI.panel(col), 4)
-	UI.label(reveal, "YOUR READ", "HeadingLabel")
-	UI.label(reveal, "In practice, %d of %d runs at %s push beat %s's %.2f." % [
-		result["practice_beat"], result["practice_runs"], str(result["push"]).replace("_", " "),
-		result["rival"], result["posted"]], "MutedLabel")
+	UI.stat_row(info, "Cash", "%s%s  ->  %s" % ["+" if result["cash_change"] > 0 else "",
+		UI.money(result["cash_change"]), UI.money(state["cash"])])
+	UI.stat_row(info, "Rep", "%+d  ->  %d" % [result["rep_change"], state["rep"]])
+	var dmg: Dictionary = result.get("damage", {})
+	if not dmg.is_empty():
+		var box := UI.vbox(UI.panel(col), 4)
+		UI.label(box, "THE DAMAGE", "HeadingLabel")
+		UI.label(box, "Body and tow: -%s" % UI.money(dmg["body_repair"]))
+		for n in dmg["destroyed"]:
+			UI.label(box, "DESTROYED: %s" % n, "", UI.BAD)
+		for n in dmg["damaged"]:
+			UI.label(box, "Damaged: %s (repair it in Parts; until then it's off the car)" % n)
+		if dmg["destroyed"].is_empty() and dmg["damaged"].is_empty():
+			UI.label(box, "The parts survived. This time.", "MutedLabel")
 	if result.get("loot", "") != "":
 		var loot := UI.vbox(UI.panel(col), 4)
 		UI.label(loot, "LOOT", "HeadingLabel")

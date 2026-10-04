@@ -37,6 +37,8 @@ class LapResult:
     v_envelope: list     # m/s, corner limits + braking
     iterations: int = 1  # fixed-point passes until the lap time converged
     temp_end: float = AMBIENT_C   # C, front rotor at the finish
+    dnf: bool = False             # crashed out: telemetry ends at the crash
+    crash_corner: str = ""        # pace-note text of the corner where it ended
     driver: object = None         # Driver, or None for the theoretical limit
     seed: object = None           # random seed of this run (reproducible)
     corner_log: list = field(default_factory=list)   # CornerAttempt per corner
@@ -90,7 +92,7 @@ def run_lap(car, grid, temp_start=AMBIENT_C, ambient=AMBIENT_C, tol=1e-6, max_it
         result.iterations = it
         result.driver, result.seed, result.corner_log = driver, seed, plan or []
         if prev_time is not None and abs(result.lap_time - prev_time) < tol:
-            return result
+            return _apply_crash(result, plan)
         prev_time, temps = result.lap_time, result.telemetry.brake_temp
     raise RuntimeError("run_lap: brake temperature iteration did not converge")
 
@@ -163,3 +165,28 @@ def _record(tel, car, s, t, st, a, limit, throttle, brake, temp):
     tel.throttle.append(throttle)
     tel.brake.append(brake)
     tel.brake_temp.append(temp)
+
+
+def _apply_crash(result, plan):
+    """If the driver crashed, end the run at the first crash corner's apex:
+    the telemetry stops there and the run is a DNF (lap_time = time of the
+    crash, kept for the replay; compare runs with finish_time())."""
+    crash = next((c for c in (plan or []) if c.crash), None)
+    if crash is None:
+        return result
+    s_crash = (crash.s_start + crash.s_end) / 2
+    tel = result.telemetry
+    n = next((i for i, s in enumerate(tel.s) if s >= s_crash), len(tel.s) - 1) + 1
+    for name in ("s", "t", "v", "gear", "rpm", "accel", "limit", "throttle", "brake", "brake_temp"):
+        setattr(tel, name, getattr(tel, name)[:n])
+    tel.shifts = [e for e in tel.shifts if e.s <= s_crash]
+    result.lap_time = tel.t[-1]
+    result.temp_end = tel.brake_temp[-1]
+    result.dnf = True
+    result.crash_corner = crash.text
+    return result
+
+
+def finish_time(lap):
+    """Time for comparing runs: a DNF never beats a finished run."""
+    return math.inf if lap.dnf else lap.lap_time

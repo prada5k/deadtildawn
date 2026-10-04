@@ -33,7 +33,21 @@ def _r(x, nd=3):
     return round(x, nd)
 
 
-def build_replay(car, segments, lap, track_name):
+def _pose_samples(segments, lap):
+    """Downsampled (t, x, y, heading) for a ghost car."""
+    tel = lap.telemetry
+    every = max(1, round(SAMPLE_STEP / (tel.s[1] - tel.s[0])))
+    idx = list(range(0, len(tel.s), every))
+    if idx[-1] != len(tel.s) - 1:
+        idx.append(len(tel.s) - 1)
+    xs, ys, hs = track_xy(segments, [tel.s[i] for i in idx])
+    return {"t": [_r(tel.t[i]) for i in idx], "x": [_r(x, 2) for x in xs],
+            "y": [_r(y, 2) for y in ys], "heading": [_r(h, 4) for h in hs]}
+
+
+def build_replay(car, segments, lap, track_name, ghost=None):
+    """ghost (optional): {"name", "car", "lap"}: the opponent, drawn as a ghost
+    car. Optional fields (ghost, dnf) keep older viewers working."""
     tel = lap.telemetry
     length = sum(seg.length for seg in segments)
 
@@ -90,10 +104,17 @@ def build_replay(car, segments, lap, track_name):
                   "centerline": [[_r(x, 2), _r(y, 2)] for x, y in zip(rx, ry)],
                   "corners": corners},
         "lap_time": _r(lap.lap_time),
+        "dnf": getattr(lap, "dnf", False),
+        "crash_corner": getattr(lap, "crash_corner", ""),
+        "ghost": None if ghost is None else {
+            "name": ghost["name"], "car": ghost["car"], "lap_time": _r(ghost["lap"].lap_time),
+            "dnf": ghost["lap"].dnf, "crash_corner": ghost["lap"].crash_corner,
+            "samples": _pose_samples(segments, ghost["lap"])},
         "driver": None if lap.driver is None else {
             "name": lap.driver.name, "push": lap.driver.push, "sigma": lap.driver.sigma,
             "f": _r(lap.driver.f, 4), "seed": lap.seed,
             "corners": [{"text": c.text, "attempt": _r(c.attempt, 4), "mistake": c.mistake,
+                         "crash": getattr(c, "crash", False),
                          "s_start": _r(c.s_start, 1), "s_end": _r(c.s_end, 1)}
                         for c in lap.corner_log]},
         "samples": samples,
