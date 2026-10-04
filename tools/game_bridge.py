@@ -473,7 +473,8 @@ def race(track_file, push, seed, out_file, part_ids=(), opponent=None, opp_seed=
         spec = opponent_spec(opponent, opp_condition)
         opp_car = opponent_car(load_car(CAR_FILE), spec)
         opp = run_lap(opp_car, grid, driver=opponent_driver(spec), seed=opp_seed)
-        ghost = {"name": spec["name"], "car": spec["car"], "lap": opp, "redline": opp_car.redline}
+        ghost = {"name": spec["name"], "car": spec["car"], "lap": opp, "redline": opp_car.redline,
+                 "sigma": spec["driver"]["sigma"]}
         why = breakdown(segments, lap, opp)          # why did I win/lose
     replay_data = build_replay(car, segments, lap, track_path.name, ghost, location,
                                None if why is None else why["sections"])

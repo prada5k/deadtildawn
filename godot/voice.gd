@@ -116,6 +116,10 @@ const ROAD_KIND := {
 	"both": "bit of everything on this one",
 }
 
+# The replay: what the spotters say on the radio as Faba goes by (before the
+# blind corners). DRAFT -- Spire's word.
+const SPOTTER_CALL := "clear"
+
 const FINISH_NAME := "the line"       # "acceleration on the run to the line"
 # A swing reads "<tag> <where>": "corner speed through R3 90", "Faba ran wide at R7 65"
 

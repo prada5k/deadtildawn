@@ -24,6 +24,11 @@ const SIGN_ALONG_M := 3.0      # ...and along it
 const SIGN_OUT_M := 4.2        # sign center, past the edge of the asphalt
 const CHEVRON_INK := Color(0.05, 0.04, 0.04)
 const HAIRPIN_M := 25.0        # radius at or under this: the sign shows a U-turn
+const POST_EVERY_M := 20       # reflector posts down both edges: they flick by, so speed reads
+const POST_OUT_M := 1.0        # past the edge of the asphalt
+const POST_M := 0.9            # post, seen from above (drawn big, like the cars, so it reads)
+const POST_WHITE := Color(0.92, 0.92, 0.88)
+const REFLECTOR := Color(1.0, 0.62, 0.15)
 
 var points := PackedVector2Array()
 var corners := []
@@ -46,6 +51,7 @@ func _ready() -> void:
 	mat.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
 	signs.material = mat
 	signs.draw.connect(func():
+		draw_posts(signs)
 		for c in corners:
 			draw_chevrons(signs, c, points.size()))
 	add_child(signs)
@@ -134,4 +140,21 @@ func draw_hairpin_arrow(on: CanvasItem, center: Vector2, u: Vector2, w: Vector2,
 	var head := 0.6                                    # arrowhead at the end, pointing back down
 	on.draw_colored_polygon(PackedVector2Array([tip - w * head * 1.3, tip - u * head, tip + u * head]),
 		CHEVRON_INK)
+
+
+## Reflector posts every POST_EVERY_M down both edges (white post, amber
+## reflector on the side facing traffic). Unshaded, so they catch the eye at
+## night and tick past at a rate that says how fast you're going.
+func draw_posts(on: CanvasItem) -> void:
+	var half := ROAD_W_M / 2.0 + POST_OUT_M
+	var k := POST_EVERY_M
+	while k < points.size() - 1:
+		var right := _right[k]
+		var along := right.orthogonal()
+		for side: float in [-1.0, 1.0]:
+			var c := points[k] + right * side * half * px_per_m
+			var r := POST_M / 2.0 * px_per_m
+			on.draw_rect(Rect2(c - Vector2(r, r), Vector2(r, r) * 2.0), POST_WHITE)
+			on.draw_circle(c - along * r * 0.6, r * 0.45, REFLECTOR)
+		k += POST_EVERY_M
 

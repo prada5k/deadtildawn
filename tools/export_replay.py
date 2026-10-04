@@ -119,7 +119,7 @@ def build_replay(car, segments, lap, track_name, ghost=None, location=None, spli
         "splits": splits,
         "ghost": None if ghost is None else {
             "name": ghost["name"], "car": ghost["car"], "lap_time": _r(ghost["lap"].lap_time),
-            "redline": ghost.get("redline"),
+            "redline": ghost.get("redline"), "sigma": ghost.get("sigma"),
             "dnf": ghost["lap"].dnf, "crash_corner": ghost["lap"].crash_corner,
             "samples": _pose_samples(segments, ghost["lap"])},
         "driver": None if lap.driver is None else {

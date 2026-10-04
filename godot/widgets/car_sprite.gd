@@ -11,6 +11,12 @@ const TIRE := Color(0.04, 0.04, 0.04)
 const HEADLIGHT := Color(1.0, 0.95, 0.75)
 const TAIL_OFF := Color(0.45, 0.03, 0.03)
 const TAIL_ON := Color(1.0, 0.12, 0.1)
+# Body motion from above: the cabin and roof shift against the wheels and the
+# shadow. Roll: toward the outside of a corner; pitch: forward under braking
+# (nose dives), back under power (squats).
+const ROLL_M_PER_G := 0.2
+const PITCH_M_PER_G := 0.16
+const BODY_SPRING := 7.0       # how fast the body settles (1/s): it rocks, it doesn't snap
 
 # keyword in the car's name -> profile overrides (see DEFAULT for the fields)
 const PROFILES := {
@@ -57,6 +63,10 @@ var braking := false:
 		if b != braking:
 			braking = b
 			queue_redraw()
+## Set every frame by the viewer: Vector2(longitudinal g, + = speeding up;
+## lateral g, + = turning right). The body eases toward it.
+var load_g := Vector2.ZERO
+var _body := Vector2.ZERO      # the body's shift (m): x forward, y to the right
 
 
 static func profile_for(car_name: String) -> Dictionary:
@@ -70,6 +80,15 @@ static func profile_for(car_name: String) -> Dictionary:
 
 func _ready() -> void:
 	queue_redraw()
+
+
+func _process(delta: float) -> void:
+	# Dives forward braking (-x g -> +x shift), rolls to the outside (+y g -> -y shift)
+	var want := Vector2(-load_g.x * PITCH_M_PER_G, -load_g.y * ROLL_M_PER_G)
+	var before := _body
+	_body = _body.lerp(want, 1.0 - exp(-delta * BODY_SPRING))
+	if _body.distance_to(before) > 0.001:
+		queue_redraw()
 
 
 func m(x: float, y: float) -> Vector2:
@@ -89,8 +108,11 @@ func _draw() -> void:
 	var nose: float = profile["nose"] * W
 	var tail: float = profile["tail"] * W
 
-	# Soft shadow under the car, then the wheels peeking out
-	draw_colored_polygon(quad(-hl - 0.15, -hw - 0.1, hl + 0.2, hw + 0.25), Color(0, 0, 0, 0.35))
+	# Soft shadow under the car (it stays with the road: the body moves over it),
+	# then the wheels peeking out
+	var sh := -_body * 0.5
+	draw_colored_polygon(quad(-hl - 0.15 + sh.x, -hw - 0.1 + sh.y, hl + 0.2 + sh.x, hw + 0.25 + sh.y),
+		Color(0, 0, 0, 0.35))
 	var axle := L * 0.31
 	for x in [axle, -axle]:
 		for y in [-hw, hw]:
@@ -105,23 +127,29 @@ func _draw() -> void:
 		draw_colored_polygon(quad(-hl + 0.2, -hw, hl - 0.4, -hw + 0.22), profile["skirts"])
 		draw_colored_polygon(quad(-hl + 0.2, hw - 0.22, hl - 0.4, hw), profile["skirts"])
 	# Highlight down the spine: reads as a curved body, not a flat tile
-	draw_colored_polygon(quad(-hl + 0.3, -hw * 0.35, hl - 0.3, hw * 0.35), paint.lightened(0.12))
+	var b := _body * 0.6                     # the spine moves a little; the roof moves most
+	draw_colored_polygon(quad(-hl + 0.3 + b.x, -hw * 0.35 + b.y, hl - 0.3 + b.x, hw * 0.35 + b.y),
+		paint.lightened(0.12))
 
 	# Cabin: windshield, roof, rear glass
 	var cf: float = profile["cabin_front"] * L
 	var cr: float = profile["cabin_rear"] * L
 	var cw := hw * 0.86
-	draw_colored_polygon(PackedVector2Array([m(cr, -cw), m(cf, -cw * 0.88), m(cf, cw * 0.88), m(cr, cw)]), GLASS)
+	var dx := _body.x                        # the cabin rides the body
+	var dy := _body.y
+	draw_colored_polygon(PackedVector2Array([m(cr + dx, -cw + dy), m(cf + dx, -cw * 0.88 + dy),
+		m(cf + dx, cw * 0.88 + dy), m(cr + dx, cw + dy)]), GLASS)
 	if not profile["open_top"]:
 		var roof_f := cf - (cf - cr) * 0.3
 		var roof_r := cr + (cf - cr) * 0.18
-		draw_colored_polygon(quad(roof_r, -cw * 0.8, roof_f, cw * 0.8), paint.darkened(0.08))
+		draw_colored_polygon(quad(roof_r + dx, -cw * 0.8 + dy, roof_f + dx, cw * 0.8 + dy), paint.darkened(0.08))
 	else:                                    # convertible: two seats
 		for y in [-cw * 0.45, cw * 0.45]:
-			draw_colored_polygon(quad(cr + 0.15, y - 0.22, cr + 0.75, y + 0.22), Color(0.15, 0.12, 0.1))
+			draw_colored_polygon(quad(cr + 0.15 + dx, y - 0.22 + dy, cr + 0.75 + dx, y + 0.22 + dy),
+				Color(0.15, 0.12, 0.1))
 	if profile["banner"]:                    # windshield banner, kanjo style
-		draw_colored_polygon(quad(cf - 0.2, -cw * 0.9, cf, cw * 0.9), Color(0.05, 0.05, 0.05))
-		draw_line(m(cf - 0.1, -cw * 0.7), m(cf - 0.1, cw * 0.7), Color(0.95, 0.95, 0.95), 1.0)
+		draw_colored_polygon(quad(cf - 0.2 + dx, -cw * 0.9 + dy, cf + dx, cw * 0.9 + dy), Color(0.05, 0.05, 0.05))
+		draw_line(m(cf - 0.1 + dx, -cw * 0.7 + dy), m(cf - 0.1 + dx, cw * 0.7 + dy), Color(0.95, 0.95, 0.95), 1.0)
 	# Mirrors
 	for y in [-hw - 0.12, hw + 0.12]:
 		draw_colored_polygon(quad(cf - 0.15, y - 0.07, cf + 0.05, y + 0.07), paint.darkened(0.2))

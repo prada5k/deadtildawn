@@ -67,13 +67,21 @@ const OPP_DASH_ALPHA := 0.72     # his mini gauges: smaller and see-through (Spi
 # Driving like a person, not a rail (Spire). VISUAL ONLY: the sim drives the
 # centerline, and positions along the road (so every time and gap) are the
 # sim's. These only move the car across its lane and turn its nose a little.
-const WANDER_M := 0.35           # slow drift in the lane (grows with speed)
+const WANDER_M := 0.22           # slow drift (grows with speed; a rookie wanders more)
 # A 3 a.m. spotter run (Spire): both lanes are theirs. Out-in-out through
 # every corner: the outside edge at entry, the inside at the apex, the outside
 # again at the exit, then home near the middle on a long straight.
-const LINE_SWING_M := 2.6        # how far from the middle: edge or apex (the road is 8 m)
+const LINE_SWING_M := 2.4        # a full out-in-out: this far each way (the road is 8 m)
 const LINE_LEAD_M := 45.0        # moves out this far before a corner, back over as long after
-const HOME_M := 0.5              # straights: a touch right of the middle, out of habit
+# How much of the road a driver uses: his LINE SKILL, 0 (rookie) to 1. A
+# rookie stays near his own lane and barely moves out for a corner; a good
+# driver sits mid-road and uses edge to edge when the corner needs it.
+const FABA_LINE_SKILL := 0.3     # Faba's still learning (driver training can raise it later)
+const HOME_ROOKIE_M := 1.8       # straights: right lane, out of habit...
+const HOME_PRO_M := 0.5          # ...or just right of the middle
+const NEED_TIGHT_M := 20.0       # a corner this tight or tighter needs the whole swing...
+const NEED_NONE_M := 160.0       # ...one this open needs none
+
 const SLIP_RAD_PER_G := 0.09     # nose turned into the corner: ~5 deg per g of a = v^2 / r
 const RUN_WIDE_M := 1.6          # a mistake: out toward the edge after the apex
 const LANE_LIMIT_M := 3.1        # car's center: never off the asphalt (half the road is 4 m)
@@ -84,6 +92,21 @@ const SPEED_SHAKE_PX := 1.0      # screen px of buzz at V_SHAKE_REF...
 const V_SHAKE_REF := 40.0        # ...144 km/h (it grows with v^2)
 const TURN_SHAKE_PX := 1.3       # more buzz per g of cornering
 const SWAY_M_PER_G := 2.2        # the camera swings this far to the outside per g
+const ZOOM_SLOW := 0.88          # chase view width x this when slow (tight in the hairpins)...
+const ZOOM_FAST := 1.22          # ...and x this flat out (sees further down the road)
+const ZOOM_FAST_V := 45.0        # m/s (162 km/h): fully pulled back
+const CAM_AIM_AHEAD_M := 18.0    # chase cam rides the ROAD: aims along it, averaged this far ahead...
+const CAM_AIM_BEHIND_M := 4.0    # ...and this far behind (it starts turning before the corner)
+
+# Spotters (Spire: a 3 a.m. run on public roads): a guy with a radio and a
+# flashlight before each blind corner, waving the light when a car comes.
+const SPOTTER_MAX_RADIUS_M := 50.0   # blind corners: the tight ones
+const SPOTTERS_MAX := 4
+const SPOTTER_BEFORE_M := 14.0       # stands this far before the corner...
+const SPOTTER_OUT_M := 7.0           # ...on the outside, this far from the middle of the road
+const SPOTTER_WAVE_M := 90.0         # waves the light when a car is this close, coming at him
+const RADIO_SHOW_S := 1.6            # "SPOTTER: CLEAR" stays up this long
+const RADIO_GREEN := Color(0.55, 1.0, 0.55)
 const OPP_GAUGE_PX := 92.0
 const OPP_BAR_PX := 36.0
 const PEDAL_H := 210.0
@@ -180,6 +203,7 @@ var pane_boxes := []      # ...their SubViewportContainers
 var pane_tags := []       # ...and a name + speed tag on each
 var wander := {}          # "car" / "ghost" -> FastNoiseLite: each driver's own wander
 var buzz := FastNoiseLite.new()   # camera shake (smooth noise, not white jitter)
+var spotters := []        # [{"s": distance along the road, "node": Node2D, "beam": PointLight2D, "aim": rad}]
 var flagger: Node2D
 
 
@@ -485,6 +509,7 @@ func build_car() -> void:
 		add_child(hz)
 		lights[who + "_hazard"] = hz
 	build_flagger(cone)
+	build_spotters(cone)
 
 
 ## The flagger: stands in the road just past the start line between the cars'
@@ -494,23 +519,85 @@ func build_flagger(cone: Texture2D) -> void:
 	var a := to_world(centerline[0][0], centerline[0][1])
 	var b := to_world(centerline[mini(12, centerline.size() - 1)][0], centerline[mini(12, centerline.size() - 1)][1])
 	var ahead := (b - a).normalized()
-	flagger = Node2D.new()
-	flagger.position = a + ahead * 9.0 * PX_PER_M
-	flagger.rotation = ahead.angle() + PI                  # facing the cars
-	flagger.z_index = 12
-	flagger.draw.connect(func():
-		var s := PX_PER_M * 2.0                                # drawn big, like the cars, so he reads
-		flagger.draw_circle(Vector2(0.15, 0.2) * s, 0.55 * s, Color(0, 0, 0, 0.4))   # shadow
-		flagger.draw_circle(Vector2.ZERO, 0.5 * s, Color(0.12, 0.12, 0.14))          # shoulders
-		flagger.draw_circle(Vector2.ZERO, 0.28 * s, Color(0.55, 0.42, 0.33))         # head
-		flagger.draw_line(Vector2(0, 0.35) * s, Vector2(0.7, 0.55) * s, Color(0.12, 0.12, 0.14), 0.22 * s)
-		flagger.draw_circle(Vector2(0.75, 0.55) * s, 0.12 * s, Color(1, 0.95, 0.8)))  # the flashlight
+	flagger = make_person(a + ahead * 9.0 * PX_PER_M, ahead.angle() + PI)   # facing the cars
 	overlay.add_child(flagger)
 	var beam := make_headlight(cone, 0.0)
 	beam.position = flagger.position
 	beam.rotation = flagger.rotation
 	beam.texture_scale = 24.0 * PX_PER_M / 256.0
 	lights["flagger"] = beam
+
+
+## A person from above (the flagger, the spotters): shoulders, head, an arm
+## holding a flashlight. Drawn big, like the cars, so he reads.
+func make_person(pos: Vector2, facing: float) -> Node2D:
+	var who := Node2D.new()
+	who.position = pos
+	who.rotation = facing
+	who.z_index = 12
+	who.draw.connect(func():
+		var s := PX_PER_M * 2.0
+		who.draw_circle(Vector2(0.15, 0.2) * s, 0.55 * s, Color(0, 0, 0, 0.4))   # shadow
+		who.draw_circle(Vector2.ZERO, 0.5 * s, Color(0.12, 0.12, 0.14))          # shoulders
+		who.draw_circle(Vector2.ZERO, 0.28 * s, Color(0.55, 0.42, 0.33))         # head
+		who.draw_line(Vector2(0, 0.35) * s, Vector2(0.7, 0.55) * s, Color(0.12, 0.12, 0.14), 0.22 * s)
+		who.draw_circle(Vector2(0.75, 0.55) * s, 0.12 * s, Color(1, 0.95, 0.8)))  # the flashlight
+	return who
+
+
+## Spotters before the tightest (blind) corners, on the outside, facing the
+## cars coming at them; the light points back down the road at them.
+func build_spotters(cone: Texture2D) -> void:
+	var tight := corners.filter(func(c): return float(c["radius"]) <= SPOTTER_MAX_RADIUS_M)
+	tight.sort_custom(func(x, y): return float(x["radius"]) < float(y["radius"]))
+	tight = tight.slice(0, SPOTTERS_MAX)
+	for c in tight:
+		var s := maxf(float(c["s_start"]) - SPOTTER_BEFORE_M, 3.0)
+		var dir := road_dir(s - 3.0, s + 3.0)
+		var right := Vector2(-dir.y, dir.x)
+		var outside := right * (-1.0 if c["direction"] == "R" else 1.0)
+		var pos := road_point(s) + outside * SPOTTER_OUT_M * PX_PER_M
+		var aim := (-dir - outside * 0.6).angle()          # at the cars coming up the road
+		var who := make_person(pos, aim)
+		overlay.add_child(who)
+		var beam := make_headlight(cone, 0.0)
+		beam.position = pos
+		beam.rotation = aim
+		beam.texture_scale = 26.0 * PX_PER_M / 256.0
+		spotters.append({"s": s, "node": who, "beam": beam, "aim": aim})
+
+
+## Wave the light while a car is coming at him (either car).
+func update_spotters() -> void:
+	var cars := [value_at("s")]
+	if ghost != null:
+		cars.append(ghost_s_at(t))
+	var tt := Time.get_ticks_msec() / 1000.0
+	for sp: Dictionary in spotters:
+		var near := false
+		for cs: float in cars:
+			var d: float = sp["s"] - cs
+			near = near or (d > -10.0 and d < SPOTTER_WAVE_M)
+		var beam: PointLight2D = sp["beam"]
+		beam.energy = 2.2 if near and countdown <= 0.0 else 0.0
+		var wave := 0.45 * sin(tt * 7.0) if near else 0.0
+		beam.rotation = float(sp["aim"]) + wave
+		sp["node"].rotation = float(sp["aim"]) + wave * 0.6
+
+
+## The road's centerline at distance s (world px; points are 1 m apart).
+func road_point(s: float) -> Vector2:
+	var n := road_pts.size()
+	var i := clampi(int(floor(s)), 0, n - 2)
+	return road_pts[i].lerp(road_pts[i + 1], clampf(s - i, 0.0, 1.0))
+
+
+## The road's direction between two distances (unit vector).
+func road_dir(s_from: float, s_to: float) -> Vector2:
+	var d := road_point(s_to) - road_point(s_from)
+	if d.length() < 0.01:
+		d = road_pts[road_pts.size() - 1] - road_pts[maxi(road_pts.size() - 2, 0)]
+	return d.normalized()
 
 
 func build_camera() -> void:
@@ -686,6 +773,7 @@ func build_hud() -> void:
 	hud["banner"] = caption(layer, Vector2.ZERO, 40)
 	hud["banner_gap"] = racing_label(layer, Vector2.ZERO, 96, CAPTION_YELLOW)
 	hud["mistake"] = caption(layer, Vector2.ZERO, 26)
+	hud["radio"] = osd_label(layer, Vector2.ZERO, 34, RADIO_GREEN)   # "SPOTTER: CLEAR"
 	hud["split"] = caption(layer, Vector2.ZERO, 30)      # lower third: who won the last section, why
 	hud["count"] = racing_label(layer, Vector2.ZERO, 150, CAPTION_YELLOW)   # 3, 2, 1, GO
 	build_tower(layer)
@@ -744,6 +832,20 @@ func update_split(vp: Vector2) -> void:
 		label.reset_size()
 		label.position = Vector2((vp.x - label.size.x) / 2.0, vp.y - BOTTOM_PX - label.size.y - 70.0)
 		label.visible = true
+
+
+## The spotter's call on the radio as Faba goes by him (Voice.SPOTTER_CALL).
+func update_radio(vp: Vector2) -> void:
+	var radio: Label = hud["radio"]
+	radio.visible = false
+	for sp: Dictionary in spotters:
+		var passed := time_at(samples["s"], samples["t"], float(sp["s"]))
+		if t >= passed and t < passed + RADIO_SHOW_S and (not dnf or passed < lap_time) and t < end_time:
+			radio.text = "SPOTTER: %s" % Voice.SPOTTER_CALL.to_upper()
+			radio.reset_size()
+			radio.position = Vector2(vp.x - radio.size.x - 20, TOP_BAR_PX + 76)
+			radio.visible = fmod(t - passed, 0.5) < 0.38            # crackles in and out
+	return
 
 
 ## Camcorder viewfinder: white corner brackets around the whole frame.
@@ -1085,6 +1187,7 @@ func update_hud() -> void:
 		cont.position = Vector2(60, TOP_BAR_PX + 60 + banner.size.y + big.size.y)
 
 	update_split(vp)
+	update_radio(vp)
 
 	# Mistake callout: from the apex of a mistaken corner until shortly after it
 	var mistake: Label = hud["mistake"]
@@ -1189,6 +1292,7 @@ func _process(delta: float) -> void:
 			t = minf(t + delta * SPEEDS[speed_i] * (SLOW_MO if finish_slow() else 1.0), end_time)
 		sync_panes()
 	update_car()
+	update_spotters()
 	fire_events(delta)
 	lay_tire_marks()
 	update_camera(delta, false)
@@ -1376,6 +1480,7 @@ func update_car() -> void:
 		car.rotation += 0.9 * clampf(crash_age / 0.5, 0.0, 1.0)
 	var braking := value_at("brake") > 0.0
 	car.braking = braking
+	car.load_g = loads(value_at("s"), value_at("v"), faba_accel())
 	var nose := Vector2.from_angle(car.rotation)
 	var front := car.position + nose * 2.6 * PX_PER_M
 	var hl: PointLight2D = lights["car"]
@@ -1415,6 +1520,9 @@ func update_ghost() -> void:
 	var across := line.x
 	ghost_car.position = to_world(x + sin(h) * across, y - cos(h) * across)
 	ghost_car.rotation = -h + line.y
+	var gv := ghost_speed_at(t)
+	var ga := (ghost_speed_at(t + 0.1) - ghost_speed_at(maxf(t - 0.1, 0.0))) / 0.2
+	ghost_car.load_g = loads(ghost_s_at(t), gv, ga)
 	ghost_car.position -= Vector2.from_angle(ghost_car.rotation) * roll_back_px()
 	if lights.has("ghost_hazard"):
 		lights["ghost_hazard"].position = ghost_car.position
@@ -1485,17 +1593,27 @@ func update_camera(delta: float, snap: bool) -> void:
 		target_zoom = minf(area.size.x / (track_size.x + margin), area.size.y / (track_size.y + margin))
 		target_pos = track_center
 	else:
-		# Chase: the car always points up (the camera turns with it) and the
-		# camera looks ahead so the car sits low on screen. A pane is half as
-		# wide, so it shows fewer meters across (cars stay a readable size).
-		var view_m := PANE_VIEW_M if pane != "" else CHASE_VIEW_M
+		# Chase (Spire): the camera rides the ROAD, not the car. It sits over the
+		# middle of the road and points along it (averaged a little ahead, so it
+		# starts turning before the corner), trailing on a spring. The car moves
+		# in the frame: across the lanes on its line, nose into the corner,
+		# ahead of the camera when it accelerates and back under braking.
+		# A pane is half as wide, so it shows fewer meters across.
+		var fs := ghost_s_at(t) if pane == "them" else value_at("s")
+		var fv := ghost_speed_at(t) if pane == "them" else value_at("v")
+		# Pulls back with speed, tightens up when slow (the zoom eases on the follow)
+		var view_m := (PANE_VIEW_M if pane != "" else CHASE_VIEW_M) * lerpf(ZOOM_SLOW, ZOOM_FAST,
+			clampf(fv / ZOOM_FAST_V, 0.0, 1.0))
 		target_zoom = area.size.x / (view_m * PX_PER_M)
-		target_rot = focus.rotation + PI / 2.0
-		target_pos = focus.position + Vector2.from_angle(focus.rotation) * CHASE_LOOKAHEAD_M * PX_PER_M
+		var along := road_dir(fs - CAM_AIM_BEHIND_M, fs + CAM_AIM_AHEAD_M)
+		target_rot = along.angle() + PI / 2.0
+		# Over the middle of the road where the car is (the intro roll-up: behind the line)
+		var back := roll_back_px() if fs <= 0.5 else 0.0
+		target_pos = road_point(fs) - along * back + along * CHASE_LOOKAHEAD_M * PX_PER_M
 		# Thrown to the outside in a corner, like a body in the car (smoothed by the follow)
 		var ride := focus_ride()
-		var right_of_car := Vector2.from_angle(focus.rotation).orthogonal() * -1.0
-		target_pos += right_of_car * -ride.y * SWAY_M_PER_G * ride.x * PX_PER_M
+		var right_of_road := Vector2(-along.y, along.x)
+		target_pos += right_of_road * -ride.y * SWAY_M_PER_G * ride.x * PX_PER_M
 
 	# The view area isn't centered vertically (top bar vs bottom panel): shift
 	# the camera so target_pos lands in the middle of the view area
@@ -1659,42 +1777,68 @@ func corner_at_s(s: float) -> Dictionary:
 	return {}
 
 
-## Out-in-out across the whole road (m from the middle, + = right of travel).
-func racing_line(s: float) -> float:
+## A driver's line skill (0 rookie .. 1): Faba's from FABA_LINE_SKILL; the
+## opponent's from his consistency (sigma 0.02 steady -> 0.9, 0.033 loose -> 0.25).
+func line_skill(who: String) -> float:
+	if who == "car":
+		return FABA_LINE_SKILL
+	var sigma = ghost.get("sigma") if ghost != null else null
+	return 0.6 if sigma == null else clampf(1.0 - (float(sigma) - 0.018) / 0.02, 0.25, 0.9)
+
+
+## How much of the swing a corner asks for (0..1): tight AND turning a long
+## way = all of it; an open kink = nothing (nobody crosses the road for it).
+func corner_need(c: Dictionary) -> float:
+	var tight := clampf((NEED_NONE_M - float(c["radius"])) / (NEED_NONE_M - NEED_TIGHT_M), 0.0, 1.0)
+	var turn := clampf(float(c.get("angle_deg", 90.0)) / 90.0, 0.3, 1.0)
+	return tight * turn
+
+
+## Out-in-out (m from the middle, + = right of travel): home on a straight,
+## the outside before a corner, the inside at the apex, the outside on exit,
+## each corner swung as far as it needs and the driver dares (skill).
+func racing_line(s: float, skill: float) -> float:
+	var home := lerpf(HOME_ROOKIE_M, HOME_PRO_M, skill)
+	var dare := lerpf(0.25, 1.0, skill) * LINE_SWING_M
 	var prev_end := -INF
-	var prev_off := HOME_M
+	var prev_off := home
 	var next_start := INF
-	var next_off := HOME_M
+	var next_off := home
 	for c in corners:
 		var s0 := float(c["s_start"])
 		var s1 := float(c["s_end"])
-		var inward := 1.0 if c["direction"] == "R" else -1.0
+		var swing := (1.0 if c["direction"] == "R" else -1.0) * dare * corner_need(c)   # + = toward the inside
 		if s >= s0 and s < s1:                   # in it: outside -> apex -> outside
 			var p := (s - s0) / maxf(s1 - s0, 1.0)
-			return -inward * LINE_SWING_M * cos(TAU * p)
+			return home - swing * cos(TAU * p)
 		if s1 <= s and s1 > prev_end:
 			prev_end = s1
-			prev_off = -inward * LINE_SWING_M
+			prev_off = home - swing
 		if s0 > s and s0 < next_start:
 			next_start = s0
-			next_off = -inward * LINE_SWING_M
-	if next_start - prev_end < 2.0 * LINE_LEAD_M:   # short straight: edge to edge
+			next_off = home - swing
+	if next_start - prev_end < 2.0 * LINE_LEAD_M:   # short gap: one smooth move between them
 		return lerpf(prev_off, next_off, smoothstep(prev_end, next_start, s))
 	if s < prev_end + LINE_LEAD_M:
-		return lerpf(prev_off, HOME_M, smoothstep(prev_end, prev_end + LINE_LEAD_M, s))
+		return lerpf(prev_off, home, smoothstep(prev_end, prev_end + LINE_LEAD_M, s))
 	if s > next_start - LINE_LEAD_M:
-		return lerpf(HOME_M, next_off, smoothstep(next_start - LINE_LEAD_M, next_start, s))
-	return HOME_M
+		return lerpf(home, next_off, smoothstep(next_start - LINE_LEAD_M, next_start, s))
+	return home
 
 
 ## Where a car is across the road and how its nose points, at distance s and
 ## speed v: Vector2(m from the middle, + = right of travel; rad of nose, + =
 ## clockwise on screen). who: "car" (Faba: his mistakes run wide) or "ghost".
+## The nose follows the line: a car only moves sideways by POINTING that way
+## (heading = atan of the sideways change per meter), so it steers across
+## the road instead of sliding.
 func driving_line(s: float, v: float, who: String) -> Vector2:
 	var nz: FastNoiseLite = wander[who]
-	var across := racing_line(s)
-	across += nz.get_noise_1d(s) * WANDER_M * (0.4 + 0.6 * clampf(v / V_SHAKE_REF, 0.0, 1.5))
-	var nose := nz.get_noise_1d(s * 7.0 + 500.0) * 0.012 * clampf(v / V_SHAKE_REF, 0.0, 1.5)
+	var skill := line_skill(who)
+	var sway := WANDER_M * lerpf(1.6, 0.6, skill) * (0.4 + 0.6 * clampf(v / V_SHAKE_REF, 0.0, 1.5))
+	var path := func(x: float) -> float: return racing_line(x, skill) + nz.get_noise_1d(x) * sway
+	var across: float = path.call(s)
+	var nose := atan((float(path.call(s + 1.5)) - float(path.call(s - 1.5))) / 3.0)
 	var c := corner_at_s(s)
 	if not c.is_empty():
 		# Slip angle: the nose turns into the corner with lateral g (a = v^2 / r)
@@ -1716,8 +1860,28 @@ func driving_line(s: float, v: float, who: String) -> Vector2:
 				var mc := corner_at_s(mid)
 				var out := -1.0 if mc.get("direction", "R") == "R" else 1.0
 				across += out * RUN_WIDE_M * k
+				nose += out * 0.12 * k            # pointing out of it, wide
 				limit = lerpf(LANE_LIMIT_M, WIDE_LIMIT_M, k)
 	return Vector2(clampf(across, -limit, limit), nose)
+
+
+## What the body feels: Vector2(longitudinal g, + = speeding up; lateral g,
+## + = turning right), from its speed through the corner (a = v^2 / r) and
+## its acceleration along the road.
+func loads(s: float, v: float, accel: float) -> Vector2:
+	var lat := 0.0
+	var c := corner_at_s(s)
+	if not c.is_empty():
+		lat = (1.0 if c["direction"] == "R" else -1.0) * v * v / maxf(float(c["radius"]), 1.0) / G
+	return Vector2(clampf(accel / G, -1.2, 0.8), clampf(lat, -1.3, 1.3))
+
+
+## Faba's acceleration along the road (m/s^2), from his speed samples.
+func faba_accel() -> float:
+	var ts: Array = samples["t"]
+	var vs: Array = samples["v"]
+	var dt := float(ts[idx + 1]) - float(ts[idx])
+	return 0.0 if dt <= 0.0 else (float(vs[idx + 1]) - float(vs[idx])) / dt
 
 
 ## The followed car's cornering: Vector2(lateral g, +1 right-hander / -1 left / 0).
