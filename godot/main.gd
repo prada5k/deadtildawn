@@ -55,7 +55,7 @@ const SceneryScript := preload("res://widgets/scenery.gd")
 const VhsShader := preload("res://widgets/vhs.gdshader")
 const Voice := preload("res://voice.gd")
 const SPEEDS := [0.25, 0.5, 1.0, 2.0, 4.0, 8.0]
-const LABEL_SCREEN_SCALE := 0.5  # corner labels: 36 px font drawn at ~18 px on screen
+const LABEL_SCREEN_SCALE := 0.5  # world labels (CRASHED tag): 36 px font drawn at ~18 px on screen
 const MARKER_RADIUS_PX := 9.0    # car marker ring, constant size on screen
 const TOP_BAR_PX := 196.0        # info bar height (screen px)
 const BOTTOM_PX := 420.0         # camera buttons + dash height (screen px)
@@ -142,7 +142,6 @@ var mark_lines := [null, null]   # the Line2D each rear tire is drawing, or null
 var track_center := Vector2.ZERO
 var track_size := Vector2.ONE
 var hud := {}             # name -> HUD node
-var corner_labels := []   # [Label, corner midpoint, outward direction], rescaled with the zoom
 var marker: Node2D
 var ghost_car: Node2D
 var ghost_marker: Node2D
@@ -271,22 +270,7 @@ func build_track() -> void:
 	road.severity_color = severity_color
 	add_child(road)
 
-	# Corner labels (kept outside the road and curbs; see rescale_overlays)
-	for c in corners:
-		var label := Label.new()
-		label.text = "%s\nR %d m" % [c["text"], int(c["radius"])]
-		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		label.add_theme_font_size_override("font_size", 36)
-		label.add_theme_color_override("font_color", severity_color(int(c["severity"])))
-		label.add_theme_color_override("font_outline_color", Color.BLACK)
-		label.add_theme_constant_override("outline_size", 10)
-		var mid: Array = c["mid"]
-		var out: Array = c["outward"]
-		label.reset_size()
-		label.z_index = 20
-		overlay.add_child(label)
-		var out_dir := Vector2(out[0], -out[1])          # flip y like to_world
-		corner_labels.append([label, to_world(mid[0], mid[1]), out_dir])
+	# No corner labels (Spire): the severity-colored curbs say it
 
 	# Start and finish lines across the road
 	add_child(cross_line(0))
@@ -1418,21 +1402,10 @@ func update_camera(delta: float, snap: bool) -> void:
 	rescale_overlays()
 
 
-## Keep corner labels and the car marker a constant size on screen
+## Keep the car markers and the CRASHED tag a constant size on screen
 ## (world size = screen size / zoom), and upright when the camera rotates.
 func rescale_overlays() -> void:
 	var inv := 1.0 / camera.zoom.x
-	for entry in corner_labels:
-		var label: Label = entry[0]
-		var mid: Vector2 = entry[1]
-		var out_dir: Vector2 = entry[2]
-		label.scale = Vector2.ONE * LABEL_SCREEN_SCALE * inv
-		label.pivot_offset = label.size / 2.0
-		label.rotation = camera.rotation
-		var half := label.size * label.scale / 2.0
-		var reach := maxf(half.x, half.y)
-		var center := mid + out_dir * ((ROAD_WIDTH_M / 2.0 + 1.2) * PX_PER_M + 10.0 * inv + reach)
-		label.position = center - label.size / 2.0
 	marker.position = car.position
 	marker.scale = Vector2.ONE * inv
 	marker.visible = cam_mode == CamMode.OVERVIEW

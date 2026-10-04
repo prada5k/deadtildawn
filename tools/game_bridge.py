@@ -15,7 +15,10 @@ Commands:
             [--retune --parts a,b]      C = his saved engine condition; --retune re-tunes
                                           him against this build (the player beat him
                                           last time), never weaker than C
-  street    --road N --seed N [--tune --parts a,b]
+  road      --road N | --rival FILE        race night, step 1: just tonight's road (track
+                                          file, club, place); no opponent yet (he's
+                                          matched AFTER the player locks the build)
+  street    --road N --seed N [--tune --parts a,b] [--opponent ID]
                                           open road N (generated) + a street racer's card;
                                           --tune matches him to the player's car and tunes
                                           his engine to ~50% odds at the best push
@@ -230,7 +233,7 @@ def parts_catalog():
     slots, parts = load_catalog()
     car = load_car(CAR_FILE)
     from sim.gacha import load_pulls
-    sources = {k: {kk: v for kk, v in s.items() if kk in ("name", "price", "blurb", "rep_required", "pity")}
+    sources = {k: {kk: v for kk, v in s.items() if kk in ("name", "price", "rep_required", "pity")}
                for k, s in load_pulls().items() if not s.get("hidden")}
     reply(slots=slots, sources=sources,
           parts=[{**p, "effects_text": part_effects(car, p)} for p in parts.values()])
@@ -374,10 +377,25 @@ def open_road(road):
     return path.relative_to(ROOT).as_posix(), style
 
 
-def street(road, seed, tune=False, part_ids=()):
+def road_card(road=None, rival_file=None):
+    """Race night, step 1 (Spire): only the road. The player scouts it and
+    builds for it; the opponent is matched once the build is locked in."""
+    if rival_file:
+        spec = json.loads(resolve(rival_file).read_text(encoding="utf-8"))
+        reply(id=spec["id"], club=spec["club"], track=spec["track"], payout=spec["payout"],
+              location=spec.get("location", "canyon"), rival=True)
+    else:
+        track, style = open_road(road)
+        reply(id="street", club=f"Open road, {style}", track=track, payout="even", road=road,
+              style=style, location=STYLE_LOCATIONS[style], rival=False)
+
+
+def street(road, seed, tune=False, part_ids=(), opponent=None):
     """A street racer's stat card on open road number `road`. With tune: the
     racer is matched to the player's car and his engine tuned so the best
-    push has STREET_TARGET_ODDS (a few seconds of sim, in parallel)."""
+    push has STREET_TARGET_ODDS (a few seconds of sim, in parallel).
+    opponent: keep this racer (the DX changed after the night was drawn: same
+    man, re-tuned to the new build)."""
     import random
     from sim.car import load_car
     from sim.matchmaking import match_opponent
@@ -388,7 +406,7 @@ def street(road, seed, tune=False, part_ids=()):
     condition = None
     if tune:
         pool = {oid: data["opponents"][oid] for oid in data["street"]}
-        oid = match_opponent(player_car(part_ids), load_car(CAR_FILE), pool, rng)
+        oid = opponent or match_opponent(player_car(part_ids), load_car(CAR_FILE), pool, rng)
         condition = tuned_condition(oid, track, part_ids, STREET_TARGET_ODDS)
     else:
         oid = rng.choice(data["street"])
@@ -465,7 +483,7 @@ def race(track_file, push, seed, out_file, part_ids=(), opponent=None, opp_seed=
 
 def main():
     ap = argparse.ArgumentParser(description="deadtildawn game bridge")
-    ap.add_argument("command", choices=["parts", "pull", "car_stats", "track", "rival", "street",
+    ap.add_argument("command", choices=["parts", "pull", "car_stats", "track", "road", "rival", "street",
                                         "practice", "odds", "race"])
     ap.add_argument("--week", type=int)
     ap.add_argument("--road", type=int)
@@ -499,8 +517,10 @@ def main():
             track(a.track)
         elif a.command == "rival":
             rival(a.rival, a.seed, a.condition, a.retune, part_ids)
+        elif a.command == "road":
+            road_card(a.road, a.rival)
         elif a.command == "street":
-            street(a.road if a.road is not None else a.week, a.seed, a.tune, part_ids)
+            street(a.road if a.road is not None else a.week, a.seed, a.tune, part_ids, a.opponent)
         elif a.command == "practice":
             practice(a.track, part_ids)
         elif a.command == "odds":

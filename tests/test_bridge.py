@@ -191,6 +191,26 @@ def test_pull_with_forced_quality():
     assert god["pity"] == normal["pity"]
 
 
+def test_road_comes_before_the_opponent():
+    # Race night step 1: the road alone (no opponent until the build is locked)
+    r = call("road", "--road", "2")
+    assert r["ok"] and r["id"] == "street" and r["style"] == "balanced" and r["location"] == "canyon"
+    assert "opponent" not in r and r["track"].endswith("open_road_2.txt")
+    z = call("road", "--rival", RIVAL)
+    assert z["ok"] and z["rival"] and z["location"] == "coast" and "opponent" not in z
+    # ...and it's the same road the opponent's card names afterwards
+    assert call("street", "--road", "2", "--seed", "1")["track"] == r["track"]
+
+
+def test_street_retune_keeps_the_opponent():
+    # Parts changed after the night was drawn: re-tune the SAME racer to the new build
+    first = call("street", "--road", "2", "--seed", "4", "--tune")
+    again = call("street", "--road", "2", "--seed", "4", "--tune", "--opponent", first["opponent"],
+                 "--parts", "interior_strip,header_421")
+    assert again["ok"] and again["opponent"] == first["opponent"]
+    assert again["engine_condition"] > first["engine_condition"]      # a stronger DX, a stronger him
+
+
 def test_pity_counters_come_through():
     # Regression: --pity was JSON, and Windows ate its double quotes on the way
     # from Godot, so every pull after the first failed. Other sources' counters
@@ -246,6 +266,8 @@ def test_race_uses_the_saved_opponent_condition(tmp_path):
 
 def test_sources_listed_with_rep_gates_and_loot_hidden():
     r = call("parts")
-    assert r["sources"]["swap_meet"]["rep_required"] == 30
-    assert r["sources"]["crate"]["rep_required"] == 100
+    # Spire, Oct 2026: $150 / $500 @ 50 rep / $1250 @ 125 / import $3000 @ 300
+    assert [(s["price"], s["rep_required"]) for s in r["sources"].values()] == [
+        (150, 0), (500, 50), (1250, 125), (3000, 300)]
+    assert r["sources"]["swap_meet"]["name"] == "Used marketplace"
     assert "loot" not in r["sources"]

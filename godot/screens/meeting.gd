@@ -60,20 +60,20 @@ func press_release(event: InputEvent):
 	return null
 
 
-## The road, full screen: big labels and every corner's radius. Tap to close.
+## The road, full screen, with the corner key. Tap to close.
 func open_map(show: bool) -> void:
 	%MapFull.visible = show
 	if show:
 		%FullMap.track = %Map.track
 		%FullMap.label_size = 26
-		%FullMap.details = true
+		%FullMap.labels = false                    # colors + the key, no corner names (Spire)
 		%FullMap.fit_turn = true                   # a wide road turns sideways to fill the phone
 		%FullMap.queue_redraw()
 
 
 ## info: where, rival_night, opponent_car, faba_parts, road_info, track,
 ## mine / theirs (stat sheets), their_name, their_car_line, word,
-## push, push_order, push_risk, wager, cash, min_buy_in, wager_step,
+## push, push_order, push_risk, wager, cash, min_buy_in, max_bet, wager_step,
 ## can_skip, skip_cost
 func setup(info: Dictionary) -> void:
 	%Turnout.setup(info["opponent_car"], info["faba_parts"])
@@ -82,6 +82,7 @@ func setup(info: Dictionary) -> void:
 	%RoadInfo.text = info["road_info"]
 	%FullInfo.text = info["road_info"]
 	%Map.track = info["track"]
+	%Map.labels = false                            # colors + the key, no corner names (Spire)
 	%Map.queue_redraw()
 	fill_stats(info["mine"], info["theirs"], info["their_name"])
 	%TheirCar.text = info["their_car_line"]
@@ -94,10 +95,12 @@ func setup(info: Dictionary) -> void:
 	cash = int(info["cash"])
 	min_buy_in = int(info["min_buy_in"])
 	var slider: HSlider = %WagerSlider
+	var top := mini(cash, int(info["max_bet"]))      # max bet: 5x the minimum, or all you have
 	slider.min_value = min_buy_in
-	slider.max_value = cash
+	slider.max_value = top
 	slider.step = info["wager_step"]
-	slider.editable = cash > min_buy_in
+	slider.editable = top > min_buy_in
+	%WagerRange.text = "min %s  /  max %s" % [UI.money(min_buy_in), UI.money(int(info["max_bet"]))]
 	slider.set_value_no_signal(info["wager"])
 	set_wager(info["wager"])
 

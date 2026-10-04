@@ -22,8 +22,18 @@ const LIFT := "oh shi she sitting pretty"
 # $$$: scribbled on each pull flyer (by source id)
 const FLYERS := {
 	"junkyard": "junker",
-	"swap_meet": "marketplace special",
+	"swap_meet": "facebook marketplace special",
 	"crate": "brand spankin new",
+	"import": "straight off the boat",       # DRAFT (Claude): Spire's line goes here
+}
+
+# $$$: the printed line on each pull flyer (the pick-n-pull line). DRAFTS:
+# these are the old data-file blurbs plus one for the import -- Spire rewrites.
+const PULL_BLURBS := {
+	"junkyard": "Pick-n-pull. Cheap, mostly common, often worn.",
+	"swap_meet": "Some guy's garage cleanout. Mystery box, cash only.",
+	"crate": "Unopened, from a shop closing down. No commons.",
+	"import": "JDM parts in a shipping crate. No commons, mostly the good stuff.",
 }
 
 # Dyno sheet margin note (quality %); nothing in between

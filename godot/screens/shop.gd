@@ -189,7 +189,7 @@ func flyer(grid: GridContainer, id: String, src: Dictionary, index: int, rep: in
 	UI.label(col, UI.money(src["price"]), "FlyerPriceLabel")
 	if Voice.FLYERS.has(id):                     # the builder's scribble (own line: it wraps)
 		wrap_label(col, Voice.FLYERS[id], "MarkerLabel").rotation = -0.05
-	wrap_label(col, src["blurb"], "FlyerTextLabel")
+	wrap_label(col, Voice.PULL_BLURBS.get(id, ""), "FlyerTextLabel")
 	var p: Dictionary = src["pity"]
 	wrap_label(col, "Sure %s or better within %d pulls (%d so far)" % [p["rarity"], int(p["within"]), pity_count],
 		"InkMutedLabel")

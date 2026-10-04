@@ -12,6 +12,7 @@ extends Control
 var track := {}        # bridge "track" reply (or a replay's "track")
 var label_size := 15   # corner / START / FINISH labels (px); bigger on the full-screen map
 var details := false   # also print each corner's radius under its name
+var labels := true     # corner names (the meeting's maps go without: colors + a key)
 var fit_turn := false  # turn the map 90 degrees when that makes it bigger (full screen)
 var turned := false    # (set while drawing)
 
@@ -28,10 +29,15 @@ func col(name: String, fallback: Color) -> Color:
 
 
 func severity_color(sev: int) -> Color:
+	# the middle is darker in ink, or it vanishes on paper
+	return severity_ink(sev, col("severity_mid", Color(1.0, 0.88, 0.5)))
+
+
+## 1 = red hairpin -> yellow -> 10 = green kink (also the key, widgets/severity_key.gd)
+static func severity_ink(sev: int, yellow: Color) -> Color:
 	var red := Color(0.84, 0.16, 0.17)
-	var yellow := col("severity_mid", Color(1.0, 0.88, 0.5))   # darker in ink, or it vanishes on paper
 	var green := Color(0.1, 0.6, 0.32)
-	var f := (sev - 1) / 9.0
+	var f := clampf((sev - 1) / 9.0, 0.0, 1.0)
 	return red.lerp(yellow, f * 2.0) if f < 0.5 else yellow.lerp(green, (f - 0.5) * 2.0)
 
 
@@ -85,6 +91,8 @@ func _draw() -> void:
 			draw_polyline(arc, sev_col, 7.0, true)
 		var mid := to_map(c["mid"][0], c["mid"][1]) * scale_f + offset
 		var out := to_map(c["outward"][0], c["outward"][1])
+		if not labels:
+			continue
 		var lines: Array = [c["text"]]
 		if details and c.has("radius"):
 			lines.append("R %d m" % int(c["radius"]))

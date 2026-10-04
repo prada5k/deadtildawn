@@ -84,7 +84,7 @@ def test_junkyard_never_legendary_crate_never_common(sources, parts):
         assert parts[pid]["rarity"] != "common"
 
 
-@pytest.mark.parametrize("source", ["junkyard", "swap_meet", "crate"])
+@pytest.mark.parametrize("source", ["junkyard", "swap_meet", "crate", "import"])
 def test_pity_guarantee(sources, parts, source):
     # The longest run of pulls without the pity rarity (or better) is < `within`
     rng = random.Random(3)

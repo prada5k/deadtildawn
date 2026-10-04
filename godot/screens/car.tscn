@@ -135,6 +135,7 @@ theme_override_font_sizes/font_size = 32
 text = "Build sheet"
 
 [node name="PartsNote" type="Label" parent="Scroll/Column/BuildSheet/Box"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"InkMutedLabel"
 text = "Tap a slot to swap what's on the car."
@@ -151,6 +152,14 @@ size_flags_horizontal = 8
 rotation = -0.02
 theme_type_variation = &"TapeButton"
 text = "need parts? $$$"
+
+[node name="ToRoad" type="Button" parent="Scroll/Column/BuildSheet/Box"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+focus_mode = 0
+theme_type_variation = &"GaffSmallButton"
+text = "back to tonight's road  >"
 
 [node name="BottomPad" type="Control" parent="Scroll/Column"]
 custom_minimum_size = Vector2(0, 12)

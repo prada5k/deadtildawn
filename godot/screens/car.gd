@@ -4,18 +4,23 @@ extends Control
 ## LAYOUT lives in car.tscn; this script fills in data. Stat and part rows are
 ## added in code (their number changes), styled by the theme.
 
-signal go(target: String)    # "warehouse", "shop"
+signal go(target: String)    # "warehouse", "shop", "road"
 signal part_changed(slot: String, part_id: String)   # "" = back to stock
 
 const UI := preload("res://ui.gd")
 const Voice := preload("res://voice.gd")
 
+var locked := false            # the build is locked in for tonight
+
 
 func _ready() -> void:
 	%ShopButton.pressed.connect(func(): go.emit("shop"))
+	%ToRoad.pressed.connect(func(): go.emit("road"))
 
 
-## info: common info + "parts_on" (installed part ids, for the 3D model)
+## info: common info + "parts_on" (installed part ids, for the 3D model) +
+## "night": "scouting" (building for tonight's road: a way back to it),
+## "locked" (the build is set for tonight: no swaps) or ""
 ## parts: {"slots": {slot: name}, "options": {slot: [[id, name], ...]}, "installed": {slot: id}}
 func setup(info: Dictionary, stats: Dictionary, parts := {}) -> void:
 	%Lift.show_parts(info.get("parts_on", []))
@@ -37,6 +42,12 @@ func setup(info: Dictionary, stats: Dictionary, parts := {}) -> void:
 		["60-0 mph", "%d ft" % stats["sixty_zero_ft"]],
 	]:
 		UI.stat_row(rows, row[0], row[1], "InkMutedLabel", "InkLabel")
+	var night: String = info.get("night", "")
+	locked = night == "locked"
+	%ToRoad.visible = night != ""
+	%ToRoad.text = "back to tonight's road  >" if night == "scouting" else "back to tonight  >"
+	if locked:
+		%PartsNote.text = "LOCKED IN for tonight's race. Swaps after."
 	if not parts.is_empty():
 		build_parts_list(parts)
 
@@ -61,6 +72,6 @@ func build_parts_list(parts: Dictionary) -> void:
 			pick.set_item_metadata(i + 1, options[i][0])
 			if parts["installed"].get(slot, "") == options[i][0]:
 				pick.select(i + 1)
-		pick.disabled = options.is_empty()
+		pick.disabled = options.is_empty() or locked
 		pick.item_selected.connect(func(i): part_changed.emit(slot, pick.get_item_metadata(i)))
 		row.add_child(pick)
