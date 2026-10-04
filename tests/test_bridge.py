@@ -70,6 +70,18 @@ def test_head_to_head_race_contract(tmp_path):
     assert r["won"] == (not r["no_contest"] and mine < theirs)
 
 
+def test_race_explains_the_gap(tmp_path):
+    # Why did I lose: the breakdown's buckets add up to the gap, and its
+    # sections are the replay's split captions
+    r, replay = race(tmp_path)
+    bd = r["breakdown"]
+    if not (r["dnf"] or r["opponent_dnf"]):
+        assert bd["gap"] == pytest.approx(r["opponent_time"] - r["lap_time"], abs=2e-3)
+        assert sum(bd["totals"].values()) == pytest.approx(bd["gap"], abs=0.01)
+    assert bd["verdict"] in bd["totals"] or bd["verdict"] in ("crash", "their_crash")
+    assert replay["splits"] == bd["sections"] and replay["splits"][-1]["name"] == "FINISH"
+
+
 def test_replay_carries_the_ghost(tmp_path):
     r, replay = race(tmp_path)
     g = replay["ghost"]
@@ -168,6 +180,15 @@ def test_pull_contract():
     r = call("pull", "--source", "junkyard", "--seed", "1", "--pity", "")
     assert r["ok"] and 0.0 <= r["quality"] <= 0.7 and r["effects_text"]
     assert "junkyard" in r["pity"]
+
+
+def test_pull_with_forced_quality():
+    # The godroll code: same part as the normal roll, quality forced to 100%,
+    # and the effects text is the 100% part's (not the normal roll's)
+    normal = call("pull", "--source", "junkyard", "--seed", "1")
+    god = call("pull", "--source", "junkyard", "--seed", "1", "--quality", "1.0")
+    assert god["ok"] and god["quality"] == 1.0 and god["part"] == normal["part"]
+    assert god["pity"] == normal["pity"]
 
 
 def test_pity_counters_come_through():

@@ -1,0 +1,86 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://screens/codes.gd" id="1"]
+
+[node name="Codes" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="Scroll" type="ScrollContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+horizontal_scroll_mode = 0
+
+[node name="Column" type="VBoxContainer" parent="Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 22
+
+[node name="Note" type="PanelContainer" parent="Scroll/Column"]
+layout_mode = 2
+rotation = -0.008
+theme_type_variation = &"PaperPanel"
+
+[node name="NoteBox" type="VBoxContainer" parent="Scroll/Column/Note"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="Scroll/Column/Note/NoteBox"]
+layout_mode = 2
+theme_type_variation = &"InkHeadingLabel"
+text = "ENTER A CODE"
+
+[node name="Field" type="LineEdit" parent="Scroll/Column/Note/NoteBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"InkLineEdit"
+placeholder_text = "type it in"
+
+[node name="Enter" type="Button" parent="Scroll/Column/Note/NoteBox"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+theme_type_variation = &"GaffButton"
+text = "punch it in"
+
+[node name="Message" type="Label" parent="Scroll/Column/Note/NoteBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"InkLabel"
+autowrap_mode = 3
+
+[node name="Confirm" type="Button" parent="Scroll/Column/Note/NoteBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+focus_mode = 0
+theme_type_variation = &"GaffRedButton"
+text = "WIPE IT"
+
+[node name="Sheet" type="PanelContainer" parent="Scroll/Column"]
+layout_mode = 2
+rotation = 0.01
+theme_type_variation = &"FlyerYellowPanel"
+
+[node name="SheetBox" type="VBoxContainer" parent="Scroll/Column/Sheet"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SheetTitle" type="Label" parent="Scroll/Column/Sheet/SheetBox"]
+layout_mode = 2
+theme_type_variation = &"MarkerLabel"
+text = "cheat sheet (tap one)"
+
+[node name="List" type="VBoxContainer" parent="Scroll/Column/Sheet/SheetBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6

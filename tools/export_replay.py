@@ -47,11 +47,12 @@ def _pose_samples(segments, lap):
             "y": [_r(y, 2) for y in ys], "heading": [_r(h, 4) for h in hs]}
 
 
-def build_replay(car, segments, lap, track_name, ghost=None, location=None):
+def build_replay(car, segments, lap, track_name, ghost=None, location=None, splits=None):
     """ghost (optional): {"name", "car", "lap"}: the opponent, drawn as a ghost
     car. location (optional): "coast" | "canyon" | "mountain", the place the
-    viewer dresses the road as. Optional fields (ghost, dnf, location) keep
-    older viewers working."""
+    viewer dresses the road as. splits (optional): sim/breakdown.py "sections"
+    (head-to-head), the broadcast's split captions. Optional fields (ghost,
+    dnf, location, splits) keep older viewers working."""
     tel = lap.telemetry
     length = sum(seg.length for seg in segments)
 
@@ -111,6 +112,7 @@ def build_replay(car, segments, lap, track_name, ghost=None, location=None):
         "dnf": getattr(lap, "dnf", False),
         "crash_corner": getattr(lap, "crash_corner", ""),
         "location": location,
+        "splits": splits,
         "ghost": None if ghost is None else {
             "name": ghost["name"], "car": ghost["car"], "lap_time": _r(ghost["lap"].lap_time),
             "dnf": ghost["lap"].dnf, "crash_corner": ghost["lap"].crash_corner,

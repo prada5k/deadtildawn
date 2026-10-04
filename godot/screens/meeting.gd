@@ -15,12 +15,14 @@ signal skip_pressed
 
 const UI := preload("res://ui.gd")
 const Voice := preload("res://voice.gd")
+const TAP_SLOP_PX := 14.0     # moved less than this between press and release = a tap
 
 var push := "normal"
 var push_order: Array = []
 var push_risk := {}            # push -> what you're risking, in plain words
 var cash := 0
 var min_buy_in := 0
+var press_at := Vector2.ZERO   # where a touch on the map went down
 
 
 func _ready() -> void:
@@ -28,6 +30,45 @@ func _ready() -> void:
 	%BackButton.pressed.connect(func(): back_pressed.emit())
 	%SkipButton.pressed.connect(func(): skip_pressed.emit())
 	%WagerSlider.value_changed.connect(set_wager)
+	%Map.mouse_filter = Control.MOUSE_FILTER_PASS    # drags still scroll the page
+	%Map.gui_input.connect(_on_map_input)
+	%MapFull.gui_input.connect(_on_full_map_input)
+
+
+## A tap (press and release without dragging) opens the map; a drag scrolls.
+func _on_map_input(event: InputEvent) -> void:
+	var p = press_release(event)
+	if p == null:
+		return
+	if p:
+		press_at = event.position
+	elif event.position.distance_to(press_at) < TAP_SLOP_PX:
+		open_map(true)
+
+
+func _on_full_map_input(event: InputEvent) -> void:
+	if press_release(event) == true:
+		open_map(false)
+
+
+## true on a press, false on a release, null for anything else.
+func press_release(event: InputEvent):
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		return event.pressed
+	if event is InputEventScreenTouch:
+		return event.pressed
+	return null
+
+
+## The road, full screen: big labels and every corner's radius. Tap to close.
+func open_map(show: bool) -> void:
+	%MapFull.visible = show
+	if show:
+		%FullMap.track = %Map.track
+		%FullMap.label_size = 26
+		%FullMap.details = true
+		%FullMap.fit_turn = true                   # a wide road turns sideways to fill the phone
+		%FullMap.queue_redraw()
 
 
 ## info: where, rival_night, opponent_car, faba_parts, road_info, track,
@@ -39,6 +80,7 @@ func setup(info: Dictionary) -> void:
 	%Where.text = info["where"]
 	%FabaLine.text = Voice.FABA_RIVAL_NIGHT if info["rival_night"] else Voice.FABA_OPEN_NIGHT
 	%RoadInfo.text = info["road_info"]
+	%FullInfo.text = info["road_info"]
 	%Map.track = info["track"]
 	%Map.queue_redraw()
 	fill_stats(info["mine"], info["theirs"], info["their_name"])

@@ -7,12 +7,14 @@ extends Node2D
 ##
 ## Portrait layout (720 x 1280): info bar on top, camera / playback buttons
 ## and the dash (gauges, gear, pedals) at the bottom. Touch or mouse works;
-## keys too: 1-4 cameras, C cycle, Space pause, R restart, Up/Down speed.
+## keys too: 1-2 cameras, C cycle, Space pause, R restart, Up/Down speed.
 ##
-## Cameras: Chase (default: car always points up, the world turns around it),
-## Overview (whole track), Follow (north-up), TV (fixed trackside cameras per
-## corner). Every camera but Overview cuts to the wreck on a crash and to the
-## finish line at the end.
+## Cameras: Chase (default: the car always points up, the world turns around
+## it) and Overview (the whole road). With an opponent, Chase is SPLIT SCREEN:
+## him on the left, Faba on the right, each pane a copy of this viewer in
+## "pane" mode (its own world, a chase camera on its car, the clock driven
+## from here). Crashes cut tight onto the wreck; a single chase (no opponent)
+## cuts to the finish line at the end.
 ##
 ## Head-to-head replays carry the opponent as a "ghost" (pose samples on its own
 ## time base), drawn translucent. A crashed car stops at its crash apex; the
@@ -51,9 +53,7 @@ const VT_FONT := preload("res://fonts/VT323-Regular.ttf")            # camcorder
 const BODY_FONT := preload("res://fonts/BarlowCondensed-Bold.ttf")
 const SceneryScript := preload("res://widgets/scenery.gd")
 const VhsShader := preload("res://widgets/vhs.gdshader")
-const FOLLOW_VIEW_M := 100.0     # meters of road across the screen in follow mode
-const TRACKSIDE_LEAD_M := 150.0  # cut to a corner's camera this far before its entry
-const TRACKSIDE_TRAIL_M := 60.0  # ...and keep it this far past the exit
+const Voice := preload("res://voice.gd")
 const SPEEDS := [0.25, 0.5, 1.0, 2.0, 4.0, 8.0]
 const LABEL_SCREEN_SCALE := 0.5  # corner labels: 36 px font drawn at ~18 px on screen
 const MARKER_RADIUS_PX := 9.0    # car marker ring, constant size on screen
@@ -61,6 +61,8 @@ const TOP_BAR_PX := 196.0        # info bar height (screen px)
 const BOTTOM_PX := 420.0         # camera buttons + dash height (screen px)
 const CHASE_VIEW_M := 80.0       # meters across the screen in chase mode
 const CHASE_LOOKAHEAD_M := 22.0  # chase camera looks ahead so the car sits low on screen
+const PANE_VIEW_M := 46.0        # split screen: meters across one (half-width) pane
+const PANE_GAP_PX := 4.0         # the seam between the panes
 const PEDAL_H := 210.0
 const BRAKE_X := 616.0        # pedal bars, in the car's order: brake left, throttle right
 const THROTTLE_X := 656.0
@@ -95,6 +97,7 @@ const MARK_COLOR := Color(0.02, 0.02, 0.02, 0.55)
 const CAPTION_YELLOW := Color(1.0, 0.86, 0.18)
 const CAPTION_BG := Color(0.0, 0.0, 0.0, 0.72)
 const REC_RED := Color(1.0, 0.16, 0.12)
+const SPLIT_SHOW_S := 3.0        # s of playback a split caption stays up
 const VIEWFINDER_INSET := 8.0     # px from the screen edge to the corner brackets
 const VIEWFINDER_ARM := 44.0      # px each bracket arm
 const LOCATION_NAMES := {"coast": "PACIFIC COAST HWY", "canyon": "LATIGO CANYON RD",
@@ -103,8 +106,8 @@ const CLOCK_START_S := 23 * 3600 + 51 * 60 + 40   # the tape's clock at the gree
 
 signal finished_viewing     # embedded mode: player pressed Continue after the finish
 
-enum CamMode { OVERVIEW, FOLLOW, CHASE, TRACKSIDE }
-const CAM_NAMES := ["Overview", "Follow", "Chase", "TV"]
+enum CamMode { OVERVIEW, CHASE }
+const CAM_NAMES := ["Overview", "Chase"]
 
 # Set these before adding the viewer to the tree (game.gd does); defaults = standalone
 var replay_path := REPLAY_PATH
@@ -123,7 +126,6 @@ var idx := 0              # current sample index (t is between idx and idx + 1)
 var playing := true
 var speed_i := 2          # index into SPEEDS (1x)
 var cam_mode: int = CamMode.CHASE
-var active_corner := -1
 
 var camera: Camera2D
 var car: Node2D            # CarSprite
@@ -148,7 +150,14 @@ var ghost_tag: Label      # "CRASHED" over a ghost that went off
 var location := "canyon"  # replay "location" (older replays: canyon)
 var road_pts := PackedVector2Array()
 var end_time := 0.0       # replay ends: Faba's finish/crash, or the ghost's finish if later
-var finish_cut := false   # the finish-line camera has taken over
+var finish_cut := false   # the finish-line camera has taken over (single chase)
+var crash_cut := false    # the crash camera has taken over
+var pane := ""            # "" = the full viewer; "them" / "faba" = one half of the
+                          # split screen: the world only, following that car, its
+                          # clock driven by the full viewer (set before adding)
+var panes := []           # full viewer: the two pane viewers [them, faba]
+var pane_boxes := []      # ...their SubViewportContainers
+var pane_tags := []       # ...and a name + speed tag on each
 var flagger: Node2D
 
 
@@ -156,6 +165,11 @@ var flagger: Node2D
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(NIGHT_SKY)
+	if pane != "":                 # one half of the split screen: the world only
+		if load_replay(replay_path) == "":
+			build_world()
+			set_cam_mode(CamMode.CHASE)
+		return
 	var args := OS.get_cmdline_user_args()
 	for a in args:
 		if a.begins_with("--replay="):
@@ -164,14 +178,7 @@ func _ready() -> void:
 	if err != "":
 		show_message(err)
 		return
-	overlay = CanvasLayer.new()
-	overlay.layer = 1
-	overlay.follow_viewport_enabled = true      # moves with the camera like the world
-	add_child(overlay)
-	build_track()
-	build_night()
-	build_car()
-	build_camera()
+	build_world()
 	build_hud()
 	set_cam_mode(CamMode.CHASE)                 # Spire: chase by default, game and viewer
 	countdown = COUNTDOWN_S
@@ -284,6 +291,25 @@ func build_track() -> void:
 	# Start and finish lines across the road
 	add_child(cross_line(0))
 	add_child(cross_line(centerline.size() - 1))
+
+
+## The race world: the place, the road, both cars, their lights, a camera.
+## The full viewer has one (Overview, single chase); each split-screen pane
+## has its own copy in its own viewport.
+func build_world() -> void:
+	overlay = CanvasLayer.new()
+	overlay.layer = 1
+	overlay.follow_viewport_enabled = true      # moves with the camera like the world
+	add_child(overlay)
+	build_track()
+	build_night()
+	build_car()
+	build_camera()
+	if pane == "them":                          # his pane: he's solid, Faba's the see-through one
+		ghost_car.modulate.a = 1.0
+		ghost_car.z_index = 10
+		car.modulate.a = GHOST_ALPHA
+		car.z_index = 8
 
 
 func cross_line(i: int) -> Line2D:
@@ -549,6 +575,7 @@ func build_hud() -> void:
 	var layer := CanvasLayer.new()
 	layer.layer = 2                       # above the overlay (cars, labels)
 	add_child(layer)
+	build_panes(layer)                    # first: everything else draws over them
 
 	# Top: the tape. REC + camcorder clock, the race caption, the lap clock
 	var top := ColorRect.new()
@@ -634,6 +661,7 @@ func build_hud() -> void:
 	hud["banner"] = caption(layer, Vector2.ZERO, 40)
 	hud["banner_gap"] = racing_label(layer, Vector2.ZERO, 96, CAPTION_YELLOW)
 	hud["mistake"] = caption(layer, Vector2.ZERO, 26)
+	hud["split"] = caption(layer, Vector2.ZERO, 30)      # lower third: who won the last section, why
 	hud["count"] = racing_label(layer, Vector2.ZERO, 150, CAPTION_YELLOW)   # 3, 2, 1, GO
 	build_tower(layer)
 	build_gap_bar(layer)
@@ -669,6 +697,30 @@ func build_hud() -> void:
 		hud["continue"] = cont
 
 
+## Split caption (replay "splits", sim/breakdown.py): once BOTH cars are
+## through a corner, who took time in that section and why, e.g.
+## "R3 90  //  ZED +0.18  //  ACCELERATION". Not for the run to the line
+## (the finish has its own result).
+func update_split(vp: Vector2) -> void:
+	var label: Label = hud["split"]
+	label.visible = false
+	var splits = replay.get("splits")
+	if not splits is Array or ghost == null or t >= end_time:   # the result takes over at the end
+		return
+	for sp: Dictionary in splits:
+		var at := maxf(float(sp["t_me"]), float(sp["t_them"]))
+		if sp["name"] == "FINISH" or t < at or t >= at + SPLIT_SHOW_S:
+			continue
+		var gain := float(sp["gain"])
+		var who := "FABA" if gain > 0.0 else ghost_name().to_upper()
+		var line := "DEAD EVEN" if absf(gain) < 0.005 else "%s +%.2f  //  %s" % [
+			who, absf(gain), str(Voice.CAUSE_TAGS.get(sp["top_cause"], sp["top_cause"])).to_upper()]
+		label.text = "%s  //  %s" % [str(sp["name"]).to_upper(), line]
+		label.reset_size()
+		label.position = Vector2((vp.x - label.size.x) / 2.0, vp.y - BOTTOM_PX - label.size.y - 70.0)
+		label.visible = true
+
+
 ## Camcorder viewfinder: white corner brackets around the whole frame.
 func draw_viewfinder(finder: Control) -> void:
 	var r := Rect2(Vector2.ZERO, finder.size).grow(-VIEWFINDER_INSET)
@@ -677,6 +729,58 @@ func draw_viewfinder(finder: Control) -> void:
 		var inward := (r.get_center() - corner).sign()
 		finder.draw_line(corner, corner + Vector2(inward.x * VIEWFINDER_ARM, 0), col, 3.0)
 		finder.draw_line(corner, corner + Vector2(0, inward.y * VIEWFINDER_ARM), col, 3.0)
+
+
+## Split screen (Chase with an opponent): two panes side by side, him on the
+## left and Faba on the right, each a viewer in "pane" mode with its own copy
+## of the world and a chase camera on its car. Name + speed tag at the bottom.
+func build_panes(layer: CanvasLayer) -> void:
+	if ghost == null:
+		return
+	for who in ["them", "faba"]:
+		var box := SubViewportContainer.new()
+		box.stretch = true
+		box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.visible = false
+		layer.add_child(box)
+		var sv := SubViewport.new()
+		box.add_child(sv)
+		var v: Node2D = get_script().new()
+		v.replay_path = replay_path
+		v.embedded = embedded
+		v.pane = who
+		sv.add_child(v)
+		panes.append(v)
+		pane_boxes.append(box)
+		pane_tags.append(osd_label(layer, Vector2.ZERO, 32,
+			GHOST_MARKER_COLOR if who == "them" else MARKER_COLOR))
+
+
+## Lay out the panes in the view area and update their tags.
+func update_panes(vp: Vector2) -> void:
+	var split := is_split()
+	var area := view_area()
+	var half := (area.size.x - PANE_GAP_PX) / 2.0
+	for i in pane_boxes.size():
+		var box: SubViewportContainer = pane_boxes[i]
+		box.visible = split
+		box.position = Vector2(i * (half + PANE_GAP_PX), area.position.y)
+		box.size = Vector2(half, area.size.y)
+		var tag: Label = pane_tags[i]
+		tag.visible = split
+		var kmh := ghost_speed_at(t) * 3.6 if i == 0 else value_at("v") * 3.6
+		tag.text = "%s  %d KM/H" % [ghost_name() if i == 0 else "FABA", roundi(kmh)]
+		tag.reset_size()
+		tag.position = Vector2(box.position.x + 14 if i == 0 else vp.x - tag.size.x - 14,
+			area.end.y - tag.size.y - 10)
+
+
+## The ghost's speed (m/s): its replay has distance, not speed, so take the
+## slope of s(t) over 0.2 s.
+func ghost_speed_at(tt: float) -> float:
+	if bool(ghost["dnf"]) and tt >= float(ghost["lap_time"]):
+		return 0.0
+	return (ghost_s_at(tt + 0.1) - ghost_s_at(maxf(tt - 0.1, 0.0))) / (tt + 0.1 - maxf(tt - 0.1, 0.0))
 
 
 ## Broadcast gap tower: running order, live interval to the leader, OUT for a
@@ -847,6 +951,7 @@ func update_hud() -> void:
 	hud["stamp"].position.x = vp.x - hud["stamp"].size.x - 24
 	update_tower(vp)
 	update_intro(vp)
+	update_panes(vp)
 
 	for i in hud["cam_buttons"].size():
 		var b: Button = hud["cam_buttons"][i]
@@ -888,6 +993,8 @@ func update_hud() -> void:
 		cont.reset_size()
 		cont.size.x = vp.x - 120
 		cont.position = Vector2(60, TOP_BAR_PX + 60 + banner.size.y + big.size.y)
+
+	update_split(vp)
 
 	# Mistake callout: from the apex of a mistaken corner until shortly after it
 	var mistake: Label = hud["mistake"]
@@ -940,12 +1047,13 @@ func banner_result() -> Dictionary:
 ## Intro: the roll-up with hazards, then the flagger's 3-2-1 and GO.
 func update_intro(vp: Vector2) -> void:
 	var elapsed := COUNTDOWN_S - countdown
-	var count: Label = hud["count"]
-	var n := 3 - int((elapsed - ROLL_S) / COUNT_STEP_S)
-	count.visible = (countdown > 0.0 and elapsed >= ROLL_S) or (countdown <= 0.0 and t < 0.6 and hud.has("intro_used"))
-	count.text = "GO" if countdown <= 0.0 else str(clampi(n, 1, 3))
-	count.reset_size()
-	count.position = Vector2((vp.x - count.size.x) / 2.0, TOP_BAR_PX + 120)
+	if hud.has("count"):
+		var count: Label = hud["count"]
+		var n := 3 - int((elapsed - ROLL_S) / COUNT_STEP_S)
+		count.visible = (countdown > 0.0 and elapsed >= ROLL_S) or (countdown <= 0.0 and t < 0.6 and hud.has("intro_used"))
+		count.text = "GO" if countdown <= 0.0 else str(clampi(n, 1, 3))
+		count.reset_size()
+		count.position = Vector2((vp.x - count.size.x) / 2.0, TOP_BAR_PX + 120)
 	var blink := countdown > 0.0 and fmod(elapsed, 0.5) < 0.25
 	for who in ["car", "ghost"]:
 		if lights.has(who + "_hazard"):
@@ -978,22 +1086,50 @@ func toggle_play() -> void:
 # ------------------------------------------------------------------ playback
 
 func _process(delta: float) -> void:
-	if samples.is_empty():
+	if samples.is_empty() or camera == null:
 		return
-	if countdown > 0.0:                    # intro: the clock waits for the flagger
-		hud["intro_used"] = true
-		if playing:
-			countdown = maxf(countdown - delta, 0.0)
-	elif playing:
-		t = minf(t + delta * SPEEDS[speed_i] * (SLOW_MO if finish_slow() else 1.0), end_time)
+	if pane == "":                         # a pane's clock is set by the full viewer
+		if countdown > 0.0:                # intro: the clock waits for the flagger
+			hud["intro_used"] = true
+			if playing:
+				countdown = maxf(countdown - delta, 0.0)
+		elif playing:
+			t = minf(t + delta * SPEEDS[speed_i] * (SLOW_MO if finish_slow() else 1.0), end_time)
+		sync_panes()
 	update_car()
 	fire_events(delta)
 	lay_tire_marks()
 	update_camera(delta, false)
 	shake = maxf(shake - delta * 1.6, 0.0)
 	camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * 16.0 * shake * shake
-	update_hud()
+	if pane == "":
+		update_hud()
+	else:
+		update_intro(get_viewport_rect().size)  # hazards + the flagger's light
 	prev_t = t
+
+
+## The panes run on the full viewer's clock (they're processed after it).
+## In split screen the full viewer's own world is hidden.
+func sync_panes() -> void:
+	var split := is_split()
+	visible = not split
+	overlay.visible = not split
+	for p in panes:
+		p.t = t
+		p.countdown = countdown
+		p.playing = playing
+
+
+## Jump playback to tt (stills, tests): move the cars, snap every camera.
+func jump_to(tt: float) -> void:
+	t = tt
+	finish_cut = false
+	update_car()
+	update_camera(0.0, true)
+	for p in panes:
+		p.countdown = countdown
+		p.jump_to(tt)
 
 
 ## Finish slow-mo: from when the leader is FINISH_SLOW_M from the line until
@@ -1013,21 +1149,22 @@ func fire_events(delta: float) -> void:
 	if dnf and t >= lap_time:
 		if crash_age < 0.0:
 			crash_age = 0.0
-			crash_fx(car.position, car.rotation)
+			crash_fx(car.position, car.rotation, pane != "them")
 		else:
 			crash_age += delta
 	if ghost != null and bool(ghost["dnf"]):
 		var gt := float(ghost["lap_time"])
 		if prev_t < gt and t >= gt:
-			crash_fx(ghost_car.position, ghost_car.rotation)
-	if not dnf and prev_t < lap_time and t >= lap_time:
+			crash_fx(ghost_car.position, ghost_car.rotation, pane == "them")
+	if not dnf and prev_t < lap_time and t >= lap_time and hud.has("flash"):
 		var flash: ColorRect = hud["flash"]
 		flash.color.a = 0.7
 		create_tween().tween_property(flash, "color:a", 0.0, 0.5)
 
 
-func crash_fx(pos: Vector2, heading: float) -> void:
-	shake = 1.0
+func crash_fx(pos: Vector2, heading: float, shake_it := true) -> void:
+	if shake_it:
+		shake = 1.0
 	var sparks := CPUParticles2D.new()
 	sparks.position = pos
 	sparks.one_shot = true
@@ -1199,42 +1336,42 @@ func update_ghost() -> void:
 
 func set_cam_mode(mode: int) -> void:
 	cam_mode = mode
-	active_corner = -1
+	crash_cut = false
 	update_camera(0.0, true)
 
 
-func pick_corner(s: float) -> int:
-	## TV camera: the corner the car is approaching or in, or -1 when the car
-	## is far from every corner camera (then the broadcast follows the car).
-	for i in corners.size():
-		var c: Dictionary = corners[i]
-		if s >= float(c["s_start"]) - TRACKSIDE_LEAD_M and s <= float(c["s_end"]) + TRACKSIDE_TRAIL_M:
-			return i
-	return -1
-
-
 func view_area() -> Rect2:
-	## Screen area between the top bar and the bottom panel.
+	## Screen area between the top bar and the bottom panel (a pane: all of it).
 	var vp := get_viewport_rect().size
+	if pane != "":
+		return Rect2(Vector2.ZERO, vp)
 	return Rect2(0, TOP_BAR_PX, vp.x, vp.y - TOP_BAR_PX - BOTTOM_PX)
+
+
+## Split screen: Chase with an opponent shows two panes (him left, Faba right).
+func is_split() -> bool:
+	return pane == "" and cam_mode == CamMode.CHASE and not panes.is_empty()
 
 
 func update_camera(delta: float, snap: bool) -> void:
 	var vp := get_viewport_rect().size
 	var area := view_area()
-	var target_pos := car.position
-	var target_zoom := area.size.x / (FOLLOW_VIEW_M * PX_PER_M)
+	# The car this camera follows: a pane's own car, else Faba
+	var focus: Node2D = ghost_car if pane == "them" else car
+	var focus_out: bool = (crash_age >= 0.0 if focus == car
+		else (bool(ghost["dnf"]) and t >= float(ghost["lap_time"])))
+	var target_pos := focus.position
+	var target_zoom := area.size.x / (CHASE_VIEW_M * PX_PER_M)
 	var target_rot := 0.0
 	var cut := snap
 
 	var length := float(replay["track"]["length"])
-	if embedded and countdown > 0.0:
+	if pane == "" and embedded and countdown > 0.0:
 		# Intro: tight on the line, the cars rolling up and the flagger
 		target_pos = flagger.position.lerp(car.position, 0.5)
 		target_zoom = minf(area.size.x, area.size.y) / (40.0 * PX_PER_M)
-		target_rot = 0.0
-	elif cam_mode != CamMode.OVERVIEW and not dnf and (finish_slow() or (t >= lap_time and t <= end_time)):
-		# Finish-line camera: one cut, then hold while they cross
+	elif pane == "" and cam_mode == CamMode.CHASE and not dnf and (finish_slow() or (t >= lap_time and t <= end_time)):
+		# Single chase (no opponent): one cut to the finish line, then hold
 		if not finish_cut:
 			finish_cut = true
 			cut = true
@@ -1242,37 +1379,24 @@ func update_camera(delta: float, snap: bool) -> void:
 		var fin: Array = centerline[centerline.size() - 1]
 		target_pos = to_world(fin[0], fin[1])
 		target_zoom = minf(area.size.x, area.size.y) / (FINISH_VIEW_M * PX_PER_M)
-	elif cam_mode != CamMode.OVERVIEW and crash_age >= 0.0 and length > 0.0:
-		# Crash cam: the broadcast cuts tight onto the wreck
-		if active_corner != -2:
-			active_corner = -2
+	elif cam_mode == CamMode.CHASE and focus_out and length > 0.0:
+		# Crash cam: cut tight onto the wreck
+		if not crash_cut:
+			crash_cut = true
 			cut = true
-		target_pos = car.position
 		target_zoom = minf(area.size.x, area.size.y) / (45.0 * PX_PER_M)
 	elif cam_mode == CamMode.OVERVIEW:
 		var margin := 120.0 * PX_PER_M                # room for labels outside the road
 		target_zoom = minf(area.size.x / (track_size.x + margin), area.size.y / (track_size.y + margin))
 		target_pos = track_center
-	elif cam_mode == CamMode.CHASE:
-		# Car always points up: rotate the camera with the car; look ahead along
-		# the heading so the car sits in the lower part of the view
-		target_zoom = area.size.x / (CHASE_VIEW_M * PX_PER_M)
-		target_rot = car.rotation + PI / 2.0
-		target_pos = car.position + Vector2.from_angle(car.rotation) * CHASE_LOOKAHEAD_M * PX_PER_M
-	elif cam_mode == CamMode.TRACKSIDE and not corners.is_empty():
-		var i := pick_corner(value_at("s"))
-		if i != active_corner:
-			active_corner = i
-			cut = true                               # TV-style hard cut between cameras
-		if active_corner >= 0:                       # a corner camera has the car
-			var c: Dictionary = corners[active_corner]
-			var r := float(c["radius"])
-			var mid: Array = c["mid"]
-			var out: Array = c["outward"]
-			target_pos = to_world(mid[0] + out[0] * r * 0.15, mid[1] + out[1] * r * 0.15)
-			var view_m := clampf(r * 4.5, 110.0, 420.0)
-			target_zoom = minf(area.size.x, area.size.y) / (view_m * PX_PER_M)
-		# else: between camera positions, keep the follow-camera defaults
+	else:
+		# Chase: the car always points up (the camera turns with it) and the
+		# camera looks ahead so the car sits low on screen. A pane is half as
+		# wide, so it shows fewer meters across (cars stay a readable size).
+		var view_m := PANE_VIEW_M if pane != "" else CHASE_VIEW_M
+		target_zoom = area.size.x / (view_m * PX_PER_M)
+		target_rot = focus.rotation + PI / 2.0
+		target_pos = focus.position + Vector2.from_angle(focus.rotation) * CHASE_LOOKAHEAD_M * PX_PER_M
 
 	# The view area isn't centered vertically (top bar vs bottom panel): shift
 	# the camera so target_pos lands in the middle of the view area
@@ -1311,7 +1435,7 @@ func rescale_overlays() -> void:
 		label.position = center - label.size / 2.0
 	marker.position = car.position
 	marker.scale = Vector2.ONE * inv
-	marker.visible = cam_mode == CamMode.OVERVIEW or cam_mode == CamMode.TRACKSIDE
+	marker.visible = cam_mode == CamMode.OVERVIEW
 	if ghost != null:
 		ghost_marker.position = ghost_car.position
 		ghost_marker.scale = marker.scale
@@ -1328,6 +1452,8 @@ func rescale_overlays() -> void:
 # ------------------------------------------------------------------ input
 
 func _unhandled_input(event: InputEvent) -> void:
+	if pane != "":
+		return
 	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo:
 		return
@@ -1335,11 +1461,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_1:
 			set_cam_mode(CamMode.OVERVIEW)
 		KEY_2:
-			set_cam_mode(CamMode.FOLLOW)
-		KEY_3:
 			set_cam_mode(CamMode.CHASE)
-		KEY_4:
-			set_cam_mode(CamMode.TRACKSIDE)
 		KEY_C:
 			set_cam_mode((cam_mode + 1) % CAM_NAMES.size())
 		KEY_SPACE:
@@ -1365,9 +1487,12 @@ func restart() -> void:
 	finish_cut = false
 	if flagger:
 		flagger.visible = true
+	crash_cut = false
 	mark_lines = [null, null]
 	for child in marks.get_children():
 		child.queue_free()
+	for p in panes:
+		p.restart()
 
 
 func show_message(text: String) -> void:
@@ -1387,12 +1512,12 @@ func self_test() -> void:
 	for check_t in [0.0, lap_time * 0.25, lap_time * 0.5, lap_time * 0.75, lap_time]:
 		t = check_t
 		update_car()
-		for mode in [CamMode.OVERVIEW, CamMode.FOLLOW, CamMode.CHASE, CamMode.TRACKSIDE]:
+		for mode in [CamMode.OVERVIEW, CamMode.CHASE]:
 			set_cam_mode(mode)
 		update_hud()
-		print("t=%7.2f s=%7.1f m  pos=(%7.1f, %7.1f) m  v=%5.1f km/h  gear=%d  corner_cam=%d" % [
+		print("t=%7.2f s=%7.1f m  pos=(%7.1f, %7.1f) m  v=%5.1f km/h  gear=%d  cam=%d" % [
 			t, value_at("s"), car.position.x / PX_PER_M, -car.position.y / PX_PER_M,
-			value_at("v") * 3.6, int(samples["gear"][idx]), active_corner])
+			value_at("v") * 3.6, int(samples["gear"][idx]), cam_mode])
 		if ghost != null:
 			print("          ghost pos=(%7.1f, %7.1f) m  crashed_tag=%s" % [
 				ghost_car.position.x / PX_PER_M, -ghost_car.position.y / PX_PER_M, ghost_tag.visible])
@@ -1414,7 +1539,7 @@ func take_screenshots(folder: String) -> void:
 	for moment in moments:
 		t = minf(float(moments[moment]), end_time)
 		update_car()
-		for mode in [CamMode.OVERVIEW, CamMode.FOLLOW, CamMode.CHASE, CamMode.TRACKSIDE]:
+		for mode in [CamMode.OVERVIEW, CamMode.CHASE]:
 			set_cam_mode(mode)
 			update_hud()
 			await RenderingServer.frame_post_draw

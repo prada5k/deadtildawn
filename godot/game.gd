@@ -30,6 +30,7 @@ const RevealScene := preload("res://screens/reveal.tscn")
 const TeamScene := preload("res://screens/team.tscn")
 const MeetingScene := preload("res://screens/meeting.tscn")
 const ResultsScene := preload("res://screens/results.tscn")
+const CodesScene := preload("res://screens/codes.tscn")
 const ShellScene := preload("res://screens/shell.tscn")
 const GritShader := preload("res://widgets/grit.gdshader")
 const LOCATIONS := {
@@ -38,6 +39,7 @@ const LOCATIONS := {
 	"calendar": "THE WHITEBOARD",
 	"shop": "PARTS $$$",
 	"team": "THE BOARD",
+	"codes": "THE BACK ROOM",
 }
 
 const SAVE_PATH := "user://save.json"
@@ -82,6 +84,7 @@ var screen: Control        # current UI screen (the shell while in the hub)
 var shell: Control         # persistent hub shell (top rail, ribbon, bottom nav)
 var hub_content: Control   # the hub screen currently inside the shell
 var viewer: Node           # replay viewer while racing
+var last_replay := ""      # the replay just watched (results reads its track for the map)
 var choice := {"push": "normal", "wager": MIN_BUY_IN}
 var after_car_stats := "warehouse"   # where to go once car stats arrive
 var after_catalog := "shop"          # where to go once the parts catalog arrives
@@ -187,11 +190,18 @@ func save_game() -> void:
 	f.store_string(JSON.stringify(state, "  "))
 
 
-func reset_game() -> void:
+## A fresh save. story: play the intro again (the startover code) instead of
+## going straight to the warehouse (BROKE's START OVER).
+func reset_game(story := false) -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(save_path))
 	state = new_state()
 	save_game()
-	show_warehouse()
+	car_stats = {}
+	track_info = {}
+	if story:
+		show_intro()
+	else:
+		show_warehouse()
 
 
 # ------------------------------------------------------------------ calendar
@@ -323,6 +333,10 @@ func _go(target: String) -> void:
 			show_team()
 		"race":
 			show_briefing()
+		"codes":
+			show_codes()
+		"fullbuild":                         # the code was waiting on the catalog
+			enter_code("fullbuild")
 
 
 func common_info() -> Dictionary:
@@ -547,8 +561,9 @@ func do_pull(source: String) -> void:
 	pull_paid = int(src["price"])
 	save_game()                                   # paid: a crash or quit can't refund it
 	show_message("PULLING", "%s..." % src["name"])
+	var god := ["--quality", "1.0"] if state.get("godroll", false) else []   # the godroll code
 	bridge.request("pull", ["pull", "--source", source, "--seed", str(randi() % 1000000)]
-		+ pity_args())
+		+ pity_args() + god)
 
 
 ## Pity counters for the bridge: ["--pity", "source=N,source=N"], or nothing
@@ -564,6 +579,7 @@ func pity_args() -> Array:
 
 func on_pulled(data: Dictionary) -> void:
 	pull_paid = 0
+	state.erase("godroll")                        # one pull only
 	state["pity"] = data["pity"]
 	var inst := add_instance(data["part"], float(data["quality"]), false, data["source"],
 		data["effects_text"])
@@ -940,7 +956,8 @@ func apply_result(r: Dictionary) -> Dictionary:
 	var wager := int(choice["wager"])
 	var cash_change := 0 if no_contest else (wager if won else -wager)
 	var rival_night: bool = night.get("id", "") != "street"
-	var rep_change: int = (REP_RIVAL_WIN if rival_night else REP_OPEN_WIN) if won 		else (REP_CRASH if r["dnf"] else REP_LOSS)
+	var rep_change: int = ((REP_RIVAL_WIN if rival_night else REP_OPEN_WIN) if won
+		else (REP_CRASH if r["dnf"] else REP_LOSS))
 	var result := {
 		"when": when(ev["week"], ev["day"]),
 		"rival": night["name"], "rival_car": night["car"],
@@ -950,7 +967,8 @@ func apply_result(r: Dictionary) -> Dictionary:
 		"won": won, "no_contest": no_contest, "push": r["push"], "seed": r["seed"],
 		"wager": wager, "cash_change": cash_change, "rep_change": rep_change,
 		"mistakes": r["mistakes"], "parts": parts_args(), "loot": "", "damage": {},
-		"track": night.get("track", ""), "rival_night": rival_night}
+		"track": night.get("track", ""), "rival_night": rival_night,
+		"breakdown": r.get("breakdown", {})}
 	state["cash"] = int(state["cash"]) + cash_change
 	state["rep"] = maxi(int(state["rep"]) + rep_change, 0)
 	if r["dnf"]:
@@ -973,6 +991,7 @@ func show_race(replay_path: String, result: Dictionary) -> void:
 	viewer = Viewer.new()
 	viewer.replay_path = replay_path        # the opponent rides along as the replay's ghost
 	viewer.embedded = true
+	last_replay = replay_path
 	viewer.finished_viewing.connect(show_results.bind(result))
 	add_child(viewer)
 
@@ -988,8 +1007,10 @@ func show_results(result: Dictionary) -> void:
 		var lp := part_by_id(result["loot"])
 		loot_text = "%s paid up with more than cash: an unopened %s %s. It's on the bench in $$$." % [
 			result["rival"], str(lp.get("rarity", "")), lp.get("name", result["loot"])]
+	var replay = JSON.parse_string(FileAccess.get_file_as_string(last_replay)) 		if FileAccess.file_exists(last_replay) else null
 	r.setup(result, {"cash": int(state["cash"]), "rep": int(state["rep"]),
-		"faba_parts": installed_part_ids(), "loot_text": loot_text})
+		"faba_parts": installed_part_ids(), "loot_text": loot_text,
+		"track": replay["track"] if replay is Dictionary else {}})
 
 
 func show_broke() -> void:
@@ -998,6 +1019,115 @@ func show_broke() -> void:
 		"%s left. You can't cover the %s buy-in.\n\nRecord %d W - %d L, rep %d.\n\nThe warehouse goes quiet. (Pink slips come later.)" % [
 			UI.money(state["cash"]), UI.money(MIN_BUY_IN), record.x, record.y, int(state["rep"])],
 		"START OVER", reset_game)
+
+
+# ------------------------------------------------------------------ codes (testing)
+
+## Cheat codes, for testing (Spire). The CODES screen opens from the hub by
+## tapping FABA's name tape 5 times, or with the ` key (any screen but a race
+## or the intro). Case and spaces don't matter. Each use is counted in
+## stats["cheats"], so a save always knows it was helped.
+const CODES := {
+	"deeppockets": "+$10,000 cash",
+	"clout": "+100 rep (opens the swap meet and the sealed crate)",
+	"fullbuild": "one new copy of every part, in your spares",
+	"godroll": "your next pull rolls 100% quality",
+	"fixit": "repairs every damaged part, free",
+	"skipnight": "skips the next race night, no rep cost",
+	"rivalnight": "jumps the calendar to the next rival night",
+	"beatzed": "Zed acts like you beat him: he re-tunes to your build next time",
+	"memories": "unlocks every TEAM memory",
+	"broke": "cash to $0 to see the BROKE screen (` key, deeppockets to get back)",
+	"startover": "wipes the save and starts the story over (asks first)",
+}
+const CHEAT_CASH := 10000
+const CHEAT_REP := 100
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	var key := event as InputEventKey
+	if key == null or not key.pressed or key.echo or key.keycode != KEY_QUOTELEFT:
+		return
+	var in_intro := screen != null and screen.scene_file_path == IntroScene.resource_path
+	if viewer == null and not in_intro:          # never mid-race or mid-story
+		show_codes()
+
+
+func show_codes(message := "", confirm := "") -> void:
+	var codes: Control = open_hub(CodesScene, "codes")
+	codes.entered.connect(enter_code)
+	codes.confirmed.connect(reset_game.bind(true))
+	codes.setup(CODES, message, confirm)
+
+
+func enter_code(raw: String) -> void:
+	var code := raw.to_lower().replace(" ", "")
+	if not CODES.has(code):
+		show_codes("Nothing happened. (\"%s\" isn't a code.)" % raw.strip_edges())
+		return
+	if code == "startover":                  # asks first: the confirm button resets
+		show_codes("This wipes the save: cash, rep, parts, the calendar, the TEAM board. The story plays again.",
+			"WIPE IT")
+		return
+	if code == "fullbuild" and catalog.is_empty():
+		show_message("PARTS", "Checking the parts shelf...")
+		after_catalog = "fullbuild"           # comes back through _go("fullbuild")
+		bridge.request("parts", ["parts"])
+		return
+	stat_add("cheats", 1)
+	var msg := ""
+	match code:
+		"deeppockets":
+			state["cash"] = int(state["cash"]) + CHEAT_CASH
+			msg = "%s in the envelope." % UI.money(CHEAT_CASH)
+		"clout":
+			state["rep"] = int(state["rep"]) + CHEAT_REP
+			msg = "+%d rep." % CHEAT_REP
+		"fullbuild":
+			for p in catalog["parts"]:
+				add_instance(p["id"], NEW_QUALITY, true, "shop", p["effects_text"])
+			msg = "%d parts, new in box, in your spares ($$$). Put them on in CAR." % catalog["parts"].size()
+		"godroll":
+			state["godroll"] = true
+			msg = "The next pull rolls 100%."
+		"fixit":
+			var n := 0
+			for inst in state["inventory"]:
+				if inst.get("damaged", false):
+					inst["damaged"] = false
+					n += 1
+			car_stats = {}
+			msg = "Fixed %d part%s." % [n, "" if n == 1 else "s"]
+		"skipnight":
+			var ev := next_event()
+			advance_past(ev)
+			state["night"] = {}
+			msg = "Skipped %s. Nobody saw a thing." % when(ev["week"], ev["day"])
+		"rivalnight":
+			for i in 20:                         # at most 20 nights ahead
+				var ev := next_event()
+				if ev["type"] == "rival":
+					break
+				advance_past(ev)
+			state["night"] = {}
+			var rv := next_event()
+			msg = "Next up: %s, %s." % [rv["title"], when(rv["week"], rv["day"])]
+		"beatzed":
+			var r: Dictionary = state["rivals"].get(RIVAL_ID, {})
+			r["retune"] = true
+			state["rivals"][RIVAL_ID] = r
+			msg = "Zed heard about it. He's working on the 280Z."
+		"memories":
+			for m in Voice.MEMORY_ORDER:
+				unlock(m)
+			msg = "Every memory is on the board (TEAM)."
+		"broke":
+			state["cash"] = 0
+			save_game()
+			show_broke()
+			return
+	save_game()
+	show_codes(msg)
 
 
 # ------------------------------------------------------------------ bridge replies
@@ -1111,6 +1241,15 @@ func game_test() -> void:
 	var replay = JSON.parse_string(FileAccess.get_file_as_string(out))
 	check(replay is Dictionary and replay.get("ghost") is Dictionary
 		and replay["ghost"]["samples"]["t"].size() > 10, "replay carries the opponent as a ghost")
+	# Why did I lose: the buckets add up to the gap (rounding: 6 buckets x 0.0005 s)
+	var bd: Dictionary = result.get("breakdown", {})
+	var bucket_sum := 0.0
+	for g in bd.get("totals", {}).values():
+		bucket_sum += float(g)
+	check(not bd.is_empty() and absf(bucket_sum - float(bd["gap"])) < 0.01
+		and replay["splits"] is Array and replay["splits"].size() == bd["sections"].size(),
+		"breakdown saved with the result (%s, gap %+.3f s) and splits in the replay" % [
+			bd.get("verdict", "?"), float(bd.get("gap", 0.0))])
 	print("GAMETEST calendar after race: %s" % when(state["week"], state["day"]))
 	bridge.request("parts", ["parts"])
 	catalog = (await bridge.replied)[1]
@@ -1225,6 +1364,26 @@ func game_test() -> void:
 	state["rep"] = 60
 	skip_night()
 	print("GAMETEST skip with 60 rep: rep %d, %s" % [state["rep"], when(state["week"], state["day"])])
+
+	# Codes (testing). Case and spaces don't matter; unknown codes do nothing.
+	var cash0 := int(state["cash"])
+	var cheats0 := int(state["stats"].get("cheats", 0))
+	enter_code("Deep Pockets")
+	check(int(state["cash"]) == cash0 + CHEAT_CASH, "code deeppockets: cash %d (expect %d)" % [state["cash"], cash0 + CHEAT_CASH])
+	enter_code("nope")
+	check(int(state["cash"]) == cash0 + CHEAT_CASH and int(state["stats"]["cheats"]) == cheats0 + 1,
+		"unknown code changes nothing")
+	enter_code("rivalnight")
+	check(next_event()["type"] == "rival" and state["night"].is_empty(), "code rivalnight: next up is %s" % next_event()["title"])
+	c["damaged"] = true
+	enter_code("fixit")
+	check(not c["damaged"], "code fixit repairs for free")
+	var inv0: int = state["inventory"].size()
+	enter_code("fullbuild")
+	check(state["inventory"].size() == inv0 + catalog["parts"].size(), "code fullbuild: +%d parts" % catalog["parts"].size())
+	enter_code("godroll")
+	check(state.get("godroll", false), "code godroll: the next pull is forced to 100% (bridge --quality, tests/test_bridge.py)")
+	check(int(state["stats"]["cheats"]) == cheats0 + 5, "codes are counted (%d)" % state["stats"]["cheats"])
 	print("GAMETEST OK" if test_failures == 0 else "GAMETEST FAILED: %d checks" % test_failures)
 	get_tree().quit(0 if test_failures == 0 else 1)
 
@@ -1327,6 +1486,9 @@ func game_shots(folder: String) -> void:
 	var sc: ScrollContainer = screen.get_node("%Scroll")
 	sc.scroll_vertical = 2000
 	await snap(folder, "2_meeting_bet")
+	screen.open_map(true)                                    # the road, full screen
+	await snap(folder, "2_meeting_map")
+	screen.open_map(false)
 	var out := ProjectSettings.globalize_path("user://replays/shots.json")
 	bridge.request("race", ["race", "--track", state["night"]["track"], "--push", "hard", "--seed", "21",
 		"--out", out, "--opponent", state["night"]["opponent"], "--opp-seed", "21",
@@ -1340,15 +1502,30 @@ func game_shots(folder: String) -> void:
 	viewer.countdown = viewer.COUNTDOWN_S - 2.0                  # the flagger: "3"
 	await snap(folder, "5_race_count")
 	viewer.countdown = 0.0
-	viewer.t = viewer.lap_time * 0.5
+	await jump_replay(viewer.lap_time * 0.5)
 	await snap(folder, "5_race_mid")
-	viewer.t = minf(viewer.lap_time, viewer.end_time) - 0.2        # slow-mo at the line
+	await jump_replay(minf(viewer.lap_time, viewer.end_time) - 0.2)   # slow-mo at the line
 	await snap(folder, "5_race_finishline")
-	viewer.t = viewer.end_time
+	await jump_replay(viewer.end_time)
 	await snap(folder, "5_race_finish")
+	var first_split: Dictionary = result["breakdown"]["sections"][0]        # the split caption
+	await jump_replay(maxf(float(first_split["t_me"]), float(first_split["t_them"])) + 0.5)
+	await snap(folder, "5_race_split")
 	show_results(result)
 	await snap(folder, "6_results")
+	var rs: ScrollContainer = screen.find_child("Scroll", true, false)
+	rs.scroll_vertical = 520
+	await snap(folder, "6_results_why")
+	show_codes("$10,000 in the envelope.")
+	await snap(folder, "7_codes")
 	get_tree().quit()
+
+
+## Stills: jump the replay clock, move the cars there, then snap the camera
+## onto them (it would otherwise still be gliding over).
+func jump_replay(tt: float) -> void:
+	viewer.jump_to(tt)                       # the split-screen panes too
+	await get_tree().process_frame
 
 
 func snap(folder: String, name: String) -> void:

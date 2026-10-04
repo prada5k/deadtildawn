@@ -7,6 +7,7 @@ and reads ONE JSON object from stdout. Every reply has "bridge_version" and
 Commands:
   parts                                   the parts catalog, with each part's exact effects
   pull      --source S --pity a=N,b=N --seed N   one pull: part, quality roll, effects, new pity
+            [--quality Q]                 force the quality roll (the game's "godroll" code)
                                           (--parts entries may carry a quality: cams_race@0.83)
   car_stats [--parts a,b]                 stat sheet + dyno for the car with these parts
   track     --track FILE                  layout for the briefing (no car)
@@ -23,7 +24,9 @@ Commands:
             [--opponent ID --opp-seed N [--opp-condition C]] [--location L]
                                           run the race and write the replay; with an
                                           opponent, both cars run the road (head to
-                                          head) and the replay carries it as a ghost
+                                          head) and the replay carries it as a ghost;
+                                          + "breakdown" (sim/breakdown.py: why the
+                                          gap; its sections = the replay's "splits")
   practice  --track FILE [--parts a,b]    runs per push level (dev tool; the game
                                           no longer uses it)
   odds      --track FILE --posted T       win odds vs a fixed time (dev tool)
@@ -245,8 +248,9 @@ def parse_pity(text):
     return pity
 
 
-def do_pull(source, pity_text, seed):
-    """One pull from an in-world source, with the effects of the rolled part."""
+def do_pull(source, pity_text, seed, quality=None):
+    """One pull from an in-world source, with the effects of the rolled part.
+    quality: force the roll (testing code); the part drawn is unchanged."""
     import random
     from sim.car import load_car
     from sim.gacha import instance_part, load_pulls, pull
@@ -258,6 +262,8 @@ def do_pull(source, pity_text, seed):
     _, parts = load_catalog()
     pity = parse_pity(pity_text)
     pid, q, new_pity = pull(source, sources, parts, pity, random.Random(seed))
+    if quality is not None:
+        q = min(max(quality, 0.0), 1.0)
     car = load_car(CAR_FILE)
     reply(source=source, price=sources[source]["price"], part=pid, quality=q,
           rarity=parts[pid]["rarity"], name=parts[pid]["name"], slot=parts[pid]["slot"],
@@ -422,6 +428,7 @@ def race(track_file, push, seed, out_file, part_ids=(), opponent=None, opp_seed=
     from sim.lap import run_lap
     from sim.track import discretize, load_track
 
+    from sim.breakdown import breakdown
     from sim.lap import finish_time
     from sim.opponents import opponent_car, opponent_driver
 
@@ -430,13 +437,15 @@ def race(track_file, push, seed, out_file, part_ids=(), opponent=None, opp_seed=
     segments = load_track(track_path)
     grid = discretize(segments, GAME_DS)
     lap = run_lap(car, grid, driver=Driver(push=push), seed=seed)
-    ghost, opp = None, None
+    ghost, opp, why = None, None, None
     if opponent:
         spec = opponent_spec(opponent, opp_condition)
         opp = run_lap(opponent_car(load_car(CAR_FILE), spec), grid,
                       driver=opponent_driver(spec), seed=opp_seed)
         ghost = {"name": spec["name"], "car": spec["car"], "lap": opp}
-    replay_data = build_replay(car, segments, lap, track_path.name, ghost, location)
+        why = breakdown(segments, lap, opp)          # why did I win/lose
+    replay_data = build_replay(car, segments, lap, track_path.name, ghost, location,
+                               None if why is None else why["sections"])
     out = Path(out_file)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(replay_data, separators=(",", ":")), encoding="utf-8")
@@ -447,7 +456,8 @@ def race(track_file, push, seed, out_file, part_ids=(), opponent=None, opp_seed=
         result = {"opponent_time": round(opp.lap_time, 3), "opponent_dnf": opp.dnf,
                   "opponent_crash_corner": opp.crash_corner,
                   "no_contest": both_out,
-                  "won": (not both_out) and finish_time(lap) < finish_time(opp)}
+                  "won": (not both_out) and finish_time(lap) < finish_time(opp),
+                  "breakdown": why}
     reply(lap_time=round(lap.lap_time, 3), dnf=lap.dnf, crash_corner=lap.crash_corner,
           push=push, seed=seed, replay=str(out),
           mistakes=[c.text for c in lap.corner_log if c.mistake], **result)
@@ -463,6 +473,7 @@ def main():
     ap.add_argument("--retune", action="store_true")
     ap.add_argument("--condition", type=float)
     ap.add_argument("--opp-condition", type=float)
+    ap.add_argument("--quality", type=float)
     ap.add_argument("--location", choices=["coast", "canyon", "mountain"])
     ap.add_argument("--opponent")
     ap.add_argument("--opp-seed", type=int, default=0)
@@ -481,7 +492,7 @@ def main():
         if a.command == "parts":
             parts_catalog()
         elif a.command == "pull":
-            do_pull(a.source, a.pity, a.seed)
+            do_pull(a.source, a.pity, a.seed, a.quality)
         elif a.command == "car_stats":
             car_stats(part_ids)
         elif a.command == "track":

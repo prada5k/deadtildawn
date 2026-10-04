@@ -65,6 +65,41 @@ const FABA_LOST := "fuck that foo"
 const FABA_CRASHED := "brah fuckkkkk we might be cooked"
 const FABA_NO_CONTEST := "come on son"
 
+# Results: why it went that way (sim/breakdown.py "verdict": the cause behind
+# the biggest loss, or the biggest gain on a win). Said under the breakdown
+# sheet. DRAFTS by Claude -- Spire rewrites them.
+const FABA_WHY_LOST := {
+	"launch": "i was sleeping at the green my bad",
+	"accel": "he just walked us on the straights, we need more motor",
+	"exit": "he was getting off the corners way better than us",
+	"braking": "he was out braking me every time",
+	"corner": "he was carrying way more speed thru the turns",
+	"mistake": "i sent it too hot and blew the corner",     # Faba ran wide
+	"crash": "",                                             # FABA_CRASHED says it
+}
+const FABA_WHY_WON := {
+	"launch": "got the jump on him off the line",
+	"accel": "she pulled on him every straight",
+	"exit": "we were getting off the corners clean",
+	"braking": "i was out braking him all night",
+	"corner": "we were carrying way more speed thru the turns",
+	"mistake": "he blew a corner and i was right there",    # he ran wide
+	"their_crash": "he put it in the trees lol",
+}
+
+# The breakdown (results sheet + the replay's split captions): what each
+# cause is called, and where it happened (%s = the corner's pace note)
+const CAUSE_TAGS := {
+	"launch": "launch", "accel": "acceleration", "exit": "corner exit",
+	"braking": "braking", "corner": "corner speed", "mistake": "ran wide",
+}
+const CAUSE_WHERE := {
+	"launch": "off the line", "accel": "on the run to %s", "exit": "out of %s",
+	"braking": "into %s", "corner": "through %s", "mistake": "at %s",
+}
+const FINISH_NAME := "the line"       # "acceleration on the run to the line"
+# A swing reads "<tag> <where>": "corner speed through R3 90", "Faba ran wide at R7 65"
+
 
 # ---------------------------------------------------------------- TEAM board
 # Memories: Polaroids that unlock at milestones. DRAFTS in Spire's style

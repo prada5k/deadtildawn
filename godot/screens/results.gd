@@ -1,6 +1,8 @@
 extends Control
 ## Race night, after: back at the turnout. A rubber-stamp verdict over the
-## photo, Faba's reaction (voice.gd), the night's receipt (times, cash, rep),
+## photo, Faba's reaction (voice.gd), WHERE IT WENT (the breakdown: who was
+## faster where, the biggest swings, time by cause, Faba's take on why), the
+## night's receipt (times, cash, rep),
 ## a tow ticket if it ended in the trees, and the loot box if they paid up in
 ## parts. Full screen. LAYOUT lives in results.tscn; data hooks use %Name.
 
@@ -14,7 +16,8 @@ func _ready() -> void:
 	%Done.pressed.connect(func(): done_pressed.emit())
 
 
-## result: game.gd apply_result() record; info: cash, rep, faba_parts, loot_text
+## result: game.gd apply_result() record; info: cash, rep, faba_parts,
+## loot_text, track (the replay's track, for the map; may be empty)
 func setup(result: Dictionary, info: Dictionary) -> void:
 	%Turnout.setup(result["rival_car"], info["faba_parts"])
 	var won: bool = result["won"]
@@ -67,6 +70,57 @@ func setup(result: Dictionary, info: Dictionary) -> void:
 
 	%Loot.visible = info["loot_text"] != ""
 	%LootLine.text = info["loot_text"]
+	fill_breakdown(result, info.get("track", {}))
+
+
+## Why it went that way (sim/breakdown.py, via the race reply). Gains are
+## Faba's: + = he took time, - = he lost it.
+func fill_breakdown(result: Dictionary, track: Dictionary) -> void:
+	var bd: Dictionary = result.get("breakdown", {})
+	%Breakdown.visible = not bd.is_empty()
+	%FabaWhySays.visible = false
+	if bd.is_empty():                       # older saves, or no opponent
+		return
+	var them: String = result["rival"]
+	var map: Control = %SplitMap
+	map.visible = not track.is_empty()
+	map.track = track
+	map.sections = bd["sections"]
+	map.queue_redraw()
+	%MapKey.text = "blue: Faba faster  /  red: %s faster" % them
+	if not bd["complete"]:
+		%MapKey.text += "
+(up to the crash)"
+	for it: Dictionary in bd["swings"]:
+		gain_row(%Swings, swing_text(it, them), float(it["gain"]))
+	var totals: Dictionary = bd["totals"]
+	var causes := totals.keys().filter(func(c): return absf(float(totals[c])) >= 0.005)
+	causes.sort_custom(func(a, b): return float(totals[a]) > float(totals[b]))
+	for c in causes:
+		gain_row(%Totals, str(Voice.CAUSE_TAGS.get(c, c)), float(totals[c]))
+	var why: Dictionary = Voice.FABA_WHY_WON if result["won"] else Voice.FABA_WHY_LOST
+	var line: String = why.get(bd["verdict"], "")
+	%FabaWhySays.visible = line != "" and not result["no_contest"]
+	%FabaWhy.text = line
+
+
+## "corner speed through R3 90", "Faba ran wide at R7 65", "launch off the line"
+func swing_text(it: Dictionary, them: String) -> String:
+	var cause: String = it["cause"]
+	var where: String = Voice.FINISH_NAME if it["where"] == "FINISH" else str(it["where"])
+	var w: String = Voice.CAUSE_WHERE.get(cause, "")
+	var place := (w % where) if "%s" in w else w
+	if cause == "mistake":
+		var who: String = {"me": "Faba", "them": them, "both": "both"}.get(it["mistake_by"], "")
+		return "%s %s %s" % [who, Voice.CAUSE_TAGS["mistake"], place]
+	return "%s %s" % [Voice.CAUSE_TAGS.get(cause, cause), place]
+
+
+## One line of the sheet: what, then the time in ink (red when Faba lost it).
+func gain_row(parent: Node, text: String, gain: float) -> void:
+	var row := UI.stat_row(parent, text, "%+.2f s" % gain, "InkLabel", "InkLabel")
+	if gain < 0.0:
+		(row.get_child(1) as Label).add_theme_color_override("font_color", UI.INK_BAD)
 
 
 ## The verdict lands like a rubber stamp: big, then thunk.

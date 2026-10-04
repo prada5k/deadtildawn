@@ -763,6 +763,24 @@ border_width_right = 2
 border_width_bottom = 2
 border_color = Color(0.95, 0.95, 0.9, 1)
 
+[sub_resource type="StyleBoxFlat" id="ink_line"]
+content_margin_left = 6.0
+content_margin_top = 4.0
+content_margin_right = 6.0
+content_margin_bottom = 6.0
+bg_color = Color(1, 1, 1, 0)
+border_width_bottom = 3
+border_color = Color(0.102, 0.078, 0.086, 0.6)
+
+[sub_resource type="StyleBoxFlat" id="ink_line_focus"]
+content_margin_left = 6.0
+content_margin_top = 4.0
+content_margin_right = 6.0
+content_margin_bottom = 6.0
+bg_color = Color(1, 1, 1, 0)
+border_width_bottom = 3
+border_color = Color(0.102, 0.078, 0.086, 1)
+
 [sub_resource type="StyleBoxEmpty" id="pick_empty"]
 content_margin_left = 12.0
 content_margin_top = 2.0
@@ -781,6 +799,16 @@ default_font_size = 28
 BenchPanel/base_type = &"PanelContainer"
 BenchPanel/styles/panel = SubResource("bench")
 CardboardPanel/base_type = &"PanelContainer"
+InkLineEdit/base_type = &"LineEdit"
+InkLineEdit/colors/caret_color = Color(0.102, 0.078, 0.086, 1)
+InkLineEdit/colors/font_color = Color(0.102, 0.078, 0.086, 1)
+InkLineEdit/colors/font_placeholder_color = Color(0.102, 0.078, 0.086, 0.4)
+InkLineEdit/colors/font_selected_color = Color(0.102, 0.078, 0.086, 1)
+InkLineEdit/colors/selection_color = Color(0.95, 0.5, 0.15, 0.35)
+InkLineEdit/font_sizes/font_size = 44
+InkLineEdit/fonts/font = ExtResource("5")
+InkLineEdit/styles/focus = SubResource("ink_line_focus")
+InkLineEdit/styles/normal = SubResource("ink_line")
 OsdButton/base_type = &"Button"
 OsdButton/colors/font_color = Color(0.95, 0.95, 0.9, 1)
 OsdButton/colors/font_focus_color = Color(0.95, 0.95, 0.9, 1)
@@ -893,9 +921,11 @@ GaffRedButton/styles/hover = SubResource("gaff_red_hover")
 GaffRedButton/styles/normal = SubResource("gaff_red")
 GaffRedButton/styles/pressed = SubResource("gaff_red_pressed")
 InkTrackMap/base_type = &"Control"
+InkTrackMap/colors/faster = Color(0.12, 0.33, 0.72, 1)
 InkTrackMap/colors/line = Color(0.102, 0.078, 0.086, 0.55)
 InkTrackMap/colors/marker = Color(0.102, 0.078, 0.086, 1)
 InkTrackMap/colors/severity_mid = Color(0.85, 0.55, 0.05, 1)
+InkTrackMap/colors/slower = Color(0.7, 0.15, 0.17, 1)
 InkTrackMap/fonts/font = ExtResource("2")
 SpeechLabel/base_type = &"Label"
 SpeechLabel/colors/font_color = Color(0.102, 0.078, 0.086, 1)

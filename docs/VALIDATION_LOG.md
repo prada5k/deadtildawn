@@ -85,3 +85,11 @@ Not validated against measured data (no launch-reaction or shift-time data for F
 - **Opponent drivers:** sigma +0.008, skill halfway to 1.0 (data/opponents.json notes). Recalibrated with the new two-pass tuner (`tools/calibrate_opponents.py`, 40 runs per job): Zed 0.756, Lalo 0.751, Bree 0.652, Dez 0.905, Monk 0.721, Tavo 0.903, Kiki 0.750, Rook 0.794, Paz 0.906, Junebug 0.893, Static 0.619, Wren 0.780, Cutter 0.913.
 - **Calibration check, fresh seeds:** Zed (target 0.45) measures 0.40 at 200 runs a side (test tolerance 0.12). A 40-run fresh check had read 0.62: near the odds cliff, small samples wander +-0.1 or more, so checks use `measure_odds()` (200 runs, parallel).
 - **Nightly tuning** (6.w): Zed tuned to 0.50 vs the stock DX measures 0.50 +- 0.12 on fresh seeds (tested). Found while building it: the first one-pass ladder (17% steps) gave 0.80 on fresh seeds, because the odds fall from ~1 to ~0 across a condition window ~0.03 wide; fixed with a fine second pass.
+
+## Why did I lose: race breakdown (Oct 2026)
+
+No model change: `sim/breakdown.py` only reads two runs' telemetry (PHYSICS_updates_G 6.v). Every lap time, odds and validation target is unchanged.
+
+- **Checks:** the buckets add up to the final gap (telescoping sum; real races within 3-decimal rounding); 100 m straight hand calcs: constant 25 vs 20 m/s = 1.0 s all exit; same entry, a = 3 vs 2 = 0.268 s all accel; same a, entry 22 vs 20 = 0.276 s all exit; 50 m corner at 20 vs 18 m/s = 0.278 s corner; a wide corner + slow exit = 0.476 s all mistake. Identical runs give zero; a car 250 kg lighter wins on accel.
+- **Bug fixed while testing:** the what-if speed floor (0.5 m/s) also applied at the start line (both cars at 0), giving identical runs a fake exit gain. The floor now applies only where the what-if would go below it.
+- **Design choice:** the exit speed lost after a corner where someone ran wide counts as that mistake, not "exit". First Zed race checked: Faba ran wide at L6, and 0.25 s of the 0.33 s it cost showed up on the straight after.

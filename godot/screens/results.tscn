@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://screens/results.gd" id="1"]
 [ext_resource type="Script" path="res://widgets/turnout_night.gd" id="2"]
+[ext_resource type="Script" path="res://track_map.gd" id="3"]
 
 [node name="Results" type="Control"]
 layout_mode = 3
@@ -98,6 +99,83 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"SpeechLabel"
 text = "did you expect anything else"
+autowrap_mode = 3
+
+[node name="Breakdown" type="PanelContainer" parent="Column/Scroll/Margin/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+rotation = -0.006
+theme_type_variation = &"ClipboardPanel"
+
+[node name="Sheet" type="PanelContainer" parent="Column/Scroll/Margin/Body/Breakdown"]
+layout_mode = 2
+theme_type_variation = &"PaperPanel"
+
+[node name="BreakdownBox" type="VBoxContainer" parent="Column/Scroll/Margin/Body/Breakdown/Sheet"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BreakdownTitle" type="Label" parent="Column/Scroll/Margin/Body/Breakdown/Sheet/BreakdownBox"]
+layout_mode = 2
+theme_type_variation = &"InkHeadingLabel"
+text = "WHERE IT WENT"
+
+[node name="SplitMap" type="Control" parent="Column/Scroll/Margin/Body/Breakdown/Sheet/BreakdownBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 320)
+layout_mode = 2
+theme_type_variation = &"InkTrackMap"
+script = ExtResource("3")
+
+[node name="MapKey" type="Label" parent="Column/Scroll/Margin/Body/Breakdown/Sheet/BreakdownBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"InkMutedLabel"
+text = "blue: Faba faster  /  red: them"
+horizontal_alignment = 1
+
+[node name="SwingsTitle" type="Label" parent="Column/Scroll/Margin/Body/Breakdown/Sheet/BreakdownBox"]
+layout_mode = 2
+theme_type_variation = &"InkMutedLabel"
+text = "BIGGEST SWINGS  (+ = Faba gained time)"
+
+[node name="Swings" type="VBoxContainer" parent="Column/Scroll/Margin/Body/Breakdown/Sheet/BreakdownBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="TotalsTitle" type="Label" parent="Column/Scroll/Margin/Body/Breakdown/Sheet/BreakdownBox"]
+layout_mode = 2
+theme_type_variation = &"InkMutedLabel"
+text = "BY CAUSE"
+
+[node name="Totals" type="VBoxContainer" parent="Column/Scroll/Margin/Body/Breakdown/Sheet/BreakdownBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="FabaWhySays" type="HBoxContainer" parent="Column/Scroll/Margin/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="FabaWhyTag" type="Label" parent="Column/Scroll/Margin/Body/FabaWhySays"]
+layout_mode = 2
+size_flags_vertical = 0
+rotation = -0.06
+theme_type_variation = &"TapeLabel"
+text = "faba"
+
+[node name="WhyBubble" type="PanelContainer" parent="Column/Scroll/Margin/Body/FabaWhySays"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SpeechPanel"
+
+[node name="FabaWhy" type="Label" parent="Column/Scroll/Margin/Body/FabaWhySays/WhyBubble"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SpeechLabel"
+text = "he just walked us on the straights"
 autowrap_mode = 3
 
 [node name="Receipt" type="PanelContainer" parent="Column/Scroll/Margin/Body"]
