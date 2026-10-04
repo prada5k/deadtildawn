@@ -108,6 +108,14 @@ const CAUSE_WHERE := {
 	"launch": "off the line", "accel": "on the run to %s", "exit": "out of %s",
 	"braking": "into %s", "corner": "through %s", "mistake": "at %s",
 }
+# The road screen: the builder's read of tonight's road (sim/roadread.py
+# "kind"), in Sharpie under the map. DRAFTS by Claude -- Spire rewrites.
+const ROAD_KIND := {
+	"power": "power road. motor wins this one",
+	"grip": "all turns. tires, suspension, weight",
+	"both": "bit of everything on this one",
+}
+
 const FINISH_NAME := "the line"       # "acceleration on the run to the line"
 # A swing reads "<tag> <where>": "corner speed through R3 90", "Faba ran wide at R7 65"
 

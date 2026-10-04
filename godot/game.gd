@@ -92,6 +92,8 @@ var viewer: Node           # replay viewer while racing
 var last_replay := ""      # the replay just watched (results reads its track for the map)
 var choice := {"push": "normal", "wager": MIN_BUY_IN}
 var compare := {}          # CAR: a swap being looked at: {slot, uid, stats (with it)}
+var road_read := {}        # the road screen's read of tonight's road (bridge road_read)
+var road_read_for := ""    # ...for which road + build (it depends on the parts)
 var after_car_stats := "warehouse"   # where to go once car stats arrive
 var after_catalog := "shop"          # where to go once the parts catalog arrives
 
@@ -905,6 +907,12 @@ func show_briefing() -> void:
 		bridge.request("car_stats", ["car_stats"] + parts_args())
 		return
 	if not night.has("parts"):
+		var key := "%s %s" % [night["track"], parts_args()]
+		if road_read_for != key:             # what the road rewards, for the DX as built now
+			show_message("SCOUTING", "Walking the road with a notebook.")
+			road_read_for = key
+			bridge.request("road_read", ["road_read", "--track", night["track"]] + parts_args())
+			return
 		show_scout()                         # build for the road, then lock it in
 		return
 	if not night.has("opponent"):
@@ -936,7 +944,8 @@ func show_scout() -> void:
 		"where": "%s // %s" % [when(ev["week"], ev["day"]).to_lower().replace(",", ""),
 			ev["title"].to_lower()],
 		"road_info": "%d m, %d corners" % [int(track_info["length"]), track_info["corners"].size()],
-		"track": track_info, "stats": car_stats, "parts_on": installed_part_ids().size(),
+		"track": track_info, "stats": car_stats, "read": road_read,
+		"parts_on": installed_part_ids().size(),
 		"can_skip": int(state["rep"]) >= SKIP_REP_COST, "skip_cost": SKIP_REP_COST,
 	})
 
@@ -1314,6 +1323,9 @@ The pull was refunded (%s)." % UI.money(pull_paid)
 		"car_stats":
 			car_stats = data
 			_go(after_car_stats)
+		"road_read":
+			road_read = data
+			show_briefing()
 		"compare":                           # the DX with the part being looked at
 			compare["stats"] = data
 			show_car()
@@ -1710,8 +1722,12 @@ func game_shots(folder: String) -> void:
 	track_info = (await bridge.replied)[1]
 	bridge.request("car_stats", ["car_stats"])        # parts were cleared above: stock card
 	car_stats = (await bridge.replied)[1]
+	bridge.request("road_read", ["road_read", "--track", state["night"]["track"]])
+	road_read = (await bridge.replied)[1]
 	show_scout()
 	await snap(folder, "2a_road")
+	hub_content.get_node("%Scroll").scroll_vertical = 500
+	await snap(folder, "2a_road_read")
 	bridge.request("rival", ["rival", "--rival", RIVAL_FILE, "--seed", "3"])
 	state["night"].merge((await bridge.replied)[1], true)
 	state["night"]["parts"] = []

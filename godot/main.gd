@@ -63,6 +63,23 @@ const CHASE_VIEW_M := 80.0       # meters across the screen in chase mode
 const CHASE_LOOKAHEAD_M := 22.0  # chase camera looks ahead so the car sits low on screen
 const PANE_VIEW_M := 46.0        # split screen: meters across one (half-width) pane
 const PANE_GAP_PX := 4.0         # the seam between the panes
+const OPP_DASH_ALPHA := 0.72     # his mini gauges: smaller and see-through (Spire)
+
+# Driving like a person, not a rail (Spire). VISUAL ONLY: the sim drives the
+# centerline, and positions along the road (so every time and gap) are the
+# sim's. These only move the car across its lane and turn its nose a little.
+const WANDER_M := 0.35           # slow drift in the lane (grows with speed)
+const APEX_CUT_M := 1.1          # eases toward the inside, most at mid-corner
+const SLIP_RAD_PER_G := 0.09     # nose turned into the corner: ~5 deg per g of a = v^2 / r
+const RUN_WIDE_M := 1.6          # a mistake: out toward the edge after the apex
+const LANE_LIMIT_M := 3.4        # never off the asphalt (half the road is 4 m)
+const G := 9.81
+# The camera: a buzz with speed, a kick to the outside in corners
+const SPEED_SHAKE_PX := 3.0      # screen px of buzz at V_SHAKE_REF...
+const V_SHAKE_REF := 40.0        # ...144 km/h (it grows with v^2)
+const TURN_SHAKE_PX := 4.0       # more buzz per g of cornering
+const SWAY_M_PER_G := 2.2        # the camera swings this far to the outside per g
+const OPP_GAUGE_PX := 118.0
 const PEDAL_H := 210.0
 const BRAKE_X := 616.0        # pedal bars, in the car's order: brake left, throttle right
 const THROTTLE_X := 656.0
@@ -155,6 +172,8 @@ var pane := ""            # "" = the full viewer; "them" / "faba" = one half of 
 var panes := []           # full viewer: the two pane viewers [them, faba]
 var pane_boxes := []      # ...their SubViewportContainers
 var pane_tags := []       # ...and a name + speed tag on each
+var wander := {}          # "car" / "ghost" -> FastNoiseLite: each driver's own wander
+var buzz := FastNoiseLite.new()   # camera shake (smooth noise, not white jitter)
 var flagger: Node2D
 
 
@@ -281,6 +300,13 @@ func build_track() -> void:
 ## The full viewer has one (Overview, single chase); each split-screen pane
 ## has its own copy in its own viewport.
 func build_world() -> void:
+	for who in ["car", "ghost"]:
+		var nz := FastNoiseLite.new()
+		nz.seed = 11 if who == "car" else 23
+		nz.frequency = 0.02                     # per meter of road: a drift every ~50 m
+		wander[who] = nz
+	buzz.seed = 5
+	buzz.frequency = 1.0
 	overlay = CanvasLayer.new()
 	overlay.layer = 1
 	overlay.follow_viewport_enabled = true      # moves with the camera like the world
@@ -747,6 +773,50 @@ func build_panes(layer: CanvasLayer) -> void:
 		pane_boxes.append(box)
 		pane_tags.append(osd_label(layer, Vector2.ZERO, 32,
 			GHOST_MARKER_COLOR if who == "them" else MARKER_COLOR))
+	build_opp_dash(layer)
+
+
+## His dash, small and see-through, in his half: tach, speedo, gear, pedals.
+## (Older replays have no dash for him: then there's none.)
+func build_opp_dash(layer: CanvasLayer) -> void:
+	if not ghost["samples"].has("rpm"):
+		return
+	var dash := Control.new()
+	dash.modulate.a = OPP_DASH_ALPHA
+	dash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(dash)
+	var tach: Control = GaugeScript.new()
+	tach.size = Vector2.ONE * OPP_GAUGE_PX
+	tach.max_value = 8000.0
+	tach.major_step = 2000.0
+	tach.minor_step = 1000.0
+	tach.label_scale = 0.001
+	tach.redline_from = float(ghost.get("redline", 7000) if ghost.get("redline") != null else 7000)
+	tach.title = "rpm"
+	dash.add_child(tach)
+	var speedo: Control = GaugeScript.new()
+	speedo.position = Vector2(OPP_GAUGE_PX + 4, 0)
+	speedo.size = Vector2.ONE * OPP_GAUGE_PX
+	speedo.max_value = 200.0
+	speedo.major_step = 50.0
+	speedo.minor_step = 25.0
+	speedo.title = "km/h"
+	dash.add_child(speedo)
+	var gear := racing_label(dash, Vector2(2 * OPP_GAUGE_PX + 10, 18), 40, Color(1.0, 0.85, 0.3))
+	hud["opp"] = {"dash": dash, "tach": tach, "speedo": speedo, "gear": gear,
+		"brake": add_bar(dash, Vector2(2 * OPP_GAUGE_PX + 12, 70), Vector2(10, 44), Color(0.93, 0.17, 0.24)),
+		"throttle": add_bar(dash, Vector2(2 * OPP_GAUGE_PX + 26, 70), Vector2(10, 44), Color(0.3, 0.8, 0.4))}
+
+
+## One of his telemetry channels at time tt (his own time base).
+func ghost_at(key: String, tt: float) -> float:
+	var ts: Array = ghost["samples"]["t"]
+	var arr: Array = ghost["samples"][key]
+	var i := clampi(ts.bsearch(tt, false) - 1, 0, ts.size() - 2)
+	var t0 := float(ts[i])
+	var t1 := float(ts[i + 1])
+	var f := 0.0 if t1 <= t0 else clampf((tt - t0) / (t1 - t0), 0.0, 1.0)
+	return lerpf(float(arr[i]), float(arr[i + 1]), f)
 
 
 ## Lay out the panes in the view area and update their tags.
@@ -766,6 +836,25 @@ func update_panes(vp: Vector2) -> void:
 		tag.reset_size()
 		tag.position = Vector2(box.position.x + 14 if i == 0 else vp.x - tag.size.x - 14,
 			area.end.y - tag.size.y - 10)
+	if hud.has("opp") and not pane_tags.is_empty():
+		var o: Dictionary = hud["opp"]
+		o["dash"].visible = split
+		o["dash"].position = Vector2(10, pane_tags[0].position.y - OPP_GAUGE_PX - 6)
+		var out := bool(ghost["dnf"]) and t >= float(ghost["lap_time"])
+		var alive := 0.0 if out else 1.0
+		o["tach"].value = ghost_at("rpm", t) * alive
+		o["speedo"].value = ghost_at("v", t) * 3.6 * alive
+		var g := int(ghost_at("gear", t))
+		o["gear"].text = "-" if g == 0 else str(g)
+		set_bar(o["throttle"], ghost_at("throttle", t) * alive, 44.0)
+		set_bar(o["brake"], ghost_at("brake", t) * alive, 44.0)
+
+
+## A small vertical bar filling from the bottom (his pedals).
+func set_bar(fill: ColorRect, amount: float, h: float) -> void:
+	var bottom := fill.position.y + fill.size.y
+	fill.size.y = h * clampf(amount, 0.0, 1.0)
+	fill.position.y = bottom - fill.size.y
 
 
 ## The ghost's speed (m/s): its replay has distance, not speed, so take the
@@ -773,6 +862,8 @@ func update_panes(vp: Vector2) -> void:
 func ghost_speed_at(tt: float) -> float:
 	if bool(ghost["dnf"]) and tt >= float(ghost["lap_time"]):
 		return 0.0
+	if ghost["samples"].has("v"):
+		return ghost_at("v", tt)
 	return (ghost_s_at(tt + 0.1) - ghost_s_at(maxf(tt - 0.1, 0.0))) / (tt + 0.1 - maxf(tt - 0.1, 0.0))
 
 
@@ -1096,7 +1187,7 @@ func _process(delta: float) -> void:
 	lay_tire_marks()
 	update_camera(delta, false)
 	shake = maxf(shake - delta * 1.6, 0.0)
-	camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * 16.0 * shake * shake
+	camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * 16.0 * shake * shake + camera_buzz()
 	if pane == "":
 		update_hud()
 	else:
@@ -1270,9 +1361,10 @@ func update_car() -> void:
 	var h := lerp_angle(h0, h1, frac())
 	# Right-hand lane: shift the centerline point toward the right of travel.
 	# (Visual only: the physics uses the centerline radius.)
-	car.position = to_world(value_at("x") + sin(h) * LANE_OFFSET_M,
-		value_at("y") - cos(h) * LANE_OFFSET_M)
-	car.rotation = -h                                 # flip: Godot rotates clockwise
+	var line := driving_line(value_at("s"), value_at("v"), "car")
+	var across := LANE_OFFSET_M + line.x
+	car.position = to_world(value_at("x") + sin(h) * across, value_at("y") - cos(h) * across)
+	car.rotation = -h + line.y                        # flip: Godot rotates clockwise
 	car.position -= Vector2.from_angle(car.rotation) * roll_back_px()   # intro: rolling up
 	if crash_age >= 0.0:                              # spun into the trees
 		car.rotation += 0.9 * clampf(crash_age / 0.5, 0.0, 1.0)
@@ -1313,8 +1405,10 @@ func update_ghost() -> void:
 	var h := lerp_angle(float(gs["heading"][i]), float(gs["heading"][i + 1]), f)
 	var x := lerpf(float(gs["x"][i]), float(gs["x"][i + 1]), f)
 	var y := lerpf(float(gs["y"][i]), float(gs["y"][i + 1]), f)
-	ghost_car.position = to_world(x + sin(h) * LANE_OFFSET_M, y - cos(h) * LANE_OFFSET_M)
-	ghost_car.rotation = -h
+	var line := driving_line(ghost_s_at(t), ghost_speed_at(t), "ghost")
+	var across := LANE_OFFSET_M + line.x
+	ghost_car.position = to_world(x + sin(h) * across, y - cos(h) * across)
+	ghost_car.rotation = -h + line.y
 	ghost_car.position -= Vector2.from_angle(ghost_car.rotation) * roll_back_px()
 	if lights.has("ghost_hazard"):
 		lights["ghost_hazard"].position = ghost_car.position
@@ -1392,6 +1486,10 @@ func update_camera(delta: float, snap: bool) -> void:
 		target_zoom = area.size.x / (view_m * PX_PER_M)
 		target_rot = focus.rotation + PI / 2.0
 		target_pos = focus.position + Vector2.from_angle(focus.rotation) * CHASE_LOOKAHEAD_M * PX_PER_M
+		# Thrown to the outside in a corner, like a body in the car (smoothed by the follow)
+		var ride := focus_ride()
+		var right_of_car := Vector2.from_angle(focus.rotation).orthogonal() * -1.0
+		target_pos += right_of_car * -ride.y * SWAY_M_PER_G * ride.x * PX_PER_M
 
 	# The view area isn't centered vertically (top bar vs bottom panel): shift
 	# the camera so target_pos lands in the middle of the view area
@@ -1543,3 +1641,70 @@ func time_at_s(s_target: float) -> float:
 		if float(ss[i]) >= s_target:
 			return float(ts[i])
 	return lap_time
+
+
+# ------------------------------------------------------------ driving like a person
+
+## The corner at distance s along the road, or {} on a straight.
+func corner_at_s(s: float) -> Dictionary:
+	for c in corners:
+		if s >= float(c["s_start"]) and s < float(c["s_end"]):
+			return c
+	return {}
+
+
+## Where a car sits in its lane and how its nose points, at distance s and
+## speed v: Vector2(m across, + = right of travel; rad of nose, + = clockwise
+## on screen). who: "car" (Faba: his mistakes run wide) or "ghost".
+func driving_line(s: float, v: float, who: String) -> Vector2:
+	var nz: FastNoiseLite = wander[who]
+	var across := nz.get_noise_1d(s) * WANDER_M * (0.4 + 0.6 * clampf(v / V_SHAKE_REF, 0.0, 1.5))
+	var nose := nz.get_noise_1d(s * 7.0 + 500.0) * 0.012 * clampf(v / V_SHAKE_REF, 0.0, 1.5)
+	var c := corner_at_s(s)
+	if not c.is_empty():
+		var s0 := float(c["s_start"])
+		var s1 := float(c["s_end"])
+		var p := (s - s0) / maxf(s1 - s0, 1.0)
+		var inward := 1.0 if c["direction"] == "R" else -1.0
+		across += inward * APEX_CUT_M * sin(PI * p)
+		# Slip angle: the nose turns into the corner with lateral g (a = v^2 / r)
+		var g := v * v / maxf(float(c["radius"]), 1.0) / G
+		nose += inward * SLIP_RAD_PER_G * minf(g, 1.3)
+	if who == "car" and driver != null:
+		for m in driver["corners"]:              # ran wide: out after the apex, back over 40 m
+			if not m["mistake"]:
+				continue
+			var mid := (float(m["s_start"]) + float(m["s_end"])) / 2.0
+			var k := 0.0
+			if s >= mid and s < float(m["s_end"]):
+				k = (s - mid) / maxf(float(m["s_end"]) - mid, 1.0)
+			elif s >= float(m["s_end"]) and s < float(m["s_end"]) + 40.0:
+				k = 1.0 - (s - float(m["s_end"])) / 40.0
+			if k > 0.0:
+				var mc := corner_at_s((float(m["s_start"]) + float(m["s_end"])) / 2.0)
+				var out := -1.0 if mc.get("direction", "R") == "R" else 1.0
+				across += out * RUN_WIDE_M * k
+	across = clampf(LANE_OFFSET_M + across, -LANE_LIMIT_M, LANE_LIMIT_M) - LANE_OFFSET_M
+	return Vector2(across, nose)
+
+
+## The followed car's cornering: Vector2(lateral g, +1 right-hander / -1 left / 0).
+func focus_ride() -> Vector2:
+	var s := ghost_s_at(t) if pane == "them" else value_at("s")
+	var v := ghost_speed_at(t) if pane == "them" else value_at("v")
+	var c := corner_at_s(s)
+	if c.is_empty():
+		return Vector2.ZERO
+	return Vector2(v * v / maxf(float(c["radius"]), 1.0) / G, 1.0 if c["direction"] == "R" else -1.0)
+
+
+## Camera buzz (screen px, as a world offset): with speed^2 and cornering g,
+## only while the race is running in Chase.
+func camera_buzz() -> Vector2:
+	if cam_mode != CamMode.CHASE or not playing or countdown > 0.0 or t >= end_time:
+		return Vector2.ZERO
+	var v := ghost_speed_at(t) if pane == "them" else value_at("v")
+	var amp := SPEED_SHAKE_PX * pow(v / V_SHAKE_REF, 2.0) + TURN_SHAKE_PX * minf(focus_ride().x, 1.3)
+	var tt := Time.get_ticks_msec() / 1000.0 * 18.0
+	return Vector2(buzz.get_noise_1d(tt), buzz.get_noise_1d(tt + 300.0)) * amp / maxf(camera.zoom.x, 0.01)
+

@@ -11,6 +11,7 @@ signal lock_pressed
 signal skip_pressed
 
 const UI := preload("res://ui.gd")
+const Voice := preload("res://voice.gd")
 
 
 func _ready() -> void:
@@ -20,6 +21,7 @@ func _ready() -> void:
 
 
 ## info: where, road_info, track (bridge "track" reply), stats (car_stats),
+## read (bridge "road_read": what the road rewards, for this build),
 ## parts_on (count), can_skip, skip_cost
 func setup(info: Dictionary) -> void:
 	%Where.text = info["where"]
@@ -27,6 +29,18 @@ func setup(info: Dictionary) -> void:
 	%Map.track = info["track"]
 	%Map.labels = false                         # colors + the key, no corner names (Spire)
 	%Map.queue_redraw()
+	var read: Dictionary = info["read"]
+	%ReadNote.text = Voice.ROAD_KIND.get(read["kind"], "")
+	var tight: Variant = read["tightest"]
+	for row in [
+		["Straights", "%d%% of the road" % roundi(float(read["straight_share"]) * 100)],
+		["Full throttle", "%d%% of the run" % roundi(float(read["full_throttle"]) * 100)],
+		["On the brakes", "%d%% of the run" % roundi(float(read["braking"]) * 100)],
+		["Longest straight", "%d m" % roundi(float(read["longest_straight"]))],
+		["Tightest", "none" if tight == null else "%s  (%d m)" % [tight["text"], roundi(float(tight["radius"]))]],
+		["Hairpins", str(read["hairpins"])],
+	]:
+		UI.stat_row(%Read, row[0], row[1], "InkMutedLabel", "InkLabel")
 	var s: Dictionary = info["stats"]
 	for row in [
 		["Power", "%d hp, %d lb-ft" % [s["hp"], s["torque_lbft"]]],

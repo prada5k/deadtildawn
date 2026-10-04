@@ -35,7 +35,8 @@ def _r(x, nd=3):
 
 def _pose_samples(segments, lap):
     """Downsampled (t, s, x, y, heading) for a ghost car (s: distance along the
-    road, for the viewer's gap tower)."""
+    road, for the viewer's gap tower), plus his dash (v, gear, rpm, throttle,
+    brake) for the mini gauges in his half of the split screen."""
     tel = lap.telemetry
     every = max(1, round(SAMPLE_STEP / (tel.s[1] - tel.s[0])))
     idx = list(range(0, len(tel.s), every))
@@ -44,7 +45,10 @@ def _pose_samples(segments, lap):
     xs, ys, hs = track_xy(segments, [tel.s[i] for i in idx])
     return {"t": [_r(tel.t[i]) for i in idx], "s": [_r(tel.s[i], 2) for i in idx],
             "x": [_r(x, 2) for x in xs],
-            "y": [_r(y, 2) for y in ys], "heading": [_r(h, 4) for h in hs]}
+            "y": [_r(y, 2) for y in ys], "heading": [_r(h, 4) for h in hs],
+            "v": [_r(tel.v[i]) for i in idx], "gear": [tel.gear[i] for i in idx],
+            "rpm": [round(tel.rpm[i]) for i in idx],
+            "throttle": [_r(tel.throttle[i]) for i in idx], "brake": [_r(tel.brake[i]) for i in idx]}
 
 
 def build_replay(car, segments, lap, track_name, ghost=None, location=None, splits=None):
@@ -115,6 +119,7 @@ def build_replay(car, segments, lap, track_name, ghost=None, location=None, spli
         "splits": splits,
         "ghost": None if ghost is None else {
             "name": ghost["name"], "car": ghost["car"], "lap_time": _r(ghost["lap"].lap_time),
+            "redline": ghost.get("redline"),
             "dnf": ghost["lap"].dnf, "crash_corner": ghost["lap"].crash_corner,
             "samples": _pose_samples(segments, ghost["lap"])},
         "driver": None if lap.driver is None else {

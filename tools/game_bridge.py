@@ -18,6 +18,9 @@ Commands:
   road      --road N | --rival FILE        race night, step 1: just tonight's road (track
                                           file, club, place); no opponent yet (he's
                                           matched AFTER the player locks the build)
+  road_read --track FILE [--parts a,b]    what the road rewards (sim/roadread.py): straight
+                                          share, full throttle / braking share of a
+                                          theoretical-limit run of THIS build, power/grip
   street    --road N --seed N [--tune --parts a,b] [--opponent ID]
                                           open road N (generated) + a street racer's card;
                                           --tune matches him to the player's car and tunes
@@ -390,6 +393,16 @@ def road_card(road=None, rival_file=None):
               style=style, location=STYLE_LOCATIONS[style], rival=False)
 
 
+def read_road(track_file, part_ids=()):
+    """The scout screen's read of a road, for the DX as it's built now."""
+    from sim.lap import run_lap
+    from sim.roadread import road_read
+    from sim.track import discretize, load_track
+    segments = load_track(resolve(track_file))
+    lap = run_lap(player_car(part_ids), discretize(segments, GAME_DS))
+    reply(**road_read(segments, lap))
+
+
 def street(road, seed, tune=False, part_ids=(), opponent=None):
     """A street racer's stat card on open road number `road`. With tune: the
     racer is matched to the player's car and his engine tuned so the best
@@ -458,9 +471,9 @@ def race(track_file, push, seed, out_file, part_ids=(), opponent=None, opp_seed=
     ghost, opp, why = None, None, None
     if opponent:
         spec = opponent_spec(opponent, opp_condition)
-        opp = run_lap(opponent_car(load_car(CAR_FILE), spec), grid,
-                      driver=opponent_driver(spec), seed=opp_seed)
-        ghost = {"name": spec["name"], "car": spec["car"], "lap": opp}
+        opp_car = opponent_car(load_car(CAR_FILE), spec)
+        opp = run_lap(opp_car, grid, driver=opponent_driver(spec), seed=opp_seed)
+        ghost = {"name": spec["name"], "car": spec["car"], "lap": opp, "redline": opp_car.redline}
         why = breakdown(segments, lap, opp)          # why did I win/lose
     replay_data = build_replay(car, segments, lap, track_path.name, ghost, location,
                                None if why is None else why["sections"])
@@ -483,7 +496,7 @@ def race(track_file, push, seed, out_file, part_ids=(), opponent=None, opp_seed=
 
 def main():
     ap = argparse.ArgumentParser(description="deadtildawn game bridge")
-    ap.add_argument("command", choices=["parts", "pull", "car_stats", "track", "road", "rival", "street",
+    ap.add_argument("command", choices=["parts", "pull", "car_stats", "track", "road", "road_read", "rival", "street",
                                         "practice", "odds", "race"])
     ap.add_argument("--week", type=int)
     ap.add_argument("--road", type=int)
@@ -519,6 +532,8 @@ def main():
             rival(a.rival, a.seed, a.condition, a.retune, part_ids)
         elif a.command == "road":
             road_card(a.road, a.rival)
+        elif a.command == "road_read":
+            read_road(a.track, part_ids)
         elif a.command == "street":
             street(a.road if a.road is not None else a.week, a.seed, a.tune, part_ids, a.opponent)
         elif a.command == "practice":

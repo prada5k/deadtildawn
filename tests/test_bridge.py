@@ -89,7 +89,9 @@ def test_replay_carries_the_ghost(tmp_path):
     assert g["lap_time"] == pytest.approx(r["opponent_time"], abs=1e-3)
     assert g["dnf"] == r["opponent_dnf"]
     n = len(g["samples"]["t"])
-    assert n > 10 and all(len(g["samples"][k]) == n for k in ("s", "x", "y", "heading"))
+    assert n > 10 and all(len(g["samples"][k]) == n for k in ("s", "x", "y", "heading",
+                                                             "v", "gear", "rpm", "throttle", "brake"))
+    assert g["redline"] > 5000                            # his tach's red zone
     assert g["samples"]["s"] == sorted(g["samples"]["s"])          # distance never goes back
     assert g["samples"]["t"][-1] == pytest.approx(g["lap_time"], abs=1e-3)
     assert replay["dnf"] == r["dnf"] and replay["crash_corner"] == r["crash_corner"]
@@ -200,6 +202,17 @@ def test_road_comes_before_the_opponent():
     assert z["ok"] and z["rival"] and z["location"] == "coast" and "opponent" not in z
     # ...and it's the same road the opponent's card names afterwards
     assert call("street", "--road", "2", "--seed", "1")["track"] == r["track"]
+
+
+def test_road_read_contract():
+    r = call("road_read", "--track", TRACK)
+    assert r["ok"] and r["kind"] in ("power", "grip", "both")
+    assert r["tightest"]["text"] == "L1 180" and 0.4 < r["full_throttle"] < 0.8
+    # More power: more of the lap is full throttle? No: the SAME road with a
+    # faster car spends LESS time on straights (they go by quicker), so the
+    # full-throttle share can only drop or hold
+    built = call("road_read", "--track", TRACK, "--parts", "interior_strip,header_421,cams_street")
+    assert built["full_throttle"] <= r["full_throttle"] + 0.005
 
 
 def test_street_retune_keeps_the_opponent():
