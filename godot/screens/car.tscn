@@ -164,3 +164,75 @@ text = "back to tonight's road  >"
 [node name="BottomPad" type="Control" parent="Scroll/Column"]
 custom_minimum_size = Vector2(0, 12)
 layout_mode = 2
+
+[node name="Compare" type="MarginContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 30
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 30
+
+[node name="CompareSheet" type="PanelContainer" parent="Compare"]
+layout_mode = 2
+size_flags_vertical = 4
+rotation = -0.004
+theme_type_variation = &"PaperPanel"
+
+[node name="CompareBox" type="VBoxContainer" parent="Compare/CompareSheet"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="CompareTitle" type="Label" parent="Compare/CompareSheet/CompareBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"InkHeadingLabel"
+text = "SWAP: INTAKE"
+
+[node name="CompareSwap" type="Label" parent="Compare/CompareSheet/CompareBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"InkLabel"
+text = "stock  >  Cold air intake (Q 62%)"
+autowrap_mode = 3
+
+[node name="CompareEffects" type="Label" parent="Compare/CompareSheet/CompareBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"InkMutedLabel"
+text = "+3.0% torque up top"
+autowrap_mode = 3
+
+[node name="CompareRows" type="GridContainer" parent="Compare/CompareSheet/CompareBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 14
+theme_override_constants/v_separation = 4
+columns = 4
+
+[node name="CompareButtons" type="HBoxContainer" parent="Compare/CompareSheet/CompareBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="CompareNo" type="Button" parent="Compare/CompareSheet/CompareBox/CompareButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+focus_mode = 0
+theme_type_variation = &"SmallTapeButton"
+text = "never mind"
+
+[node name="CompareYes" type="Button" parent="Compare/CompareSheet/CompareBox/CompareButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_type_variation = &"GaffButton"
+text = "put it on"

@@ -68,7 +68,6 @@ const BRAKE_X := 616.0        # pedal bars, in the car's order: brake left, thro
 const THROTTLE_X := 656.0
 const GaugeScript := preload("res://gauge.gd")
 const MARKER_COLOR := Color(1.0, 0.85, 0.2)
-const GHOST_ALPHA := 0.6
 const GHOST_MARKER_COLOR := Color(0.45, 0.7, 1.0)
 const WIN_COLOR := Color(0.46, 0.77, 0.4)
 const LOSS_COLOR := Color(0.93, 0.17, 0.24)
@@ -91,7 +90,6 @@ const COUNTDOWN_S := ROLL_S + 3 * COUNT_STEP_S
 const FINISH_SLOW_M := 45.0      # slow-mo once the leader is this close to the line
 const SLOW_MO := 0.3
 const FINISH_VIEW_M := 70.0      # finish-line camera
-const FINISH_HOLD_S := 4.0       # wait at most this long for the second car
 const GAP_BAR_RANGE_S := 1.0     # gap bar: full deflection at 1 s
 const MARK_COLOR := Color(0.02, 0.02, 0.02, 0.55)
 const CAPTION_YELLOW := Color(1.0, 0.86, 0.18)
@@ -209,9 +207,11 @@ func load_replay(path: String) -> String:
 	dnf = bool(data.get("dnf", false))     # optional, like ghost
 	ghost = data.get("ghost")
 	location = str(data.get("location", "canyon")) if data.get("location") != null else "canyon"
+	# The race is over when the winner crosses (Spire): the other car stops
+	# where he is. A crash ends it at the crash (Faba's) or at Faba's finish.
 	end_time = lap_time
-	if ghost != null and not dnf and not bool(ghost["dnf"]) and float(ghost["lap_time"]) > lap_time:
-		end_time = minf(float(ghost["lap_time"]), lap_time + FINISH_HOLD_S)   # watch him cross
+	if ghost != null and not dnf and not bool(ghost["dnf"]):
+		end_time = minf(lap_time, float(ghost["lap_time"]))
 	if ghost != null:
 		ghost_s = ghost["samples"].get("s", [])
 		if ghost_s.is_empty():                 # older replays: distance from the points
@@ -289,11 +289,21 @@ func build_world() -> void:
 	build_night()
 	build_car()
 	build_camera()
-	if pane == "them":                          # his pane: he's solid, Faba's the see-through one
-		ghost_car.modulate.a = 1.0
-		ghost_car.z_index = 10
-		car.modulate.a = GHOST_ALPHA
-		car.z_index = 8
+	# Split screen: each half shows only its own car (Spire: no ghosts)
+	if pane == "them":
+		hide_car(car, ["car", "car_tail", "car_hazard"])
+		marks.visible = false                   # Faba's tire marks
+	elif pane == "faba" and ghost != null:
+		hide_car(ghost_car, ["ghost", "ghost_hazard"])
+		ghost_tag.modulate.a = 0.0
+
+
+## Take a car out of this view: the sprite and its lights (it still moves, unseen).
+func hide_car(c: Node2D, light_keys: Array) -> void:
+	c.modulate.a = 0.0
+	for k in light_keys:
+		if lights.has(k):
+			lights[k].enabled = false
 
 
 func cross_line(i: int) -> Line2D:
@@ -402,7 +412,6 @@ func build_car() -> void:
 	# The ghost first, underneath: when the cars overlap, Faba's stays on top
 	if ghost != null:
 		ghost_car = make_car(str(ghost["car"]))
-		ghost_car.modulate.a = GHOST_ALPHA
 		ghost_car.z_index = 8
 		overlay.add_child(ghost_car)
 		ghost_marker = make_ring(GHOST_MARKER_COLOR)
@@ -1025,6 +1034,8 @@ func banner_result() -> Dictionary:
 		line = "%s %s" % ["BEAT" if won else "LOST TO", ghost_name()]
 		gap = "%s%.2f" % ["-" if won else "+", absf(lap_time - ghost_time)]
 		color = WIN_COLOR if won else LOSS_COLOR
+		if not won:                       # the replay stopped at HIS line: his time on top
+			head = "%s  %.2f" % [ghost_name(), ghost_time]
 	return {"text": head + "\n" + line, "color": color, "gap": gap}
 
 
@@ -1133,22 +1144,22 @@ func fire_events(delta: float) -> void:
 	if dnf and t >= lap_time:
 		if crash_age < 0.0:
 			crash_age = 0.0
-			crash_fx(car.position, car.rotation, pane != "them")
+			if pane != "them":                  # not in his half: Faba isn't there
+				crash_fx(car.position, car.rotation)
 		else:
 			crash_age += delta
 	if ghost != null and bool(ghost["dnf"]):
 		var gt := float(ghost["lap_time"])
-		if prev_t < gt and t >= gt:
-			crash_fx(ghost_car.position, ghost_car.rotation, pane == "them")
-	if not dnf and prev_t < lap_time and t >= lap_time and hud.has("flash"):
+		if prev_t < gt and t >= gt and pane != "faba":
+			crash_fx(ghost_car.position, ghost_car.rotation)
+	if not dnf and prev_t < end_time and t >= end_time and hud.has("flash"):   # the winner's line
 		var flash: ColorRect = hud["flash"]
 		flash.color.a = 0.7
 		create_tween().tween_property(flash, "color:a", 0.0, 0.5)
 
 
-func crash_fx(pos: Vector2, heading: float, shake_it := true) -> void:
-	if shake_it:
-		shake = 1.0
+func crash_fx(pos: Vector2, heading: float) -> void:
+	shake = 1.0
 	var sparks := CPUParticles2D.new()
 	sparks.position = pos
 	sparks.one_shot = true
@@ -1446,7 +1457,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_DOWN:
 			speed_i = maxi(speed_i - 1, 0)
 		KEY_ENTER, KEY_KP_ENTER:
-			if embedded and t >= lap_time:
+			if embedded and t >= end_time:
 				finished_viewing.emit()
 
 

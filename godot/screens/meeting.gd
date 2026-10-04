@@ -22,6 +22,7 @@ var push_order: Array = []
 var push_risk := {}            # push -> what you're risking, in plain words
 var cash := 0
 var min_buy_in := 0
+var top_bet := 0               # the most you can bet tonight: max bet, or all your cash
 var press_at := Vector2.ZERO   # where a touch on the map went down
 
 
@@ -95,7 +96,8 @@ func setup(info: Dictionary) -> void:
 	cash = int(info["cash"])
 	min_buy_in = int(info["min_buy_in"])
 	var slider: HSlider = %WagerSlider
-	var top := mini(cash, int(info["max_bet"]))      # max bet: 5x the minimum, or all you have
+	top_bet = mini(cash, int(info["max_bet"]))      # max bet: 5x the minimum, or all you have
+	var top := top_bet
 	slider.min_value = min_buy_in
 	slider.max_value = top
 	slider.step = info["wager_step"]
@@ -152,5 +154,5 @@ func set_wager(v: float) -> void:
 	%Cash.amount = w
 	%WagerAmount.text = UI.money(w)
 	%WagerOdds.text = "win +%s  /  lose -%s" % [UI.money(w), UI.money(w)]
-	%BigBet.visible = w > min_buy_in and w >= cash * Voice.BIG_BET_SHARE
+	%BigBet.visible = w > min_buy_in and w >= top_bet * Voice.BIG_BET_SHARE
 	wager_changed.emit(w)

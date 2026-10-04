@@ -6,6 +6,22 @@ extends Control
 
 signal go(target: String)    # "warehouse", "shop", "road"
 signal part_changed(slot: String, part_id: String)   # "" = back to stock
+signal part_previewed(slot: String, part_id: String) # picked one: compare before it goes on
+signal compare_closed                                # "never mind"
+
+## The comparison card: [label, stat key, format, higher is better?]. Less
+## weight, a quicker 0-60 / quarter, a shorter stop are improvements.
+const COMPARE := [
+	["Power", "hp", "%d hp", true],
+	["Torque", "torque_lbft", "%d lb-ft", true],
+	["Weight", "weight_kg", "%d kg", false],
+	["Power / weight", "hp_per_tonne", "%d hp/t", true],
+	["0-60 mph", "zero_60_s", "%.2f s", false],
+	["Quarter mile", "quarter_s", "%.2f s", false],
+	["Top speed", "top_speed_mph", "%d mph", true],
+	["Skidpad", "skidpad_g", "%.3f g", true],
+	["60-0 mph", "sixty_zero_ft", "%d ft", false],
+]
 
 const UI := preload("res://ui.gd")
 const Voice := preload("res://voice.gd")
@@ -15,6 +31,7 @@ var locked := false            # the build is locked in for tonight
 
 func _ready() -> void:
 	%ShopButton.pressed.connect(func(): go.emit("shop"))
+	%CompareNo.pressed.connect(func(): compare_closed.emit())
 	%ToRoad.pressed.connect(func(): go.emit("road"))
 
 
@@ -73,5 +90,48 @@ func build_parts_list(parts: Dictionary) -> void:
 			if parts["installed"].get(slot, "") == options[i][0]:
 				pick.select(i + 1)
 		pick.disabled = options.is_empty() or locked
-		pick.item_selected.connect(func(i): part_changed.emit(slot, pick.get_item_metadata(i)))
+		pick.item_selected.connect(func(i): part_previewed.emit(slot, pick.get_item_metadata(i)))
 		row.add_child(pick)
+
+
+## Side by side: the DX now vs with the picked part on. The change in green
+## when it's better, red when it's worse (theme InkGood/InkBadLabel), "same"
+## when it doesn't move. c: slot, from, to, effects, damaged, now, with, slot_id, uid
+func show_compare(c: Dictionary) -> void:
+	%Compare.visible = true
+	%CompareTitle.text = "SWAP: %s" % str(c["slot"]).to_upper()
+	%CompareSwap.text = "%s  >  %s" % [c["from"], c["to"]]
+	var notes: Array = c["effects"].duplicate()
+	if c["damaged"]:
+		notes.append("DAMAGED: does nothing until it's repaired")
+	%CompareEffects.text = ",  ".join(notes)
+	%CompareEffects.visible = not notes.is_empty()
+	var grid: GridContainer = %CompareRows
+	for child in grid.get_children():
+		child.queue_free()
+	for h in ["", "NOW", "WITH IT", "CHANGE"]:
+		UI.label(grid, h, "InkMutedLabel").autowrap_mode = TextServer.AUTOWRAP_OFF
+	var now: Dictionary = c["now"]
+	var with_it: Dictionary = c["with"]
+	for row in COMPARE:
+		var key: String = row[1]
+		var fmt: String = row[2]
+		var a := float(now[key])
+		var b := float(with_it[key])
+		var delta := fmt % absf(b - a)
+		var same := delta == fmt % 0.0                 # no change at the shown precision
+		var better := (b > a) == bool(row[3])
+		var cells := [row[0], fmt % a, fmt % b,
+			"same" if same else ("+" if b > a else "-") + delta]
+		for i in 4:
+			var style := "InkMutedLabel" if i == 0 else "InkLabel"
+			if i == 3:
+				style = "InkMutedLabel" if same else ("InkGoodLabel" if better else "InkBadLabel")
+			var l := UI.label(grid, cells[i], style)
+			l.autowrap_mode = TextServer.AUTOWRAP_OFF
+			if i > 0:
+				l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for conn in %CompareYes.pressed.get_connections():
+		%CompareYes.pressed.disconnect(conn["callable"])
+	%CompareYes.pressed.connect(func(): part_changed.emit(c["slot_id"], c["uid"]))
+

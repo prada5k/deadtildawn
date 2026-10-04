@@ -91,6 +91,7 @@ var hub_content: Control   # the hub screen currently inside the shell
 var viewer: Node           # replay viewer while racing
 var last_replay := ""      # the replay just watched (results reads its track for the map)
 var choice := {"push": "normal", "wager": MIN_BUY_IN}
+var compare := {}          # CAR: a swap being looked at: {slot, uid, stats (with it)}
 var after_car_stats := "warehouse"   # where to go once car stats arrive
 var after_catalog := "shop"          # where to go once the parts catalog arrives
 
@@ -467,6 +468,10 @@ func show_car() -> void:
 			"  DAMAGED" if inst.get("damaged", false) else ""]])
 	var car: Control = open_hub(CarScene, "car")
 	car.part_changed.connect(install_part)
+	car.part_previewed.connect(preview_part)
+	car.compare_closed.connect(func():
+		compare = {}
+		show_car())
 	var info := common_info()
 	info["parts_on"] = installed_part_ids()
 	var night: Dictionary = state["night"]
@@ -474,6 +479,36 @@ func show_car() -> void:
 		("scouting" if not night.is_empty() and night.get("event") == event_key(next_event()) else ""))
 	car.setup(info, car_stats,
 		{"slots": catalog["slots"], "options": options, "installed": state["installed"]})
+	if not compare.is_empty():
+		var inst := instance(compare["uid"])
+		var old := instance(state["installed"].get(compare["slot"], ""))
+		car.show_compare({
+			"slot": catalog["slots"].get(compare["slot"], compare["slot"]),
+			"from": part_label(old), "to": part_label(inst),
+			"effects": inst.get("effects_text", []), "damaged": inst.get("damaged", false),
+			"now": car_stats, "with": compare["stats"], "slot_id": compare["slot"], "uid": compare["uid"]})
+
+
+## "Cold air intake (Q 62%)", or "stock" for an empty slot.
+func part_label(inst: Dictionary) -> String:
+	if inst.is_empty():
+		return "stock"
+	return "%s (Q %d%%)" % [part_by_id(inst["part"]).get("name", inst["part"]), quality_pct(inst)]
+
+
+## Picked a part in CAR: dyno the DX with it on (bridge car_stats, ~0.3 s)
+## and show the swap side by side before anything changes.
+func preview_part(slot: String, uid: String) -> void:
+	if build_locked():
+		show_car()
+		return
+	var trial: Dictionary = state["installed"].duplicate()
+	if uid == "":
+		trial.erase(slot)
+	else:
+		trial[slot] = uid
+	compare = {"slot": slot, "uid": uid}
+	bridge.request("compare", ["car_stats"] + parts_args(trial))
 
 
 func show_shop() -> void:
@@ -495,10 +530,12 @@ func show_shop() -> void:
 
 ## Installed parts for every sim call, as id@quality: the car being simulated
 ## is the exact car in the warehouse, rolls included.
-func parts_args() -> Array:
+## installed: a what-if build (the parts comparison); default = the car as it is.
+func parts_args(installed = null) -> Array:
+	var build: Dictionary = state["installed"] if installed == null else installed
 	var entries := []
-	for slot in state["installed"]:
-		var inst := instance(state["installed"][slot])
+	for slot in build:
+		var inst := instance(build[slot])
 		if not inst.is_empty() and not inst.get("damaged", false):   # damaged = off the car
 			entries.append("%s@%.4f" % [inst["part"], float(inst["quality"])])
 	entries.sort()
@@ -691,6 +728,9 @@ func install_part(slot: String, uid: String, refresh := true) -> void:
 	else:
 		state["installed"][slot] = uid
 	car_stats = {}
+	if compare.get("slot", "") == slot and compare.get("uid", "?") == uid and compare.has("stats"):
+		car_stats = compare["stats"]         # already dynoed it with this part on
+	compare = {}
 	save_game()
 	if refresh:
 		show_car()
@@ -732,8 +772,8 @@ func note_memories(result: Dictionary) -> void:
 		and not r.get("no_contest", false)))
 	if streak(races, true) >= 3:
 		unlock("streak3")
-	if int(result["wager"]) >= int(state["cash"] - result["cash_change"]) * Voice.BIG_BET_SHARE \
-			and int(result["wager"]) > min_bet():
+	if (int(result["wager"]) >= int(result.get("top_bet", 1 << 30)) * Voice.BIG_BET_SHARE
+			and int(result["wager"]) > int(result.get("min_bet", MIN_BUY_IN))):
 		unlock("big_bet")
 
 
@@ -1044,6 +1084,7 @@ func apply_result(r: Dictionary) -> Dictionary:
 		"wager": wager, "cash_change": cash_change, "rep_change": rep_change,
 		"mistakes": r["mistakes"], "parts": parts_args(), "loot": "", "damage": {},
 		"track": night.get("track", ""), "rival_night": rival_night,
+		"top_bet": mini(int(state["cash"]), max_bet()), "min_bet": min_bet(),   # before this night counts
 		"breakdown": r.get("breakdown", {})}
 	state["cash"] = int(state["cash"]) + cash_change
 	state["rep"] = maxi(int(state["rep"]) + rep_change, 0)
@@ -1273,6 +1314,9 @@ The pull was refunded (%s)." % UI.money(pull_paid)
 		"car_stats":
 			car_stats = data
 			_go(after_car_stats)
+		"compare":                           # the DX with the part being looked at
+			compare["stats"] = data
+			show_car()
 		"parts":
 			catalog = data
 			_go(after_catalog)
@@ -1515,6 +1559,14 @@ func game_test() -> void:
 		"broke: scrapped the sway bar off the car for $%d (expect 80)" % state["cash"])
 	state["cash"] = 500
 
+	# Parts comparison: the what-if build is sent to the sim, the car itself doesn't change
+	var what_if := add_instance("intake_cold_air", 0.62, true, "shop")
+	var before := parts_args()
+	var trial_build: Dictionary = state["installed"].duplicate()
+	trial_build["intake"] = what_if["uid"]
+	check("intake_cold_air@0.6200" in ",".join(parts_args(trial_build)) and parts_args() == before,
+		"comparison: the what-if build has the intake, the car doesn't")
+
 	# Race night order (Spire): the road, then the build is locked, then the opponent
 	state["night"] = {}
 	state["installed"] = {}
@@ -1599,6 +1651,15 @@ func game_shots(folder: String) -> void:
 	await snap(folder, "1b_car")
 	hub_content.get_node("%Scroll").scroll_vertical = 900
 	await snap(folder, "1b_car_parts")
+	var trial: Dictionary = state["installed"].duplicate()     # the swap comparison
+	var spare_cams := add_instance("intake_cold_air", 0.62, true, "shop", part_by_id("intake_cold_air")["effects_text"])
+	trial["intake"] = spare_cams["uid"]
+	trial.erase("interior")                                   # and one that's worse: stock interior
+	bridge.request("car_stats", ["car_stats"] + parts_args(trial))
+	compare = {"slot": "intake", "uid": spare_cams["uid"], "stats": (await bridge.replied)[1]}
+	show_car()
+	await snap(folder, "1b_car_compare")
+	compare = {}
 	bridge.request("pull", ["pull", "--source", "swap_meet", "--seed", "4"])
 	var pr: Dictionary = (await bridge.replied)[1]
 	var pulled := add_instance(pr["part"], float(pr["quality"]), false, "swap_meet", pr["effects_text"])

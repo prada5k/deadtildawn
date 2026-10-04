@@ -65,9 +65,10 @@ const FABA_PUSH := {
 	"flat_out": "fuck it bruh",
 }
 
-# Meeting: when you bet big (at least this share of your cash, above the buy-in)
+# Meeting: when you bet big (at least this share of the max bet you can make,
+# above the minimum)
 const FABA_BIG_BET := "damnnnn mr deep pockets over here"
-const BIG_BET_SHARE := 0.5
+const BIG_BET_SHARE := 0.75
 
 # Results
 const FABA_WON := "did you expect anything else"
