@@ -26,6 +26,7 @@ const CarScene := preload("res://screens/car.tscn")
 const CalendarScene := preload("res://screens/calendar.tscn")
 const ShopScene := preload("res://screens/shop.tscn")
 const ShellScene := preload("res://screens/shell.tscn")
+const GritShader := preload("res://widgets/grit.gdshader")
 const LOCATIONS := {
 	"warehouse": "THE WAREHOUSE // TERMINAL_01",
 	"car": "THE DX // CHASSIS_CONFIG",
@@ -35,7 +36,7 @@ const LOCATIONS := {
 
 const SAVE_PATH := "user://save.json"
 const TEST_SAVE_PATH := "user://test_save.json"   # --gametest / --gameshots: never touch the real save
-const SAVE_VERSION := 4
+const SAVE_VERSION := 5
 const START_CASH := 250
 const MIN_BUY_IN := 100
 const WAGER_STEP := 10
@@ -67,6 +68,7 @@ var track_info := {}
 var catalog := {}          # bridge "parts" reply (slots + parts with exact effects)
 var shop_message := ""
 var pending_race := {}     # race reply + result, held while a loot pull resolves
+var pull_paid := 0         # price of the pull in flight: refunded if the sim fails
 var bridge: Node
 var screen: Control        # current UI screen (the shell while in the hub)
 var shell: Control         # persistent hub shell (top rail, ribbon, bottom nav)
@@ -84,6 +86,7 @@ func _ready() -> void:
 	RenderingServer.set_default_clear_color(UI.BG)
 	bridge = Bridge.new()
 	add_child(bridge)
+	add_grit()
 	var args := OS.get_cmdline_user_args()
 	for a in args:
 		if a == "--gametest" or a.begins_with("--gameshots="):
@@ -157,6 +160,11 @@ func migrate(data: Dictionary) -> Dictionary:
 		data["pity"] = {}
 		data["next_uid"] = n
 		v = 4
+	if v < 5:                        # v4 -> v5: head to head (a night is a stat card)
+		var night: Dictionary = data.get("night", {})
+		if not night.is_empty() and not night.has("opponent"):
+			data["night"] = {}       # an old posted-time night: redraw it as a card
+		v = 5
 	data["version"] = v
 	return data
 
@@ -245,6 +253,21 @@ func clear_screen() -> void:
 	shell = null
 	hub_content = null
 	footer = null
+
+
+## Film grain + vignette over every screen (widgets/grit.gdshader): the
+## late-90s / 2000s tuner-video look. Never blocks touches.
+func add_grit() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 100
+	add_child(layer)
+	var rect := ColorRect.new()
+	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mat := ShaderMaterial.new()
+	mat.shader = GritShader
+	rect.material = mat
+	layer.add_child(rect)
 
 
 ## Show a hub screen inside the persistent shell. The shell is created once;
@@ -472,13 +495,26 @@ func do_pull(source: String) -> void:
 		show_shop()
 		return
 	state["cash"] = int(state["cash"]) - int(src["price"])
+	pull_paid = int(src["price"])
 	save_game()                                   # paid: a crash or quit can't refund it
 	show_message("PULLING", "%s..." % src["name"])
-	bridge.request("pull", ["pull", "--source", source, "--seed", str(randi() % 1000000),
-		"--pity", JSON.stringify(state["pity"])])
+	bridge.request("pull", ["pull", "--source", source, "--seed", str(randi() % 1000000)]
+		+ pity_args())
+
+
+## Pity counters for the bridge: ["--pity", "source=N,source=N"], or nothing
+## when there are none. Not JSON (Windows command lines strip its double
+## quotes), and never an empty argument (Windows drops it, leaving --pity
+## without a value).
+func pity_args() -> Array:
+	var items := []
+	for source in state["pity"]:
+		items.append("%s=%d" % [source, int(state["pity"][source])])
+	return [] if items.is_empty() else ["--pity", ",".join(items)]
 
 
 func on_pulled(data: Dictionary) -> void:
+	pull_paid = 0
 	state["pity"] = data["pity"]
 	var inst := add_instance(data["part"], float(data["quality"]), false, data["source"],
 		data["effects_text"])
@@ -878,7 +914,17 @@ func show_broke() -> void:
 
 func _on_reply(tag: String, data: Dictionary) -> void:
 	if not data.get("ok", false):
-		show_message("THE SIM HIT A PROBLEM", str(data.get("error", "unknown error")), "BACK TO THE WAREHOUSE", show_warehouse)
+		var refund := ""
+		if tag == "pull" and pull_paid > 0:
+			# Our bug, not the player's choice: give the money back
+			state["cash"] = int(state["cash"]) + pull_paid
+			save_game()
+			refund = "
+
+The pull was refunded (%s)." % UI.money(pull_paid)
+			pull_paid = 0
+		show_message("THE SIM HIT A PROBLEM", str(data.get("error", "unknown error")) + refund,
+			"BACK TO THE WAREHOUSE", show_warehouse)
 		return
 	match tag:
 		"car_stats":
@@ -980,8 +1026,13 @@ func game_test() -> void:
 	state["cash"] = 1000
 	do_pull("crate")                         # needs 100 rep: refused
 	print("GAMETEST crate at 0 rep refused: cash still %d" % state["cash"])
-	bridge.request("pull", ["pull", "--source", "junkyard", "--seed", "3", "--pity", "{}"])
+	state["pity"] = {}                                   # a new game: no counters yet
+	bridge.request("pull", ["pull", "--source", "junkyard", "--seed", "3"] + pity_args())
+	check((await bridge.replied)[1]["ok"], "first pull of a new game (empty pity)")
+	state["pity"] = {"junkyard": 2.0, "crate": 5.0}      # floats, like a loaded save
+	bridge.request("pull", ["pull", "--source", "junkyard", "--seed", "3"] + pity_args())
 	var pr: Dictionary = (await bridge.replied)[1]
+	check(pr["ok"] and int(pr["pity"]["crate"]) == 5, "pity counters reach the bridge (%s)" % [pity_args()])
 	state["pity"] = pr["pity"]
 	var inst := add_instance(pr["part"], float(pr["quality"]), false, "junkyard", pr["effects_text"])
 	print("GAMETEST pulled: %s (%s), quality %.2f, pity %s" % [pr["name"], pr["rarity"], pr["quality"], pr["pity"]])
@@ -1043,6 +1094,10 @@ func game_test() -> void:
 	print("GAMETEST open road week 3: %s in a %s (%d hp) on %s" % [r[1]["name"], r[1]["car"],
 		r[1]["stats"]["hp"], r[1]["style"]])
 	check(r[1].has("opponent") and not r[1].has("posted_time"), "street night is a stat card")
+	var old_night := migrate({"version": 4, "cash": 1, "rep": 0, "week": 1, "day": 0, "history": [],
+		"installed": {}, "inventory": [], "pity": {}, "next_uid": 1,
+		"night": {"name": "Zed", "posted_time": 49.6, "event": "1-4"}})
+	check(old_night["night"].is_empty() and old_night["version"] == 5, "v4 -> v5 redraws an old posted-time night")
 	print("GAMETEST migrate v2: %s" % [migrate({"version": 2, "cash": 1, "rep": 0, "week": 1, "day": 0, "history": [], "night": {}}).keys()])
 	state["rep"] = 10
 	skip_night()
@@ -1087,7 +1142,7 @@ func game_shots(folder: String) -> void:
 	await snap(folder, "1b_car")
 	hub_content.get_node("%Scroll").scroll_vertical = 900
 	await snap(folder, "1b_car_parts")
-	bridge.request("pull", ["pull", "--source", "swap_meet", "--seed", "4", "--pity", "{}"])
+	bridge.request("pull", ["pull", "--source", "swap_meet", "--seed", "4"])
 	var pr: Dictionary = (await bridge.replied)[1]
 	var pulled := add_instance(pr["part"], float(pr["quality"]), false, "swap_meet", pr["effects_text"])
 	show_reveal(pulled)

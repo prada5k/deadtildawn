@@ -46,9 +46,16 @@ func request(tag: String, args: Array) -> void:
 
 func _run(tag: String, args: Array) -> void:
 	var output := []
-	var code := OS.execute(python, [bridge] + args, output, false)
+	# stderr too, so a Python error (traceback, bad arguments) reaches the screen
+	var code := OS.execute(python, [bridge] + args, output, true)
 	var text := "" if output.is_empty() else str(output[0]).strip_edges()
-	var data = JSON.parse_string(text.get_slice("\n", text.get_slice_count("\n") - 1))
+	# The reply is the last line that is a JSON object (stderr lines can follow it)
+	var data = null
+	var lines := text.split("\n")
+	for i in range(lines.size() - 1, -1, -1):
+		if lines[i].strip_edges().begins_with("{"):
+			data = JSON.parse_string(lines[i])
+			break
 	if typeof(data) != TYPE_DICTIONARY:
 		data = {"ok": false, "error": "Bridge failed (exit code %d). Output:\n%s" % [code, text]}
 	call_deferred("_finish", tag, data)

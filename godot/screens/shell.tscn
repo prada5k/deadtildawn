@@ -98,7 +98,7 @@ theme_override_styles/panel = SubResource("Ribbon")
 [node name="LocationLabel" type="Label" parent="Column/LocationRibbon"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_type_variation = &"HeadingLabel"
+theme_type_variation = &"RibbonLabel"
 theme_override_colors/font_color = Color(0.102, 0.059, 0.063, 1)
 text = "THE WAREHOUSE // TERMINAL_01"
 

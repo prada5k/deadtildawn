@@ -6,7 +6,7 @@ and reads ONE JSON object from stdout. Every reply has "bridge_version" and
 
 Commands:
   parts                                   the parts catalog, with each part's exact effects
-  pull      --source S --pity JSON --seed N   one pull: part, quality roll, effects, new pity
+  pull      --source S --pity a=N,b=N --seed N   one pull: part, quality roll, effects, new pity
                                           (--parts entries may carry a quality: cams_race@0.83)
   car_stats [--parts a,b]                 stat sheet + dyno for the car with these parts
   track     --track FILE                  layout for the briefing (no car)
@@ -196,7 +196,19 @@ def parts_catalog():
           parts=[{**p, "effects_text": part_effects(car, p)} for p in parts.values()])
 
 
-def do_pull(source, pity_json, seed):
+def parse_pity(text):
+    """--pity junkyard=3,crate=0 -> {"junkyard": 3, "crate": 0}. Not JSON: Godot's
+    OS.execute on Windows doesn't escape the double quotes JSON needs."""
+    pity = {}
+    for item in filter(None, text.split(",")):
+        source, sep, n = item.partition("=")
+        if not sep or not source:
+            raise ValueError(f"bad --pity entry {item!r} (expected source=N)")
+        pity[source] = int(float(n))
+    return pity
+
+
+def do_pull(source, pity_text, seed):
     """One pull from an in-world source, with the effects of the rolled part."""
     import random
     from sim.car import load_car
@@ -207,7 +219,7 @@ def do_pull(source, pity_json, seed):
         raise ValueError(f"unknown source {source!r}")
     # (rep and cash gates are enforced by the game, which owns the save)
     _, parts = load_catalog()
-    pity = json.loads(pity_json or "{}")
+    pity = parse_pity(pity_text)
     pid, q, new_pity = pull(source, sources, parts, pity, random.Random(seed))
     car = load_car(CAR_FILE)
     reply(source=source, price=sources[source]["price"], part=pid, quality=q,
@@ -386,7 +398,7 @@ def main():
     ap.add_argument("--opponent")
     ap.add_argument("--opp-seed", type=int, default=0)
     ap.add_argument("--source")
-    ap.add_argument("--pity", default="{}")
+    ap.add_argument("--pity", default="")
     ap.add_argument("--parts", default="", help="installed part ids, comma-separated")
     ap.add_argument("--track")
     ap.add_argument("--rival")

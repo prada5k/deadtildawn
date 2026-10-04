@@ -77,7 +77,8 @@ def test_replay_carries_the_ghost(tmp_path):
     assert g["lap_time"] == pytest.approx(r["opponent_time"], abs=1e-3)
     assert g["dnf"] == r["opponent_dnf"]
     n = len(g["samples"]["t"])
-    assert n > 10 and all(len(g["samples"][k]) == n for k in ("x", "y", "heading"))
+    assert n > 10 and all(len(g["samples"][k]) == n for k in ("s", "x", "y", "heading"))
+    assert g["samples"]["s"] == sorted(g["samples"]["s"])          # distance never goes back
     assert g["samples"]["t"][-1] == pytest.approx(g["lap_time"], abs=1e-3)
     assert replay["dnf"] == r["dnf"] and replay["crash_corner"] == r["crash_corner"]
 
@@ -164,9 +165,18 @@ def test_parts_change_the_race_but_not_the_opponent(tmp_path):
 
 
 def test_pull_contract():
-    r = call("pull", "--source", "junkyard", "--seed", "1", "--pity", "{}")
+    r = call("pull", "--source", "junkyard", "--seed", "1", "--pity", "")
     assert r["ok"] and 0.0 <= r["quality"] <= 0.7 and r["effects_text"]
     assert "junkyard" in r["pity"]
+
+
+def test_pity_counters_come_through():
+    # Regression: --pity was JSON, and Windows ate its double quotes on the way
+    # from Godot, so every pull after the first failed. Other sources' counters
+    # pass through untouched.
+    r = call("pull", "--source", "junkyard", "--seed", "1", "--pity", "junkyard=2,crate=5")
+    assert r["ok"] and r["pity"]["crate"] == 5
+    assert call("pull", "--source", "junkyard", "--seed", "1", "--pity", "{}")["ok"] is False
 
 
 def test_rolled_parts_reach_the_sim():

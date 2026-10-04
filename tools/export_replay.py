@@ -34,14 +34,16 @@ def _r(x, nd=3):
 
 
 def _pose_samples(segments, lap):
-    """Downsampled (t, x, y, heading) for a ghost car."""
+    """Downsampled (t, s, x, y, heading) for a ghost car (s: distance along the
+    road, for the viewer's gap tower)."""
     tel = lap.telemetry
     every = max(1, round(SAMPLE_STEP / (tel.s[1] - tel.s[0])))
     idx = list(range(0, len(tel.s), every))
     if idx[-1] != len(tel.s) - 1:
         idx.append(len(tel.s) - 1)
     xs, ys, hs = track_xy(segments, [tel.s[i] for i in idx])
-    return {"t": [_r(tel.t[i]) for i in idx], "x": [_r(x, 2) for x in xs],
+    return {"t": [_r(tel.t[i]) for i in idx], "s": [_r(tel.s[i], 2) for i in idx],
+            "x": [_r(x, 2) for x in xs],
             "y": [_r(y, 2) for y in ys], "heading": [_r(h, 4) for h in hs]}
 
 
