@@ -38,7 +38,7 @@ func setup(info: Dictionary) -> void:
 		["On the brakes", "%d%% of the run" % roundi(float(read["braking"]) * 100)],
 		["Longest straight", "%d m" % roundi(float(read["longest_straight"]))],
 		["Tightest", "none" if tight == null else "%s  (%d m)" % [tight["text"], roundi(float(tight["radius"]))]],
-		["Hairpins", str(read["hairpins"])],
+		["Hairpins", str(int(read["hairpins"]))],
 	]:
 		UI.stat_row(%Read, row[0], row[1], "InkMutedLabel", "InkLabel")
 	var s: Dictionary = info["stats"]

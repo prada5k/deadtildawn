@@ -56,3 +56,28 @@ line. A section's `top_cause` is its biggest bucket by size.
 **Verdict** (Faba's line): the bucket with the biggest loss if he lost, the
 biggest gain if he won; "crash" / "their_crash" if a crash decided it (the
 breakdown then covers only the distance both cars drove).
+
+### 6.u Reading a road before the race (`sim/roadread.py`)
+
+The scout screen says what kind of road it is, from the pace notes and one
+theoretical-limit run of the player's car as built (no lap times shown).
+
+**By distance** (pace notes only): straight share = straight meters / road
+length. Hand calc, test track: straights 690 m; corners $R_n = 15\,(500/15)^{(n-1)/9}$
+times angle = 176.3 + 45.9 + 51.4 + 47.1 + 56.0 = 376.7 m; share = 690 / 1066.7 = 0.647 (tested).
+
+**By time** (the run): share of time at full throttle and on the brakes.
+Time, not distance, decides what a part buys: the car spends longer per
+meter in corners (it's slower there), so a road that's 55% straight by
+distance can be under half full throttle by time.
+
+**Verdict:** full throttle >= 62%: a power road; <= 48%: a grip road;
+between: both. Thresholds from data: open roads 1-9 + the test track span
+41-70% (flowing roads 66-70%, tight ones 41-44%).
+
+**Predict this one:** put power parts on, and the SAME road's full-throttle
+share drops (test track: 66% -> 62.5% with an interior strip, a header and
+street cams). The straights go by faster, but corner speed is capped by grip
+($v = \sqrt{\mu g r}$, no power in it), so the corners become a bigger share of
+the run. More power makes grip matter more: a power road can turn into a
+"both" road as you build it. (Tested: the built car's share is never higher.)

@@ -45,7 +45,6 @@ const SUPPORTED_VERSION := 1
 
 const PX_PER_M := 4.0            # world scale: 1 m = 4 px
 const ROAD_WIDTH_M := 8.0        # two-lane mountain road (two 4 m lanes)
-const LANE_OFFSET_M := 2.0       # car drives the center of the right-hand lane
 const RoadScript := preload("res://widgets/road.gd")
 const CarSprite := preload("res://widgets/car_sprite.gd")
 const RACING_FONT := preload("res://fonts/RacingSansOne-Regular.ttf")
@@ -69,17 +68,24 @@ const OPP_DASH_ALPHA := 0.72     # his mini gauges: smaller and see-through (Spi
 # centerline, and positions along the road (so every time and gap) are the
 # sim's. These only move the car across its lane and turn its nose a little.
 const WANDER_M := 0.35           # slow drift in the lane (grows with speed)
-const APEX_CUT_M := 1.1          # eases toward the inside, most at mid-corner
+# A 3 a.m. spotter run (Spire): both lanes are theirs. Out-in-out through
+# every corner: the outside edge at entry, the inside at the apex, the outside
+# again at the exit, then home near the middle on a long straight.
+const LINE_SWING_M := 2.6        # how far from the middle: edge or apex (the road is 8 m)
+const LINE_LEAD_M := 45.0        # moves out this far before a corner, back over as long after
+const HOME_M := 0.5              # straights: a touch right of the middle, out of habit
 const SLIP_RAD_PER_G := 0.09     # nose turned into the corner: ~5 deg per g of a = v^2 / r
 const RUN_WIDE_M := 1.6          # a mistake: out toward the edge after the apex
-const LANE_LIMIT_M := 3.4        # never off the asphalt (half the road is 4 m)
+const LANE_LIMIT_M := 3.1        # car's center: never off the asphalt (half the road is 4 m)
+const WIDE_LIMIT_M := 3.7        # ...except running wide: wheels on the edge line
 const G := 9.81
 # The camera: a buzz with speed, a kick to the outside in corners
-const SPEED_SHAKE_PX := 3.0      # screen px of buzz at V_SHAKE_REF...
+const SPEED_SHAKE_PX := 1.0      # screen px of buzz at V_SHAKE_REF...
 const V_SHAKE_REF := 40.0        # ...144 km/h (it grows with v^2)
-const TURN_SHAKE_PX := 4.0       # more buzz per g of cornering
+const TURN_SHAKE_PX := 1.3       # more buzz per g of cornering
 const SWAY_M_PER_G := 2.2        # the camera swings this far to the outside per g
-const OPP_GAUGE_PX := 118.0
+const OPP_GAUGE_PX := 92.0
+const OPP_BAR_PX := 36.0
 const PEDAL_H := 210.0
 const BRAKE_X := 616.0        # pedal bars, in the car's order: brake left, throttle right
 const THROTTLE_X := 656.0
@@ -802,10 +808,10 @@ func build_opp_dash(layer: CanvasLayer) -> void:
 	speedo.minor_step = 25.0
 	speedo.title = "km/h"
 	dash.add_child(speedo)
-	var gear := racing_label(dash, Vector2(2 * OPP_GAUGE_PX + 10, 18), 40, Color(1.0, 0.85, 0.3))
+	var gear := racing_label(dash, Vector2(2 * OPP_GAUGE_PX + 10, 10), 30, Color(1.0, 0.85, 0.3))
 	hud["opp"] = {"dash": dash, "tach": tach, "speedo": speedo, "gear": gear,
-		"brake": add_bar(dash, Vector2(2 * OPP_GAUGE_PX + 12, 70), Vector2(10, 44), Color(0.93, 0.17, 0.24)),
-		"throttle": add_bar(dash, Vector2(2 * OPP_GAUGE_PX + 26, 70), Vector2(10, 44), Color(0.3, 0.8, 0.4))}
+		"brake": add_bar(dash, Vector2(2 * OPP_GAUGE_PX + 12, 52), Vector2(8, OPP_BAR_PX), Color(0.93, 0.17, 0.24)),
+		"throttle": add_bar(dash, Vector2(2 * OPP_GAUGE_PX + 24, 52), Vector2(8, OPP_BAR_PX), Color(0.3, 0.8, 0.4))}
 
 
 ## One of his telemetry channels at time tt (his own time base).
@@ -846,8 +852,8 @@ func update_panes(vp: Vector2) -> void:
 		o["speedo"].value = ghost_at("v", t) * 3.6 * alive
 		var g := int(ghost_at("gear", t))
 		o["gear"].text = "-" if g == 0 else str(g)
-		set_bar(o["throttle"], ghost_at("throttle", t) * alive, 44.0)
-		set_bar(o["brake"], ghost_at("brake", t) * alive, 44.0)
+		set_bar(o["throttle"], ghost_at("throttle", t) * alive, OPP_BAR_PX)
+		set_bar(o["brake"], ghost_at("brake", t) * alive, OPP_BAR_PX)
 
 
 ## A small vertical bar filling from the bottom (his pedals).
@@ -1362,7 +1368,7 @@ func update_car() -> void:
 	# Right-hand lane: shift the centerline point toward the right of travel.
 	# (Visual only: the physics uses the centerline radius.)
 	var line := driving_line(value_at("s"), value_at("v"), "car")
-	var across := LANE_OFFSET_M + line.x
+	var across := line.x
 	car.position = to_world(value_at("x") + sin(h) * across, value_at("y") - cos(h) * across)
 	car.rotation = -h + line.y                        # flip: Godot rotates clockwise
 	car.position -= Vector2.from_angle(car.rotation) * roll_back_px()   # intro: rolling up
@@ -1406,7 +1412,7 @@ func update_ghost() -> void:
 	var x := lerpf(float(gs["x"][i]), float(gs["x"][i + 1]), f)
 	var y := lerpf(float(gs["y"][i]), float(gs["y"][i + 1]), f)
 	var line := driving_line(ghost_s_at(t), ghost_speed_at(t), "ghost")
-	var across := LANE_OFFSET_M + line.x
+	var across := line.x
 	ghost_car.position = to_world(x + sin(h) * across, y - cos(h) * across)
 	ghost_car.rotation = -h + line.y
 	ghost_car.position -= Vector2.from_angle(ghost_car.rotation) * roll_back_px()
@@ -1653,23 +1659,49 @@ func corner_at_s(s: float) -> Dictionary:
 	return {}
 
 
-## Where a car sits in its lane and how its nose points, at distance s and
-## speed v: Vector2(m across, + = right of travel; rad of nose, + = clockwise
-## on screen). who: "car" (Faba: his mistakes run wide) or "ghost".
+## Out-in-out across the whole road (m from the middle, + = right of travel).
+func racing_line(s: float) -> float:
+	var prev_end := -INF
+	var prev_off := HOME_M
+	var next_start := INF
+	var next_off := HOME_M
+	for c in corners:
+		var s0 := float(c["s_start"])
+		var s1 := float(c["s_end"])
+		var inward := 1.0 if c["direction"] == "R" else -1.0
+		if s >= s0 and s < s1:                   # in it: outside -> apex -> outside
+			var p := (s - s0) / maxf(s1 - s0, 1.0)
+			return -inward * LINE_SWING_M * cos(TAU * p)
+		if s1 <= s and s1 > prev_end:
+			prev_end = s1
+			prev_off = -inward * LINE_SWING_M
+		if s0 > s and s0 < next_start:
+			next_start = s0
+			next_off = -inward * LINE_SWING_M
+	if next_start - prev_end < 2.0 * LINE_LEAD_M:   # short straight: edge to edge
+		return lerpf(prev_off, next_off, smoothstep(prev_end, next_start, s))
+	if s < prev_end + LINE_LEAD_M:
+		return lerpf(prev_off, HOME_M, smoothstep(prev_end, prev_end + LINE_LEAD_M, s))
+	if s > next_start - LINE_LEAD_M:
+		return lerpf(HOME_M, next_off, smoothstep(next_start - LINE_LEAD_M, next_start, s))
+	return HOME_M
+
+
+## Where a car is across the road and how its nose points, at distance s and
+## speed v: Vector2(m from the middle, + = right of travel; rad of nose, + =
+## clockwise on screen). who: "car" (Faba: his mistakes run wide) or "ghost".
 func driving_line(s: float, v: float, who: String) -> Vector2:
 	var nz: FastNoiseLite = wander[who]
-	var across := nz.get_noise_1d(s) * WANDER_M * (0.4 + 0.6 * clampf(v / V_SHAKE_REF, 0.0, 1.5))
+	var across := racing_line(s)
+	across += nz.get_noise_1d(s) * WANDER_M * (0.4 + 0.6 * clampf(v / V_SHAKE_REF, 0.0, 1.5))
 	var nose := nz.get_noise_1d(s * 7.0 + 500.0) * 0.012 * clampf(v / V_SHAKE_REF, 0.0, 1.5)
 	var c := corner_at_s(s)
 	if not c.is_empty():
-		var s0 := float(c["s_start"])
-		var s1 := float(c["s_end"])
-		var p := (s - s0) / maxf(s1 - s0, 1.0)
-		var inward := 1.0 if c["direction"] == "R" else -1.0
-		across += inward * APEX_CUT_M * sin(PI * p)
 		# Slip angle: the nose turns into the corner with lateral g (a = v^2 / r)
+		var inward := 1.0 if c["direction"] == "R" else -1.0
 		var g := v * v / maxf(float(c["radius"]), 1.0) / G
 		nose += inward * SLIP_RAD_PER_G * minf(g, 1.3)
+	var limit := LANE_LIMIT_M
 	if who == "car" and driver != null:
 		for m in driver["corners"]:              # ran wide: out after the apex, back over 40 m
 			if not m["mistake"]:
@@ -1681,11 +1713,11 @@ func driving_line(s: float, v: float, who: String) -> Vector2:
 			elif s >= float(m["s_end"]) and s < float(m["s_end"]) + 40.0:
 				k = 1.0 - (s - float(m["s_end"])) / 40.0
 			if k > 0.0:
-				var mc := corner_at_s((float(m["s_start"]) + float(m["s_end"])) / 2.0)
+				var mc := corner_at_s(mid)
 				var out := -1.0 if mc.get("direction", "R") == "R" else 1.0
 				across += out * RUN_WIDE_M * k
-	across = clampf(LANE_OFFSET_M + across, -LANE_LIMIT_M, LANE_LIMIT_M) - LANE_OFFSET_M
-	return Vector2(across, nose)
+				limit = lerpf(LANE_LIMIT_M, WIDE_LIMIT_M, k)
+	return Vector2(clampf(across, -limit, limit), nose)
 
 
 ## The followed car's cornering: Vector2(lateral g, +1 right-hander / -1 left / 0).
@@ -1705,6 +1737,6 @@ func camera_buzz() -> Vector2:
 		return Vector2.ZERO
 	var v := ghost_speed_at(t) if pane == "them" else value_at("v")
 	var amp := SPEED_SHAKE_PX * pow(v / V_SHAKE_REF, 2.0) + TURN_SHAKE_PX * minf(focus_ride().x, 1.3)
-	var tt := Time.get_ticks_msec() / 1000.0 * 18.0
+	var tt := Time.get_ticks_msec() / 1000.0 * 9.0           # slow enough to feel like a rumble
 	return Vector2(buzz.get_noise_1d(tt), buzz.get_noise_1d(tt + 300.0)) * amp / maxf(camera.zoom.x, 0.01)
 

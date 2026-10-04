@@ -93,3 +93,7 @@ No model change: `sim/breakdown.py` only reads two runs' telemetry (PHYSICS_upda
 - **Checks:** the buckets add up to the final gap (telescoping sum; real races within 3-decimal rounding); 100 m straight hand calcs: constant 25 vs 20 m/s = 1.0 s all exit; same entry, a = 3 vs 2 = 0.268 s all accel; same a, entry 22 vs 20 = 0.276 s all exit; 50 m corner at 20 vs 18 m/s = 0.278 s corner; a wide corner + slow exit = 0.476 s all mistake. Identical runs give zero; a car 250 kg lighter wins on accel.
 - **Bug fixed while testing:** the what-if speed floor (0.5 m/s) also applied at the start line (both cars at 0), giving identical runs a fake exit gain. The floor now applies only where the what-if would go below it.
 - **Design choice:** the exit speed lost after a corner where someone ran wide counts as that mistake, not "exit". First Zed race checked: Faba ran wide at L6, and 0.25 s of the 0.33 s it cost showed up on the straight after.
+
+## Road read on the scout screen (Oct 2026)
+
+No model change: `sim/roadread.py` reads the pace notes and one theoretical-limit run (PHYSICS_updates_G 6.u). Hand calc: test track straight share 0.647 (tested). Power/grip thresholds (62% / 48% full throttle) set from the full-throttle shares of open roads 1-9 and the test track (41-70%). Found: a built car's full-throttle share on the same road is lower (66% -> 62.5%), because corner speed doesn't depend on power.
