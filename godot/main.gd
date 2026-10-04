@@ -48,6 +48,8 @@ const BOTTOM_PX := 420.0         # camera buttons + dash height (screen px)
 const CHASE_VIEW_M := 80.0       # meters across the screen in chase mode
 const CHASE_LOOKAHEAD_M := 22.0  # chase camera looks ahead so the car sits low on screen
 const PEDAL_H := 210.0
+const BRAKE_X := 616.0        # pedal bars, in the car's order: brake left, throttle right
+const THROTTLE_X := 656.0
 const GaugeScript := preload("res://gauge.gd")
 const MARKER_COLOR := Color(1.0, 0.85, 0.2)
 const GHOST_ALPHA := 0.6
@@ -576,8 +578,8 @@ func build_hud() -> void:
 	hud["gear"] = racing_label(dash, Vector2(556, 18), 76, Color(1.0, 0.85, 0.3))
 	hud["gear_caption"] = add_label(dash, Vector2(552, 104), 16, Color(0.6, 0.61, 0.66))
 	hud["gear_caption"].text = "GEAR"
-	hud["throttle"] = add_bar(dash, Vector2(616, 70), Vector2(30, PEDAL_H), Color(0.3, 0.8, 0.4))
-	hud["brake"] = add_bar(dash, Vector2(656, 70), Vector2(30, PEDAL_H), Color(0.93, 0.17, 0.24))
+	hud["brake"] = add_bar(dash, Vector2(BRAKE_X, 70), Vector2(30, PEDAL_H), Color(0.93, 0.17, 0.24))
+	hud["throttle"] = add_bar(dash, Vector2(THROTTLE_X, 70), Vector2(30, PEDAL_H), Color(0.3, 0.8, 0.4))
 
 	hud["banner"] = racing_label(layer, Vector2.ZERO, 54, Color(1.0, 0.9, 0.4))
 	hud["mistake"] = racing_label(layer, Vector2.ZERO, 32, Color(1.0, 0.55, 0.1))
@@ -754,8 +756,8 @@ func update_hud() -> void:
 	var fade := float(replay["car"]["pad_fade_temp"])
 	hud["temp"].text = "FRONT ROTOR %d C%s" % [int(temp), "   FADING" if temp > fade else ""]
 	hud["temp"].add_theme_color_override("font_color", Color(1, 0.35, 0.3) if temp > fade else Color(0.8, 0.8, 0.82))
-	set_pedal(hud["throttle"], value_at("throttle") * alive, Vector2(616, 70))
-	set_pedal(hud["brake"], value_at("brake"), Vector2(656, 70))
+	set_pedal(hud["throttle"], value_at("throttle") * alive, Vector2(THROTTLE_X, 70))
+	set_pedal(hud["brake"], value_at("brake"), Vector2(BRAKE_X, 70))
 
 	# Finish (or crash) banner, a second line against the ghost, and Continue
 	var banner: Label = hud["banner"]

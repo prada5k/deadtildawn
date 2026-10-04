@@ -1,0 +1,283 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://screens/meeting.gd" id="1"]
+[ext_resource type="Script" path="res://widgets/turnout_night.gd" id="2"]
+[ext_resource type="Script" path="res://track_map.gd" id="3"]
+[ext_resource type="Script" path="res://widgets/cash_stack.gd" id="4"]
+[ext_resource type="Texture2D" uid="uid://cw466vc4wu60s" path="res://textures/clip.png" id="5"]
+
+[node name="Meeting" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="Column" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 0
+
+[node name="Scroll" type="ScrollContainer" parent="Column"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Margin" type="MarginContainer" parent="Column/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 40
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 24
+
+[node name="Body" type="VBoxContainer" parent="Column/Scroll/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="Hero" type="Control" parent="Column/Scroll/Margin/Body"]
+custom_minimum_size = Vector2(0, 380)
+layout_mode = 2
+
+[node name="Turnout" type="SubViewportContainer" parent="Column/Scroll/Margin/Body/Hero"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+stretch = true
+script = ExtResource("2")
+
+[node name="Where" type="Label" parent="Column/Scroll/Margin/Body/Hero"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 12.0
+offset_top = 12.0
+offset_right = 360.0
+offset_bottom = 50.0
+theme_type_variation = &"DymoLabel"
+text = "FRI // ZED'S HOME ROAD"
+
+[node name="FabaSays" type="HBoxContainer" parent="Column/Scroll/Margin/Body"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="FabaTag" type="Label" parent="Column/Scroll/Margin/Body/FabaSays"]
+layout_mode = 2
+size_flags_vertical = 0
+rotation = -0.06
+theme_type_variation = &"TapeLabel"
+text = "faba"
+
+[node name="Bubble" type="PanelContainer" parent="Column/Scroll/Margin/Body/FabaSays"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SpeechPanel"
+
+[node name="FabaLine" type="Label" parent="Column/Scroll/Margin/Body/FabaSays/Bubble"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SpeechLabel"
+text = "he doesnt want it like that"
+autowrap_mode = 3
+
+[node name="Clipboard" type="PanelContainer" parent="Column/Scroll/Margin/Body"]
+layout_mode = 2
+rotation = -0.006
+theme_type_variation = &"ClipboardPanel"
+
+[node name="Sheet" type="PanelContainer" parent="Column/Scroll/Margin/Body/Clipboard"]
+layout_mode = 2
+theme_type_variation = &"PaperPanel"
+
+[node name="Box" type="VBoxContainer" parent="Column/Scroll/Margin/Body/Clipboard/Sheet"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="ClipGap" type="Control" parent="Column/Scroll/Margin/Body/Clipboard/Sheet/Box"]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+
+[node name="Header" type="HBoxContainer" parent="Column/Scroll/Margin/Body/Clipboard/Sheet/Box"]
+layout_mode = 2
+
+[node name="SheetTitle" type="Label" parent="Column/Scroll/Margin/Body/Clipboard/Sheet/Box/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"InkMutedLabel"
+text = "TECH SHEET"
+
+[node name="RoadInfo" type="Label" parent="Column/Scroll/Margin/Body/Clipboard/Sheet/Box/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"InkMutedLabel"
+text = "1840 m, 6 corners"
+
+[node name="Map" type="Control" parent="Column/Scroll/Margin/Body/Clipboard/Sheet/Box"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 250)
+layout_mode = 2
+theme_type_variation = &"InkTrackMap"
+script = ExtResource("3")
+
+[node name="Stats" type="GridContainer" parent="Column/Scroll/Margin/Body/Clipboard/Sheet/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 12
+theme_override_constants/v_separation = 2
+columns = 3
+
+[node name="TheirCar" type="Label" parent="Column/Scroll/Margin/Body/Clipboard/Sheet/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"InkMutedLabel"
+text = "1977 Nissan 280Z (tired engine)"
+autowrap_mode = 3
+
+[node name="Word" type="Label" parent="Column/Scroll/Margin/Body/Clipboard/Sheet/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"InkLabel"
+theme_override_font_sizes/font_size = 24
+text = "Word is: ..."
+autowrap_mode = 3
+
+[node name="Clip" type="TextureRect" parent="Column/Scroll/Margin/Body/Clipboard"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 0
+mouse_filter = 2
+texture = ExtResource("5")
+stretch_mode = 2
+
+[node name="PushTitle" type="Label" parent="Column/Scroll/Margin/Body"]
+layout_mode = 2
+size_flags_horizontal = 0
+rotation = 0.015
+theme_type_variation = &"TapeLabel"
+text = "how hard does faba push?"
+
+[node name="PushRow" type="HBoxContainer" parent="Column/Scroll/Margin/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="PushBubble" type="PanelContainer" parent="Column/Scroll/Margin/Body"]
+layout_mode = 2
+theme_type_variation = &"SpeechPanel"
+
+[node name="Box" type="VBoxContainer" parent="Column/Scroll/Margin/Body/PushBubble"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="PushLine" type="Label" parent="Column/Scroll/Margin/Body/PushBubble/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SpeechLabel"
+text = "common traffic"
+autowrap_mode = 3
+
+[node name="PushRisk" type="Label" parent="Column/Scroll/Margin/Body/PushBubble/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"InkMutedLabel"
+text = "A steady pace. Mistakes are rare."
+autowrap_mode = 3
+
+[node name="WagerTitle" type="Label" parent="Column/Scroll/Margin/Body"]
+layout_mode = 2
+size_flags_horizontal = 0
+rotation = -0.012
+theme_type_variation = &"TapeLabel"
+text = "the bet"
+
+[node name="Wager" type="HBoxContainer" parent="Column/Scroll/Margin/Body"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Cash" type="Control" parent="Column/Scroll/Margin/Body/Wager"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(230, 210)
+layout_mode = 2
+script = ExtResource("4")
+
+[node name="Box" type="VBoxContainer" parent="Column/Scroll/Margin/Body/Wager"]
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 1
+
+[node name="WagerAmount" type="Label" parent="Column/Scroll/Margin/Body/Wager/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BigNumberLabel"
+text = "$100"
+
+[node name="WagerOdds" type="Label" parent="Column/Scroll/Margin/Body/Wager/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+text = "win +$100 / lose -$100"
+
+[node name="WagerSlider" type="HSlider" parent="Column/Scroll/Margin/Body/Wager/Box"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+
+[node name="BigBet" type="PanelContainer" parent="Column/Scroll/Margin/Body"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 8
+rotation = 0.01
+theme_type_variation = &"SpeechPanel"
+
+[node name="BigBetLine" type="Label" parent="Column/Scroll/Margin/Body/BigBet"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SpeechLabel"
+text = "damnnnn mr deep pockets over here"
+
+[node name="Actions" type="MarginContainer" parent="Column"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 24
+
+[node name="Row" type="HBoxContainer" parent="Column/Actions"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Small" type="VBoxContainer" parent="Column/Actions/Row"]
+layout_mode = 2
+alignment = 1
+
+[node name="BackButton" type="Button" parent="Column/Actions/Row/Small"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SmallTapeButton"
+text = "back"
+
+[node name="SkipButton" type="Button" parent="Column/Actions/Row/Small"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SmallTapeButton"
+text = "skip  -50 rep"
+
+[node name="SendIt" type="Button" parent="Column/Actions/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+rotation = -0.012
+theme_type_variation = &"GaffRedButton"
+text = "SEND IT"

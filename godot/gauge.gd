@@ -30,7 +30,7 @@ var value := 0.0:
 
 const START_DEG := 135.0
 const SWEEP_DEG := 270.0
-const FONT := preload("res://fonts/Rajdhani-Bold.ttf")
+const FONT := preload("res://fonts/BarlowCondensed-Bold.ttf")
 
 
 func angle_for(v: float) -> float:

@@ -1,0 +1,151 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://screens/results.gd" id="1"]
+[ext_resource type="Script" path="res://widgets/turnout_night.gd" id="2"]
+
+[node name="Results" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="Column" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 0
+
+[node name="Scroll" type="ScrollContainer" parent="Column"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Margin" type="MarginContainer" parent="Column/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 40
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 24
+
+[node name="Body" type="VBoxContainer" parent="Column/Scroll/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="Hero" type="Control" parent="Column/Scroll/Margin/Body"]
+custom_minimum_size = Vector2(0, 380)
+layout_mode = 2
+
+[node name="Turnout" type="SubViewportContainer" parent="Column/Scroll/Margin/Body/Hero"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+stretch = true
+script = ExtResource("2")
+
+[node name="VerdictCenter" type="CenterContainer" parent="Column/Scroll/Margin/Body/Hero"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Verdict" type="Label" parent="Column/Scroll/Margin/Body/Hero/VerdictCenter"]
+unique_name_in_owner = true
+layout_mode = 2
+rotation = -0.12
+theme_type_variation = &"VerdictLabel"
+text = "YOU WON"
+
+[node name="Gap" type="Label" parent="Column/Scroll/Margin/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BigNumberLabel"
+text = "Ahead by 0.025 s"
+horizontal_alignment = 1
+
+[node name="FabaSays" type="HBoxContainer" parent="Column/Scroll/Margin/Body"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="FabaTag" type="Label" parent="Column/Scroll/Margin/Body/FabaSays"]
+layout_mode = 2
+size_flags_vertical = 0
+rotation = -0.06
+theme_type_variation = &"TapeLabel"
+text = "faba"
+
+[node name="Bubble" type="PanelContainer" parent="Column/Scroll/Margin/Body/FabaSays"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"SpeechPanel"
+
+[node name="FabaLine" type="Label" parent="Column/Scroll/Margin/Body/FabaSays/Bubble"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SpeechLabel"
+text = "did you expect anything else"
+autowrap_mode = 3
+
+[node name="Receipt" type="PanelContainer" parent="Column/Scroll/Margin/Body"]
+layout_mode = 2
+rotation = 0.006
+theme_type_variation = &"ReceiptPanel"
+
+[node name="Lines" type="VBoxContainer" parent="Column/Scroll/Margin/Body/Receipt"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Damage" type="PanelContainer" parent="Column/Scroll/Margin/Body"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+rotation = -0.01
+theme_type_variation = &"FlyerPinkPanel"
+
+[node name="DamageLines" type="VBoxContainer" parent="Column/Scroll/Margin/Body/Damage"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Loot" type="PanelContainer" parent="Column/Scroll/Margin/Body"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+rotation = 0.012
+theme_type_variation = &"CardboardPanel"
+
+[node name="LootLine" type="Label" parent="Column/Scroll/Margin/Body/Loot"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"InkLabel"
+text = "Loot"
+autowrap_mode = 3
+
+[node name="Actions" type="MarginContainer" parent="Column"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 24
+
+[node name="Done" type="Button" parent="Column/Actions"]
+unique_name_in_owner = true
+layout_mode = 2
+rotation = 0.01
+theme_type_variation = &"GaffButton"
+text = "back to the warehouse"

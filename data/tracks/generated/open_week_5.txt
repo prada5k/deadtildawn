@@ -1,0 +1,2 @@
+# Open road, week 5: balanced (sim/trackgen.py seed 1005)
+S 214, L3 120, S 117, L4 115, S 116, R3 95, S 39, R6 95, S 129, L5 60, S 47, L5 85, R5 100, S 182

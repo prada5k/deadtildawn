@@ -17,6 +17,7 @@ extends Node
 ##     replay plays
 
 const UI := preload("res://ui.gd")
+const Voice := preload("res://voice.gd")
 const Bridge := preload("res://bridge.gd")
 const TrackMap := preload("res://track_map.gd")
 const Viewer := preload("res://main.gd")
@@ -25,13 +26,16 @@ const WarehouseScene := preload("res://screens/warehouse.tscn")
 const CarScene := preload("res://screens/car.tscn")
 const CalendarScene := preload("res://screens/calendar.tscn")
 const ShopScene := preload("res://screens/shop.tscn")
+const RevealScene := preload("res://screens/reveal.tscn")
+const MeetingScene := preload("res://screens/meeting.tscn")
+const ResultsScene := preload("res://screens/results.tscn")
 const ShellScene := preload("res://screens/shell.tscn")
 const GritShader := preload("res://widgets/grit.gdshader")
 const LOCATIONS := {
-	"warehouse": "THE WAREHOUSE // TERMINAL_01",
-	"car": "THE DX // CHASSIS_CONFIG",
-	"calendar": "THE CALENDAR // TIMELINE",
-	"shop": "PARTS // JUNK_SWAP_COUNTER",
+	"warehouse": "THE WAREHOUSE",       # Dymo label-maker strips
+	"car": "BAY 1 // THE DX",
+	"calendar": "THE WHITEBOARD",
+	"shop": "PARTS $$$",
 }
 
 const SAVE_PATH := "user://save.json"
@@ -73,7 +77,6 @@ var bridge: Node
 var screen: Control        # current UI screen (the shell while in the hub)
 var shell: Control         # persistent hub shell (top rail, ribbon, bottom nav)
 var hub_content: Control   # the hub screen currently inside the shell
-var footer: VBoxContainer  # pinned area at the bottom of scrolling screens
 var viewer: Node           # replay viewer while racing
 var choice := {"push": "normal", "wager": MIN_BUY_IN}
 var after_car_stats := "warehouse"   # where to go once car stats arrive
@@ -252,7 +255,6 @@ func clear_screen() -> void:
 		screen = null
 	shell = null
 	hub_content = null
-	footer = null
 
 
 ## Film grain + vignette over every screen (widgets/grit.gdshader): the
@@ -307,48 +309,26 @@ func common_info() -> Dictionary:
 	return {"cash": int(state["cash"]), "rep": int(state["rep"]), "min_buy_in": MIN_BUY_IN}
 
 
-func new_screen(scroll := true) -> VBoxContainer:
-	## Code-built portrait page: header (cash / rep), then a column for content.
+## A note on its own: loading, LIGHTS OUT, BROKE. Dymo title over a paper
+## slip, centered; an optional gaffer-tape button.
+func show_message(title: String, text: String, button_text := "", action := Callable()) -> void:
 	clear_screen()
-	var root := MarginContainer.new()
+	var root := CenterContainer.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	for side in ["left", "right"]:
-		root.add_theme_constant_override("margin_" + side, 32)
-	root.add_theme_constant_override("margin_top", 48)
-	root.add_theme_constant_override("margin_bottom", 40)
 	add_child(root)
 	screen = root
-	var page := UI.vbox(root, 18)
-
-	var header := UI.hbox(page, 16)
-	var brand := UI.label(header, "DEADTILDAWN", "HeadingLabel")
-	brand.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	UI.label(header, UI.money(state["cash"]), "HeadingLabel",
-		UI.GOOD if state["cash"] >= MIN_BUY_IN else UI.BAD)
-	UI.label(header, "REP %d" % int(state["rep"]), "HeadingLabel", Color.WHITE)
-
-	if not scroll:
-		return page
-	var sc := ScrollContainer.new()
-	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	page.add_child(sc)
-	var col := UI.vbox(sc, 18)
-	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	# Pinned footer below the scroll area: a screen's main action stays on
-	# screen no matter how much content scrolls above it.
-	footer = UI.vbox(page, 10)
-	return col
-
-
-func show_message(title: String, text: String, button_text := "", action := Callable()) -> void:
-	var col := new_screen(false)
-	UI.spacer(col)
-	UI.label(col, title, "TitleLabel")
-	UI.label(col, text, "MutedLabel")
-	UI.spacer(col)
+	var col := UI.vbox(root, 14)
+	col.custom_minimum_size.x = 600
+	var t := UI.label(col, title, "DymoLabel")
+	t.autowrap_mode = TextServer.AUTOWRAP_OFF
+	t.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	var slip := PanelContainer.new()
+	slip.theme_type_variation = "PaperPanel"
+	slip.rotation = -0.01
+	col.add_child(slip)
+	UI.label(slip, text, "InkLabel").autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	if button_text != "":
-		UI.button(col, button_text, action, "AccentButton")
+		UI.button(col, button_text, action, "GaffButton")
 
 
 func show_intro() -> void:
@@ -369,14 +349,58 @@ func show_warehouse() -> void:
 	var ev := next_event()
 	var record := wins_losses()
 	var info := common_info()
-	info["event_title"] = "%s: %s" % [when(ev["week"], ev["day"]),
-		"RIVAL NIGHT" if ev["type"] == "rival" else "OPEN ROAD"]
-	info["event_detail"] = "%s. Minimum buy-in %s. Today is %s." % [
-		ev["title"], UI.money(MIN_BUY_IN), when(state["week"], state["day"]).to_lower()]
+	info["week"] = int(state["week"])
+	info["when"] = when(ev["week"], ev["day"])
+	info["event_type"] = ev["type"]
+	info["event_kind"] = "Rival night" if ev["type"] == "rival" else "Open road"
+	info["order_no"] = state["history"].size() + 1       # one work order per race night
+	info["event_detail"] = "%s. Today is %s." % [ev["title"], when(state["week"], state["day"]).to_lower()]
 	info["wins"] = record.x
 	info["losses"] = record.y
 	info["min_buy_in_text"] = UI.money(MIN_BUY_IN)
+	info["parts"] = installed_part_ids()
+	info["caption"] = "PCH turnout, wk %d. %s" % [int(state["week"]), home_caption(info["parts"].size())]
 	open_hub(WarehouseScene, "warehouse").setup(info)
+
+
+## The builder's note on the home Polaroid (voice.gd): what happened last
+## night beats how built the car is.
+func home_caption(parts_on: int) -> String:
+	var hist: Array = state["history"]
+	if not hist.is_empty():
+		var last: Dictionary = hist[-1]
+		if last.get("skipped", false):
+			return Voice.HOME_SKIPPED
+		if last.get("dnf", false):
+			return Voice.HOME_CRASHED
+	var races := hist.filter(func(r): return not r.get("skipped", false) and not r.get("no_contest", false))
+	if streak(races, true) >= Voice.WIN_STREAK:
+		return Voice.HOME_WIN_STREAK
+	if streak(races, false) >= Voice.LOSS_STREAK:
+		return Voice.HOME_LOSS_STREAK
+	if parts_on == 0:
+		return Voice.HOME_STOCK
+	return Voice.HOME_BUILT if parts_on >= Voice.BUILT_PARTS else Voice.HOME_SOME_PARTS
+
+
+## How many races in a row, counting back from the latest, were wins (or losses).
+func streak(races: Array, wins: bool) -> int:
+	var n := 0
+	for i in range(races.size() - 1, -1, -1):
+		if bool(races[i]["won"]) != wins:
+			break
+		n += 1
+	return n
+
+
+## Part ids on the car right now (installed and not damaged): for the 3D model.
+func installed_part_ids() -> Array:
+	var ids := []
+	for slot in state["installed"]:
+		var inst := instance(state["installed"][slot])
+		if not inst.is_empty() and not inst.get("damaged", false):
+			ids.append(inst["part"])
+	return ids
 
 
 func show_car() -> void:
@@ -402,7 +426,9 @@ func show_car() -> void:
 			"  DAMAGED" if inst.get("damaged", false) else ""]])
 	var car: Control = open_hub(CarScene, "car")
 	car.part_changed.connect(install_part)
-	car.setup(common_info(), car_stats,
+	var info := common_info()
+	info["parts_on"] = installed_part_ids()
+	car.setup(info, car_stats,
 		{"slots": catalog["slots"], "options": options, "installed": state["installed"]})
 
 
@@ -417,7 +443,7 @@ func show_shop() -> void:
 	shop.pull.connect(do_pull)
 	shop.sell.connect(sell_instance)
 	shop.repair.connect(repair_instance)
-	shop.reveal.connect(func(uid): show_reveal(instance(uid)))
+	shop.reveal.connect(func(uid): show_reveal(instance(uid), "dyno"))
 	shop.setup(common_info(), catalog, state["inventory"], state["installed"],
 		state["pity"], shop_message)
 	shop_message = ""
@@ -522,45 +548,33 @@ func on_pulled(data: Dictionary) -> void:
 	show_reveal(inst)
 
 
-## The dyno reveal: rarity and name first, numbers hidden until you dyno it.
-func show_reveal(inst: Dictionary, revealed := false) -> void:
+## The reveal on the workbench (screens/reveal.tscn). stage: "box" = a fresh
+## pull, still taped shut; "dyno" = straight to the dyno printout (a part off
+## the bench); "sheet" = already dynoed, everything shown.
+## Dynoing marks the part revealed and saves before the sheet prints.
+func show_reveal(inst: Dictionary, stage := "box") -> void:
 	var p := part_by_id(inst["part"])
-	var col := new_screen()
-	var src_name: String = catalog["sources"].get(inst["source"], {}).get("name", "Loot drop") \
-		if inst["source"] != "shop" else "Parts counter"
-	UI.label(col, "FROM: %s" % src_name.to_upper(), "HeadingLabel")
-	UI.spacer(col, false).custom_minimum_size.y = 20
-	var rarity := UI.label(col, str(p["rarity"]).to_upper(), "TitleLabel", RARITY_COLORS[p["rarity"]])
-	rarity.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var name := UI.label(col, p["name"], "BigNumberLabel")
-	name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	UI.label(col, str(catalog["slots"][p["slot"]]), "MutedLabel").horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var box := UI.vbox(UI.panel(col), 6)
-	if revealed or inst["revealed"]:
+	clear_screen()
+	var r: Control = RevealScene.instantiate()
+	add_child(r)
+	screen = r
+	var reveal_now := func():
 		inst["revealed"] = true
 		save_game()
-		var q := UI.label(box, "QUALITY %d%%" % quality_pct(inst), "TitleLabel",
-			UI.GOOD if float(inst["quality"]) >= 0.5 else UI.BAD)
-		q.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		for line in inst["effects_text"]:
-			UI.label(box, line).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		UI.label(box, p["blurb"], "MutedLabel").horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		var fade := create_tween()
-		box.modulate.a = 0.0
-		fade.tween_property(box, "modulate:a", 1.0, 0.6)
-		var row := UI.hbox(footer, 10)
-		UI.button(row, "Keep as spare", show_shop)
-		var inst_btn := UI.button(row, "INSTALL", func():
-			install_part(p["slot"], inst["uid"], false)
-			shop_message = "Installed: %s (Q %d%%)." % [p["name"], quality_pct(inst)]
-			show_shop(), "AccentButton")
-		inst_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	else:
-		var hidden := UI.label(box, "? ? ?", "TitleLabel")
-		hidden.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		UI.label(box, "Quality and exact specs unknown until it's on the dyno.", "MutedLabel")
-		UI.button(footer, "DYNO IT", func(): show_reveal(inst, true), "DangerButton")
-		UI.button(footer, "Later", show_shop)
+	r.dyno_pressed.connect(func():
+		reveal_now.call()
+		r.print_sheet())
+	r.leave_pressed.connect(show_shop)
+	r.install_pressed.connect(func():
+		install_part(p["slot"], inst["uid"], false)
+		shop_message = "Installed: %s (Q %d%%)." % [p["name"], quality_pct(inst)]
+		show_shop())
+	if stage == "dyno" or inst["revealed"]:
+		reveal_now.call()
+	var src_name: String = catalog["sources"].get(inst["source"], {}).get("name", "Loot drop") 		if inst["source"] != "shop" else "Parts counter"
+	r.setup({"from": src_name, "rarity": p["rarity"], "rarity_color": RARITY_COLORS[p["rarity"]],
+		"name": p["name"], "slot": str(catalog["slots"][p["slot"]]), "quality_pct": quality_pct(inst),
+		"effects": inst["effects_text"], "blurb": p["blurb"]}, stage)
 
 
 ## Repair a damaged part (it's off the car until repaired).
@@ -627,11 +641,13 @@ func show_calendar() -> void:
 	for i in range(hist.size() - 1, maxi(hist.size() - 6, -1), -1):
 		var r: Dictionary = hist[i]
 		if r.get("skipped", false):
-			past.append([r.get("when", "-"), "vs %s" % r["rival"], "SKIPPED  %d rep" % int(r["rep_change"])])
+			past.append([r.get("when", "-"), "vs %s" % r["rival"], "%s  %d rep" % [Voice.BOARD_SKIPPED, int(r["rep_change"])]])
 		else:
 			past.append([r.get("when", "-"), "vs %s" % r["rival"],
 				"%s  %+d" % ["W" if r["won"] else "L", int(r["cash_change"])]])
 	info["past"] = past
+	var races := hist.filter(func(r): return not r.get("skipped", false) and not r.get("no_contest", false))
+	info["last_lost"] = not races.is_empty() and not races[-1]["won"]     # sad face on the board
 	open_hub(CalendarScene, "calendar").setup(info)
 
 
@@ -689,88 +705,34 @@ const PUSH_TALK := {
 
 func show_meeting() -> void:
 	var night: Dictionary = state["night"]
-	var col := new_screen()
-	UI.label(col, "TONIGHT", "TitleLabel")
-	UI.label(col, "%s  /  %d m, %d corners" % [night["club"], int(track_info["length"]),
-		track_info["corners"].size()], "MutedLabel")
-
-	var map: Control = TrackMap.new()
-	map.track = track_info
-	map.custom_minimum_size = Vector2(0, 220)
-	UI.panel(col).add_child(map)
-
-	# Stat card: the DX vs tonight's opponent. No odds: you make the call.
-	var card := UI.vbox(UI.panel(col), 4)
-	var head := UI.hbox(card, 8)
-	UI.label(head, "", "MutedLabel").custom_minimum_size.x = 150
-	var you := UI.label(head, "FABA / DX", "HeadingLabel")
-	you.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var them := UI.label(head, str(night["name"]).to_upper(), "HeadingLabel", UI.BAD)
-	them.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	UI.label(card, "%s (%s engine)" % [night["car"], night["condition"]], "MutedLabel")
-	var mine: Dictionary = car_stats
-	var theirs: Dictionary = night["stats"]
-	var rows := [
-		["Power", "%d hp" % mine["hp"], "%d hp" % theirs["hp"]],
-		["Torque", "%d lb-ft" % mine["torque_lbft"], "%d lb-ft" % theirs["torque_lbft"]],
-		["Weight", "%d kg" % mine["weight_kg"], "%d kg" % theirs["weight_kg"]],
-		["Power / weight", "%d hp/t" % mine["hp_per_tonne"], "%d hp/t" % theirs["hp_per_tonne"]],
-		["Drivetrain", "FWD", str(theirs["drivetrain"])],
-		["0-60 mph", "%.2f s" % mine["zero_60_s"], "%.2f s" % theirs["zero_60_s"]],
-		["Skidpad", "%.2f g" % mine["skidpad_g"], "%.2f g" % theirs["skidpad_g"]],
-	]
-	for r in rows:
-		var row := UI.hbox(card, 8)
-		UI.label(row, r[0], "MutedLabel").custom_minimum_size.x = 150
-		var a := UI.label(row, r[1])
-		a.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		var b := UI.label(row, r[2])
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	UI.label(card, "Word is: %s" % night["driver_read"], "MutedLabel")
-
-	# Decision area, pinned at the bottom
-	UI.label(footer, "HOW HARD DOES FABA PUSH?", "HeadingLabel")
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 8)
-	grid.add_theme_constant_override("v_separation", 8)
-	footer.add_child(grid)
-	for push in PUSH_ORDER:
-		var b := UI.button(grid, str(push).replace("_", " ").to_upper(), _on_push.bind(push),
-			"SelectedButton" if push == choice["push"] else "")
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	UI.label(footer, PUSH_TALK[choice["push"]], "MutedLabel")
-
+	var ev := next_event()
+	var rival_night: bool = night.get("id", "") != "street"
+	clear_screen()
+	var m: Control = MeetingScene.instantiate()
+	add_child(m)
+	screen = m
+	m.push_changed.connect(func(p): choice["push"] = p)
+	m.wager_changed.connect(func(w): choice["wager"] = w)
+	m.send_pressed.connect(send_it)
+	m.back_pressed.connect(show_warehouse)
+	m.skip_pressed.connect(skip_night)
 	var cash := int(state["cash"])
 	choice["wager"] = clampi(int(choice["wager"]), MIN_BUY_IN, cash)
-	var wager_label := UI.label(footer, "", "HeadingLabel", Color.WHITE)
-	var slider := HSlider.new()
-	slider.min_value = MIN_BUY_IN
-	slider.max_value = cash
-	slider.step = WAGER_STEP
-	slider.value = choice["wager"]
-	slider.custom_minimum_size.y = 40
-	slider.editable = cash > MIN_BUY_IN
-	var set_wager := func(v):
-		choice["wager"] = int(v)
-		wager_label.text = "WAGER %s   (win +%s / lose -%s)" % [UI.money(v), UI.money(v), UI.money(v)]
-	slider.value_changed.connect(set_wager)
-	footer.add_child(slider)
-	set_wager.call(choice["wager"])
-
-	var actions := UI.hbox(footer, 10)
-	UI.button(actions, "Back", show_warehouse)
-	var skip := UI.button(actions, "Skip\n-%d rep" % SKIP_REP_COST, skip_night)
-	if int(state["rep"]) < SKIP_REP_COST:
-		skip.disabled = true
-		skip.tooltip_text = "Chickening out costs %d rep. You have %d." % [SKIP_REP_COST, int(state["rep"])]
-	var go := UI.button(actions, "SEND IT", send_it, "DangerButton")
-	go.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-
-func _on_push(push: String) -> void:
-	choice["push"] = push
-	show_meeting()
+	m.setup({
+		"where": "%s // %s" % [when(ev["week"], ev["day"]).replace(",", ""),
+			"%s'S HOME ROAD" % str(night["name"]).to_upper() if rival_night else "OPEN ROAD"],
+		"rival_night": rival_night,
+		"opponent_car": night["car"], "faba_parts": installed_part_ids(),
+		"road_info": "%s  /  %d m, %d corners" % [night["club"], int(track_info["length"]),
+			track_info["corners"].size()],
+		"track": track_info, "mine": car_stats, "theirs": night["stats"],
+		"their_name": night["name"],
+		"their_car_line": "%s (%s engine)" % [night["car"], night["condition"]],
+		"word": night["driver_read"],
+		"push": choice["push"], "push_order": PUSH_ORDER, "push_risk": PUSH_TALK,
+		"wager": choice["wager"], "cash": cash, "min_buy_in": MIN_BUY_IN, "wager_step": WAGER_STEP,
+		"can_skip": int(state["rep"]) >= SKIP_REP_COST, "skip_cost": SKIP_REP_COST,
+	})
 
 
 ## Chicken out of this race night: no money changes hands, but the scene
@@ -861,50 +823,23 @@ func show_race(replay_path: String, result: Dictionary) -> void:
 
 
 func show_results(result: Dictionary) -> void:
-	var col := new_screen()
-	var won: bool = result["won"]
-	UI.spacer(col, false).custom_minimum_size.y = 30
-	var title := "YOU WON" if won else ("NO CONTEST" if result["no_contest"] else
-		("CRASHED" if result["dnf"] else "YOU LOST"))
-	var big := UI.label(col, title, "TitleLabel", UI.GOOD if won else UI.BAD)
-	big.add_theme_font_size_override("font_size", 88)
-	var faba := "DNF (off at %s)" % result["crash_corner"] if result["dnf"] else "%.3f s" % result["time"]
-	var them := "DNF (off at %s)" % result["opponent_crash_corner"] if result["opponent_dnf"] \
-		else "%.3f s" % result["opponent_time"]
-	if not result["dnf"] and not result["opponent_dnf"]:
-		var gap := absf(float(result["time"]) - float(result["opponent_time"]))
-		UI.label(col, "%s by %.3f s" % ["Ahead" if won else "Behind", gap], "BigNumberLabel")
-	var info := UI.vbox(UI.panel(col), 6)
-	UI.stat_row(info, "Faba", faba)
-	UI.stat_row(info, "%s (%s)" % [result["rival"], result["rival_car"]], them)
-	UI.stat_row(info, "Push", str(result["push"]).replace("_", " "))
-	UI.stat_row(info, "Mistakes", "none" if result["mistakes"].is_empty() else ", ".join(result["mistakes"]))
-	UI.stat_row(info, "Cash", "%s%s  ->  %s" % ["+" if result["cash_change"] > 0 else "",
-		UI.money(result["cash_change"]), UI.money(state["cash"])])
-	UI.stat_row(info, "Rep", "%+d  ->  %d" % [result["rep_change"], state["rep"]])
-	var dmg: Dictionary = result.get("damage", {})
-	if not dmg.is_empty():
-		var box := UI.vbox(UI.panel(col), 4)
-		UI.label(box, "THE DAMAGE", "HeadingLabel")
-		UI.label(box, "Body and tow: -%s" % UI.money(dmg["body_repair"]))
-		for n in dmg["destroyed"]:
-			UI.label(box, "DESTROYED: %s" % n, "", UI.BAD)
-		for n in dmg["damaged"]:
-			UI.label(box, "Damaged: %s (repair it in Parts; until then it's off the car)" % n)
-		if dmg["destroyed"].is_empty() and dmg["damaged"].is_empty():
-			UI.label(box, "The parts survived. This time.", "MutedLabel")
+	clear_screen()
+	var r: Control = ResultsScene.instantiate()
+	add_child(r)
+	screen = r
+	r.done_pressed.connect(show_warehouse)
+	var loot_text := ""
 	if result.get("loot", "") != "":
-		var loot := UI.vbox(UI.panel(col), 4)
-		UI.label(loot, "LOOT", "HeadingLabel")
 		var lp := part_by_id(result["loot"])
-		UI.label(loot, "%s paid up with more than cash: an unopened %s %s. Dyno it in Parts." % [
-			result["rival"], str(lp.get("rarity", "")), lp.get("name", result["loot"])])
-	UI.button(footer, "BACK TO THE WAREHOUSE", show_warehouse, "AccentButton")
+		loot_text = "%s paid up with more than cash: an unopened %s %s. It's on the bench in $$$." % [
+			result["rival"], str(lp.get("rarity", "")), lp.get("name", result["loot"])]
+	r.setup(result, {"cash": int(state["cash"]), "rep": int(state["rep"]),
+		"faba_parts": installed_part_ids(), "loot_text": loot_text})
 
 
 func show_broke() -> void:
 	var record := wins_losses()
-	show_message("BROKE",
+	show_message(Voice.BROKE.to_upper(),
 		"%s left. You can't cover the %s buy-in.\n\nRecord %d W - %d L, rep %d.\n\nThe warehouse goes quiet. (Pink slips come later.)" % [
 			UI.money(state["cash"]), UI.money(MIN_BUY_IN), record.x, record.y, int(state["rep"])],
 		"START OVER", reset_game)
@@ -1147,9 +1082,17 @@ func game_shots(folder: String) -> void:
 	var pulled := add_instance(pr["part"], float(pr["quality"]), false, "swap_meet", pr["effects_text"])
 	show_reveal(pulled)
 	await snap(folder, "1d_pull")
-	show_reveal(pulled, true)
+	screen.open_box()
 	await get_tree().create_timer(0.8).timeout
+	await snap(folder, "1d_pull_open")
+	screen.dyno_pressed.emit()
+	await get_tree().create_timer(2.0).timeout
 	await snap(folder, "1e_dyno_reveal")
+	var great := pulled.duplicate()                # stills only: a great roll gets a margin note
+	great["quality"] = 0.86
+	show_reveal(great, "sheet")
+	await snap(folder, "1e_dyno_great")
+	state["inventory"].erase(great)
 	state["cash"] = 250
 	state["rep"] = 0
 	state["inventory"] = []
@@ -1160,6 +1103,9 @@ func game_shots(folder: String) -> void:
 	state["day"] = 2
 	show_calendar()
 	await snap(folder, "1c_calendar")
+	state["history"] = [state["history"][0]]      # last race a win: the rival gets the finger
+	show_calendar()
+	await snap(folder, "1c_calendar_win")
 	state["history"] = []
 	state["week"] = 1
 	state["day"] = 0
@@ -1172,6 +1118,9 @@ func game_shots(folder: String) -> void:
 	choice = {"push": "hard", "wager": 150}
 	show_meeting()
 	await snap(folder, "2_meeting")
+	var sc: ScrollContainer = screen.get_node("%Scroll")
+	sc.scroll_vertical = 2000
+	await snap(folder, "2_meeting_bet")
 	var out := ProjectSettings.globalize_path("user://replays/shots.json")
 	bridge.request("race", ["race", "--track", state["night"]["track"], "--push", "hard", "--seed", "21",
 		"--out", out, "--opponent", state["night"]["opponent"], "--opp-seed", "21"])

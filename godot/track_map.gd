@@ -1,13 +1,20 @@
 extends Control
 ## Track layout drawn inside a UI box: straights gray, corners colored by
 ## severity (1 = red hairpin ... 10 = green kink), labels outside each turn.
+## The road line, start/finish markers and font come from the theme when the
+## node's type variation defines them ("InkTrackMap": ink on the clipboard);
+## otherwise the dark-screen defaults.
 
 var track := {}        # bridge "track" reply
 
 
+func col(name: String, fallback: Color) -> Color:
+	return get_theme_color(name) if has_theme_color(name) else fallback
+
+
 func severity_color(sev: int) -> Color:
 	var red := Color(0.84, 0.16, 0.17)
-	var yellow := Color(1.0, 0.88, 0.5)
+	var yellow := col("severity_mid", Color(1.0, 0.88, 0.5))   # darker in ink, or it vanishes on paper
 	var green := Color(0.1, 0.6, 0.32)
 	var f := (sev - 1) / 9.0
 	return red.lerp(yellow, f * 2.0) if f < 0.5 else yellow.lerp(green, (f - 0.5) * 2.0)
@@ -30,24 +37,25 @@ func _draw() -> void:
 	var screen := PackedVector2Array()
 	for p in pts:
 		screen.append(Vector2(p[0], -p[1]) * scale_f + offset)
-	draw_polyline(screen, Color(0.45, 0.45, 0.48), 7.0, true)
+	draw_polyline(screen, col("line", Color(0.45, 0.45, 0.48)), 7.0, true)
 
-	var font := ThemeDB.fallback_font
+	var font := get_theme_font("font") if has_theme_font("font") else ThemeDB.fallback_font
+	var marker := col("marker", Color.WHITE)
 	for c in track["corners"]:
-		var col := severity_color(int(c["severity"]))
+		var sev_col := severity_color(int(c["severity"]))
 		var arc := PackedVector2Array()
 		for i in range(int(c["s_start"]), mini(int(c["s_end"]) + 1, screen.size())):
 			arc.append(screen[i])
 		if arc.size() > 1:
-			draw_polyline(arc, col, 7.0, true)
+			draw_polyline(arc, sev_col, 7.0, true)
 		var mid := Vector2(c["mid"][0], -c["mid"][1]) * scale_f + offset
 		var out := Vector2(c["outward"][0], -c["outward"][1])
 		var text: String = c["text"]
 		var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
 		var pos := mid + out * 30.0
-		draw_string(font, pos + Vector2(-w / 2.0, 5), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, col)
+		draw_string(font, pos + Vector2(-w / 2.0, 5), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, sev_col)
 
-	draw_circle(screen[0], 7.0, Color.WHITE)
-	draw_string(font, screen[0] + Vector2(-20, -14), "START", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color.WHITE)
-	draw_rect(Rect2(screen[screen.size() - 1] - Vector2(6, 6), Vector2(12, 12)), Color.WHITE)
-	draw_string(font, screen[screen.size() - 1] + Vector2(10, 4), "FINISH", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color.WHITE)
+	draw_circle(screen[0], 7.0, marker)
+	draw_string(font, screen[0] + Vector2(-20, -14), "START", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, marker)
+	draw_rect(Rect2(screen[screen.size() - 1] - Vector2(6, 6), Vector2(12, 12)), marker)
+	draw_string(font, screen[screen.size() - 1] + Vector2(10, 4), "FINISH", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, marker)

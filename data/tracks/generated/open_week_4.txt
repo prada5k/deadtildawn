@@ -1,0 +1,2 @@
+# Open road, week 4: technical (sim/trackgen.py seed 1004)
+S 209, R4 90, L4 50, S 38, R3 60, L7 70, S 42, R1 150, L2 135, S 57, R2 135, S 56, L3 80, R1 165, L5 115, S 34, R7 60, S 21, L2 135, S 89

@@ -1,15 +1,31 @@
 [gd_resource type="Theme" format=3 uid="uid://djfy7f843pd1o"]
 
-[ext_resource type="FontFile" uid="uid://c7qnaixan8sul" path="res://fonts/Rajdhani-SemiBold.ttf" id="1"]
-[ext_resource type="FontFile" uid="uid://1m72gfqevtk" path="res://fonts/Rajdhani-Bold.ttf" id="2"]
+[ext_resource type="FontFile" uid="uid://1p3r25rsw5b6" path="res://fonts/BarlowCondensed-SemiBold.ttf" id="1"]
+[ext_resource type="FontFile" uid="uid://b5bmt8luj1l3o" path="res://fonts/BarlowCondensed-Bold.ttf" id="2"]
 [ext_resource type="FontFile" uid="uid://7pvoi1ormvl2" path="res://fonts/RacingSansOne-Regular.ttf" id="3"]
+[ext_resource type="FontFile" uid="uid://cxi3lbf328qek" path="res://fonts/BarlowCondensed-Medium.ttf" id="4"]
+[ext_resource type="FontFile" uid="uid://ysnt11pp7kad" path="res://fonts/PermanentMarker-Regular.ttf" id="5"]
+[ext_resource type="Texture2D" uid="uid://cylg33ri4iwl2" path="res://textures/tape.png" id="t_tape"]
+[ext_resource type="Texture2D" uid="uid://dsdrfjes1s10o" path="res://textures/paper.jpg" id="t_paper"]
+[ext_resource type="Texture2D" uid="uid://bodfd4mcgkoll" path="res://textures/receipt.png" id="t_receipt"]
+[ext_resource type="Texture2D" uid="uid://c8un5ofo7mp7h" path="res://textures/drawer.png" id="t_drawer"]
+[ext_resource type="Texture2D" uid="uid://04w5g7hhj51y" path="res://textures/drawer_hover.png" id="t_drawer_hover"]
+[ext_resource type="Texture2D" uid="uid://dblniwr742qch" path="res://textures/drawer_open.png" id="t_drawer_open"]
+[ext_resource type="FontFile" uid="uid://cqre8vi3u3afr" path="res://fonts/Doto.ttf" id="6"]
+[ext_resource type="Texture2D" uid="uid://dvnpsr6v134or" path="res://textures/gaff.png" id="t_gaff"]
+[ext_resource type="Texture2D" uid="uid://xbj1kh327008" path="res://textures/whiteboard.png" id="t_whiteboard"]
+[ext_resource type="Texture2D" uid="uid://bqmjg2gvdrxjb" path="res://textures/corkboard.png" id="t_cork"]
+[ext_resource type="Texture2D" uid="uid://bxjqq3ck0g2iu" path="res://textures/cardboard.jpg" id="t_cardboard"]
+[ext_resource type="Texture2D" uid="uid://bkgougqsg6u4r" path="res://textures/dotmatrix.png" id="t_dotmatrix"]
+[ext_resource type="Texture2D" uid="uid://be5w4n5b3rvvo" path="res://textures/bench.jpg" id="t_bench"]
+[ext_resource type="Texture2D" uid="uid://c5geiujlla6rp" path="res://textures/hardboard.jpg" id="t_hardboard"]
 
 [sub_resource type="StyleBoxFlat" id="accent_hover"]
 content_margin_left = 22.0
 content_margin_top = 16.0
 content_margin_right = 22.0
 content_margin_bottom = 20.0
-bg_color = Color(0.93, 0.33, 0.35, 1)
+bg_color = Color(0.95, 0.56, 0.36, 1)
 skew = Vector2(0.16, 0)
 border_width_left = 3
 border_width_top = 3
@@ -26,7 +42,7 @@ content_margin_left = 22.0
 content_margin_top = 16.0
 content_margin_right = 22.0
 content_margin_bottom = 20.0
-bg_color = Color(0.839, 0.251, 0.271, 1)
+bg_color = Color(0.91, 0.455, 0.231, 1)
 skew = Vector2(0.16, 0)
 border_width_left = 3
 border_width_top = 3
@@ -223,7 +239,7 @@ content_margin_left = 22.0
 content_margin_top = 20.0
 content_margin_right = 22.0
 content_margin_bottom = 16.0
-bg_color = Color(0.839, 0.251, 0.271, 1)
+bg_color = Color(0.91, 0.455, 0.231, 1)
 skew = Vector2(0.16, 0)
 border_width_left = 3
 border_width_top = 3
@@ -254,9 +270,579 @@ corner_radius_bottom_right = 0
 corner_radius_bottom_left = 0
 anti_aliasing = true
 
+[sub_resource type="StyleBoxTexture" id="tape"]
+content_margin_left = 16.0
+content_margin_top = 4.0
+content_margin_right = 16.0
+content_margin_bottom = 6.0
+texture = ExtResource("t_tape")
+texture_margin_left = 14.0
+texture_margin_top = 6.0
+texture_margin_right = 14.0
+texture_margin_bottom = 6.0
+
+[sub_resource type="StyleBoxTexture" id="paper"]
+content_margin_left = 18.0
+content_margin_top = 14.0
+content_margin_right = 18.0
+content_margin_bottom = 16.0
+texture = ExtResource("t_paper")
+texture_margin_left = 0.0
+texture_margin_top = 0.0
+texture_margin_right = 0.0
+texture_margin_bottom = 0.0
+modulate_color = Color(0.97, 0.93, 0.85, 1)
+axis_stretch_horizontal = 1
+axis_stretch_vertical = 1
+
+[sub_resource type="StyleBoxTexture" id="polaroid"]
+content_margin_left = 14.0
+content_margin_top = 14.0
+content_margin_right = 14.0
+content_margin_bottom = 10.0
+texture = ExtResource("t_paper")
+texture_margin_left = 0.0
+texture_margin_top = 0.0
+texture_margin_right = 0.0
+texture_margin_bottom = 0.0
+modulate_color = Color(1, 1, 0.98, 1)
+axis_stretch_horizontal = 1
+axis_stretch_vertical = 1
+
+[sub_resource type="StyleBoxTexture" id="receipt"]
+content_margin_left = 14.0
+content_margin_top = 8.0
+content_margin_right = 14.0
+content_margin_bottom = 16.0
+texture = ExtResource("t_receipt")
+texture_margin_left = 8.0
+texture_margin_top = 8.0
+texture_margin_right = 8.0
+texture_margin_bottom = 10.0
+
+[sub_resource type="StyleBoxTexture" id="drawer"]
+content_margin_left = 6.0
+content_margin_top = 8.0
+content_margin_right = 6.0
+content_margin_bottom = 10.0
+texture = ExtResource("t_drawer")
+texture_margin_left = 8.0
+texture_margin_top = 8.0
+texture_margin_right = 8.0
+texture_margin_bottom = 8.0
+
+[sub_resource type="StyleBoxTexture" id="drawer_hover"]
+content_margin_left = 6.0
+content_margin_top = 8.0
+content_margin_right = 6.0
+content_margin_bottom = 10.0
+texture = ExtResource("t_drawer_hover")
+texture_margin_left = 8.0
+texture_margin_top = 8.0
+texture_margin_right = 8.0
+texture_margin_bottom = 8.0
+
+[sub_resource type="StyleBoxTexture" id="drawer_open"]
+content_margin_left = 6.0
+content_margin_top = 8.0
+content_margin_right = 6.0
+content_margin_bottom = 10.0
+texture = ExtResource("t_drawer_open")
+texture_margin_left = 8.0
+texture_margin_top = 8.0
+texture_margin_right = 8.0
+texture_margin_bottom = 8.0
+
+[sub_resource type="StyleBoxFlat" id="dymo"]
+content_margin_left = 14.0
+content_margin_top = 3.0
+content_margin_right = 14.0
+content_margin_bottom = 5.0
+bg_color = Color(0.07, 0.07, 0.075, 1)
+border_width_top = 2
+border_width_bottom = 2
+border_color = Color(0.0, 0.0, 0.0, 1)
+
+[sub_resource type="StyleBoxFlat" id="stamp"]
+content_margin_left = 8.0
+content_margin_top = 1.0
+content_margin_right = 8.0
+content_margin_bottom = 3.0
+draw_center = false
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.7, 0.15, 0.17, 0.9)
+
+[sub_resource type="StyleBoxFlat" id="toolchest"]
+content_margin_left = 8.0
+content_margin_top = 10.0
+content_margin_right = 8.0
+content_margin_bottom = 16.0
+bg_color = Color(0.4, 0.075, 0.09, 1)
+border_width_top = 4
+border_color = Color(0.25, 0.04, 0.05, 1)
+
+[sub_resource type="StyleBoxTexture" id="gaff"]
+content_margin_left = 40.0
+content_margin_top = 14.0
+content_margin_right = 40.0
+content_margin_bottom = 18.0
+texture = ExtResource("t_gaff")
+texture_margin_left = 18.0
+texture_margin_top = 10.0
+texture_margin_right = 18.0
+texture_margin_bottom = 10.0
+
+[sub_resource type="StyleBoxTexture" id="gaff_hover"]
+content_margin_left = 40.0
+content_margin_top = 14.0
+content_margin_right = 40.0
+content_margin_bottom = 18.0
+texture = ExtResource("t_gaff")
+texture_margin_left = 18.0
+texture_margin_top = 10.0
+texture_margin_right = 18.0
+texture_margin_bottom = 10.0
+modulate_color = Color(1.08, 1.05, 1.02, 1)
+
+[sub_resource type="StyleBoxTexture" id="gaff_pressed"]
+content_margin_left = 40.0
+content_margin_top = 17.0
+content_margin_right = 40.0
+content_margin_bottom = 15.0
+texture = ExtResource("t_gaff")
+texture_margin_left = 18.0
+texture_margin_top = 10.0
+texture_margin_right = 18.0
+texture_margin_bottom = 10.0
+modulate_color = Color(0.82, 0.8, 0.78, 1)
+
+[sub_resource type="StyleBoxTexture" id="gaff_disabled"]
+content_margin_left = 40.0
+content_margin_top = 14.0
+content_margin_right = 40.0
+content_margin_bottom = 18.0
+texture = ExtResource("t_gaff")
+texture_margin_left = 18.0
+texture_margin_top = 10.0
+texture_margin_right = 18.0
+texture_margin_bottom = 10.0
+modulate_color = Color(0.55, 0.5, 0.48, 1)
+
+[sub_resource type="StyleBoxTexture" id="tape_small"]
+content_margin_left = 12.0
+content_margin_top = 2.0
+content_margin_right = 12.0
+content_margin_bottom = 4.0
+texture = ExtResource("t_tape")
+texture_margin_left = 14.0
+texture_margin_top = 6.0
+texture_margin_right = 14.0
+texture_margin_bottom = 6.0
+
+[sub_resource type="StyleBoxTexture" id="tape_disabled"]
+content_margin_left = 12.0
+content_margin_top = 2.0
+content_margin_right = 12.0
+content_margin_bottom = 4.0
+texture = ExtResource("t_tape")
+texture_margin_left = 14.0
+texture_margin_top = 6.0
+texture_margin_right = 14.0
+texture_margin_bottom = 6.0
+modulate_color = Color(0.7, 0.68, 0.64, 0.8)
+
+[sub_resource type="StyleBoxTexture" id="whiteboard"]
+content_margin_left = 30.0
+content_margin_top = 24.0
+content_margin_right = 30.0
+content_margin_bottom = 32.0
+texture = ExtResource("t_whiteboard")
+texture_margin_left = 18.0
+texture_margin_top = 18.0
+texture_margin_right = 18.0
+texture_margin_bottom = 22.0
+
+[sub_resource type="StyleBoxTexture" id="corkboard"]
+content_margin_left = 22.0
+content_margin_top = 26.0
+content_margin_right = 22.0
+content_margin_bottom = 24.0
+texture = ExtResource("t_cork")
+texture_margin_left = 18.0
+texture_margin_top = 18.0
+texture_margin_right = 18.0
+texture_margin_bottom = 18.0
+
+[sub_resource type="StyleBoxTexture" id="flyer_yellow"]
+content_margin_left = 16.0
+content_margin_top = 4.0
+content_margin_right = 16.0
+content_margin_bottom = 16.0
+texture = ExtResource("t_paper")
+texture_margin_left = 0.0
+texture_margin_top = 0.0
+texture_margin_right = 0.0
+texture_margin_bottom = 0.0
+modulate_color = Color(1, 0.93, 0.5, 1)
+axis_stretch_horizontal = 1
+axis_stretch_vertical = 1
+
+[sub_resource type="StyleBoxTexture" id="flyer_pink"]
+content_margin_left = 16.0
+content_margin_top = 4.0
+content_margin_right = 16.0
+content_margin_bottom = 16.0
+texture = ExtResource("t_paper")
+texture_margin_left = 0.0
+texture_margin_top = 0.0
+texture_margin_right = 0.0
+texture_margin_bottom = 0.0
+modulate_color = Color(1, 0.74, 0.78, 1)
+axis_stretch_horizontal = 1
+axis_stretch_vertical = 1
+
+[sub_resource type="StyleBoxTexture" id="flyer_blue"]
+content_margin_left = 16.0
+content_margin_top = 4.0
+content_margin_right = 16.0
+content_margin_bottom = 16.0
+texture = ExtResource("t_paper")
+texture_margin_left = 0.0
+texture_margin_top = 0.0
+texture_margin_right = 0.0
+texture_margin_bottom = 0.0
+modulate_color = Color(0.72, 0.85, 1, 1)
+axis_stretch_horizontal = 1
+axis_stretch_vertical = 1
+
+[sub_resource type="StyleBoxTexture" id="cardboard"]
+content_margin_left = 22.0
+content_margin_top = 18.0
+content_margin_right = 22.0
+content_margin_bottom = 20.0
+texture = ExtResource("t_cardboard")
+texture_margin_left = 0.0
+texture_margin_top = 0.0
+texture_margin_right = 0.0
+texture_margin_bottom = 0.0
+axis_stretch_horizontal = 1
+axis_stretch_vertical = 1
+
+[sub_resource type="StyleBoxTexture" id="dotmatrix"]
+content_margin_left = 50.0
+content_margin_top = 22.0
+content_margin_right = 50.0
+content_margin_bottom = 26.0
+texture = ExtResource("t_dotmatrix")
+texture_margin_left = 34.0
+texture_margin_top = 0.0
+texture_margin_right = 34.0
+texture_margin_bottom = 0.0
+axis_stretch_vertical = 1
+
+[sub_resource type="FontVariation" id="doto_font"]
+base_font = ExtResource("6")
+variation_opentype = {
+2003265652: 900,
+1380929092: 100
+}
+
+[sub_resource type="StyleBoxTexture" id="gaff_small"]
+content_margin_left = 26.0
+content_margin_top = 6.0
+content_margin_right = 26.0
+content_margin_bottom = 10.0
+texture = ExtResource("t_gaff")
+texture_margin_left = 18.0
+texture_margin_top = 10.0
+texture_margin_right = 18.0
+texture_margin_bottom = 10.0
+
+[sub_resource type="StyleBoxTexture" id="gaff_small_pressed"]
+content_margin_left = 26.0
+content_margin_top = 8.0
+content_margin_right = 26.0
+content_margin_bottom = 8.0
+texture = ExtResource("t_gaff")
+texture_margin_left = 18.0
+texture_margin_top = 10.0
+texture_margin_right = 18.0
+texture_margin_bottom = 10.0
+modulate_color = Color(0.82, 0.8, 0.78, 1)
+
+[sub_resource type="StyleBoxTexture" id="gaff_small_disabled"]
+content_margin_left = 26.0
+content_margin_top = 6.0
+content_margin_right = 26.0
+content_margin_bottom = 10.0
+texture = ExtResource("t_gaff")
+texture_margin_left = 18.0
+texture_margin_top = 10.0
+texture_margin_right = 18.0
+texture_margin_bottom = 10.0
+modulate_color = Color(0.55, 0.5, 0.48, 1)
+
+[sub_resource type="StyleBoxTexture" id="bench"]
+content_margin_left = 24.0
+content_margin_top = 24.0
+content_margin_right = 24.0
+content_margin_bottom = 24.0
+texture = ExtResource("t_bench")
+axis_stretch_horizontal = 1
+axis_stretch_vertical = 1
+
+[sub_resource type="StyleBoxTexture" id="gaff_red"]
+content_margin_left = 40.0
+content_margin_top = 14.0
+content_margin_right = 40.0
+content_margin_bottom = 18.0
+texture = ExtResource("t_gaff")
+texture_margin_left = 18.0
+texture_margin_top = 10.0
+texture_margin_right = 18.0
+texture_margin_bottom = 10.0
+modulate_color = Color(1, 0.5, 0.5, 1)
+
+[sub_resource type="StyleBoxTexture" id="gaff_red_hover"]
+content_margin_left = 40.0
+content_margin_top = 14.0
+content_margin_right = 40.0
+content_margin_bottom = 18.0
+texture = ExtResource("t_gaff")
+texture_margin_left = 18.0
+texture_margin_top = 10.0
+texture_margin_right = 18.0
+texture_margin_bottom = 10.0
+modulate_color = Color(1.1, 0.56, 0.54, 1)
+
+[sub_resource type="StyleBoxTexture" id="gaff_red_pressed"]
+content_margin_left = 40.0
+content_margin_top = 17.0
+content_margin_right = 40.0
+content_margin_bottom = 15.0
+texture = ExtResource("t_gaff")
+texture_margin_left = 18.0
+texture_margin_top = 10.0
+texture_margin_right = 18.0
+texture_margin_bottom = 10.0
+modulate_color = Color(0.82, 0.4, 0.4, 1)
+
+[sub_resource type="StyleBoxFlat" id="speech"]
+content_margin_left = 20.0
+content_margin_top = 12.0
+content_margin_right = 20.0
+content_margin_bottom = 14.0
+bg_color = Color(0.98, 0.97, 0.94, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 5
+border_color = Color(0.102, 0.078, 0.086, 1)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxTexture" id="clipboard"]
+content_margin_left = 16.0
+content_margin_top = 34.0
+content_margin_right = 16.0
+content_margin_bottom = 18.0
+texture = ExtResource("t_hardboard")
+axis_stretch_horizontal = 1
+axis_stretch_vertical = 1
+
+[sub_resource type="StyleBoxFlat" id="stamp_big"]
+content_margin_left = 18.0
+content_margin_top = 4.0
+content_margin_right = 18.0
+content_margin_bottom = 8.0
+draw_center = false
+border_width_left = 7
+border_width_top = 7
+border_width_right = 7
+border_width_bottom = 7
+border_color = Color(0.84, 0.2, 0.2, 0.92)
+
+[sub_resource type="StyleBoxEmpty" id="pick_empty"]
+content_margin_left = 12.0
+content_margin_top = 2.0
+content_margin_right = 12.0
+content_margin_bottom = 4.0
+
+[sub_resource type="StyleBoxEmpty" id="empty"]
+
+[sub_resource type="FontVariation" id="dymo_font"]
+base_font = ExtResource("2")
+spacing_glyph = 3
+
 [resource]
 default_font = ExtResource("1")
-default_font_size = 26
+default_font_size = 28
+BenchPanel/base_type = &"PanelContainer"
+BenchPanel/styles/panel = SubResource("bench")
+CardboardPanel/base_type = &"PanelContainer"
+ClipboardPanel/base_type = &"PanelContainer"
+ClipboardPanel/styles/panel = SubResource("clipboard")
+GaffRedButton/base_type = &"Button"
+GaffRedButton/colors/font_color = Color(0.102, 0.078, 0.086, 1)
+GaffRedButton/colors/font_disabled_color = Color(0.102, 0.078, 0.086, 0.45)
+GaffRedButton/colors/font_focus_color = Color(0.102, 0.078, 0.086, 1)
+GaffRedButton/colors/font_hover_color = Color(0.102, 0.078, 0.086, 1)
+GaffRedButton/colors/font_pressed_color = Color(0.102, 0.078, 0.086, 1)
+GaffRedButton/constants/outline_size = 0
+GaffRedButton/font_sizes/font_size = 52
+GaffRedButton/fonts/font = ExtResource("5")
+GaffRedButton/styles/disabled = SubResource("gaff_disabled")
+GaffRedButton/styles/focus = SubResource("empty")
+GaffRedButton/styles/hover = SubResource("gaff_red_hover")
+GaffRedButton/styles/normal = SubResource("gaff_red")
+GaffRedButton/styles/pressed = SubResource("gaff_red_pressed")
+InkTrackMap/base_type = &"Control"
+InkTrackMap/colors/line = Color(0.102, 0.078, 0.086, 0.55)
+InkTrackMap/colors/marker = Color(0.102, 0.078, 0.086, 1)
+InkTrackMap/colors/severity_mid = Color(0.85, 0.55, 0.05, 1)
+InkTrackMap/fonts/font = ExtResource("2")
+SpeechLabel/base_type = &"Label"
+SpeechLabel/colors/font_color = Color(0.102, 0.078, 0.086, 1)
+SpeechLabel/font_sizes/font_size = 30
+SpeechLabel/fonts/font = ExtResource("2")
+SpeechPanel/base_type = &"PanelContainer"
+SpeechPanel/styles/panel = SubResource("speech")
+VerdictLabel/base_type = &"Label"
+VerdictLabel/colors/font_color = Color(0.84, 0.2, 0.2, 0.92)
+VerdictLabel/font_sizes/font_size = 64
+VerdictLabel/fonts/font = SubResource("dymo_font")
+VerdictLabel/styles/normal = SubResource("stamp_big")
+FlyerTextLabel/base_type = &"Label"
+FlyerTextLabel/colors/font_color = Color(0.102, 0.078, 0.086, 1)
+FlyerTextLabel/font_sizes/font_size = 20
+FlyerTextLabel/fonts/font = ExtResource("4")
+FlyerTitleLabel/base_type = &"Label"
+FlyerTitleLabel/colors/font_color = Color(0.102, 0.078, 0.086, 1)
+FlyerTitleLabel/font_sizes/font_size = 28
+FlyerTitleLabel/fonts/font = ExtResource("3")
+GaffSmallButton/base_type = &"Button"
+GaffSmallButton/colors/font_color = Color(0.102, 0.078, 0.086, 1)
+GaffSmallButton/colors/font_disabled_color = Color(0.102, 0.078, 0.086, 0.45)
+GaffSmallButton/colors/font_focus_color = Color(0.102, 0.078, 0.086, 1)
+GaffSmallButton/colors/font_hover_color = Color(0.102, 0.078, 0.086, 1)
+GaffSmallButton/colors/font_pressed_color = Color(0.102, 0.078, 0.086, 1)
+GaffSmallButton/constants/outline_size = 0
+GaffSmallButton/font_sizes/font_size = 26
+GaffSmallButton/fonts/font = ExtResource("5")
+GaffSmallButton/styles/disabled = SubResource("gaff_small_disabled")
+GaffSmallButton/styles/focus = SubResource("empty")
+GaffSmallButton/styles/hover = SubResource("gaff_small")
+GaffSmallButton/styles/normal = SubResource("gaff_small")
+GaffSmallButton/styles/pressed = SubResource("gaff_small_pressed")
+WhiteboardRedSmallLabel/base_type = &"Label"
+WhiteboardRedSmallLabel/colors/font_color = Color(0.78, 0.13, 0.15, 1)
+WhiteboardRedSmallLabel/font_sizes/font_size = 21
+WhiteboardRedSmallLabel/fonts/font = ExtResource("5")
+WhiteboardSmallLabel/base_type = &"Label"
+WhiteboardSmallLabel/colors/font_color = Color(0.11, 0.11, 0.14, 1)
+WhiteboardSmallLabel/font_sizes/font_size = 21
+WhiteboardSmallLabel/fonts/font = ExtResource("5")
+CardboardPanel/styles/panel = SubResource("cardboard")
+CorkPanel/base_type = &"PanelContainer"
+CorkPanel/styles/panel = SubResource("corkboard")
+DotMatrixBigLabel/base_type = &"Label"
+DotMatrixBigLabel/colors/font_color = Color(0.17, 0.16, 0.22, 1)
+DotMatrixBigLabel/colors/font_outline_color = Color(0.17, 0.16, 0.22, 1)
+DotMatrixBigLabel/constants/outline_size = 4
+DotMatrixBigLabel/font_sizes/font_size = 44
+DotMatrixBigLabel/fonts/font = SubResource("doto_font")
+DotMatrixLabel/base_type = &"Label"
+DotMatrixLabel/colors/font_color = Color(0.17, 0.16, 0.22, 1)
+DotMatrixLabel/colors/font_outline_color = Color(0.17, 0.16, 0.22, 1)
+DotMatrixLabel/constants/outline_size = 2
+DotMatrixLabel/font_sizes/font_size = 26
+DotMatrixLabel/fonts/font = SubResource("doto_font")
+DotMatrixPanel/base_type = &"PanelContainer"
+DotMatrixPanel/styles/panel = SubResource("dotmatrix")
+FlyerBluePanel/base_type = &"PanelContainer"
+FlyerBluePanel/styles/panel = SubResource("flyer_blue")
+FlyerPinkPanel/base_type = &"PanelContainer"
+FlyerPinkPanel/styles/panel = SubResource("flyer_pink")
+FlyerPriceLabel/base_type = &"Label"
+FlyerPriceLabel/colors/font_color = Color(0.7, 0.15, 0.17, 1)
+FlyerPriceLabel/font_sizes/font_size = 46
+FlyerPriceLabel/fonts/font = ExtResource("3")
+FlyerYellowPanel/base_type = &"PanelContainer"
+FlyerYellowPanel/styles/panel = SubResource("flyer_yellow")
+GaffButton/base_type = &"Button"
+GaffButton/colors/font_color = Color(0.102, 0.078, 0.086, 1)
+GaffButton/colors/font_disabled_color = Color(0.102, 0.078, 0.086, 0.45)
+GaffButton/colors/font_focus_color = Color(0.102, 0.078, 0.086, 1)
+GaffButton/colors/font_hover_color = Color(0.102, 0.078, 0.086, 1)
+GaffButton/colors/font_hover_pressed_color = Color(0.102, 0.078, 0.086, 1)
+GaffButton/colors/font_pressed_color = Color(0.102, 0.078, 0.086, 1)
+GaffButton/constants/outline_size = 0
+GaffButton/font_sizes/font_size = 40
+GaffButton/fonts/font = ExtResource("5")
+GaffButton/styles/disabled = SubResource("gaff_disabled")
+GaffButton/styles/focus = SubResource("empty")
+GaffButton/styles/hover = SubResource("gaff_hover")
+GaffButton/styles/normal = SubResource("gaff")
+GaffButton/styles/pressed = SubResource("gaff_pressed")
+InkDynoChart/base_type = &"Control"
+InkDynoChart/colors/grid = Color(0.102, 0.078, 0.086, 0.12)
+InkDynoChart/colors/power = Color(0.7, 0.15, 0.17, 1)
+InkDynoChart/colors/redline = Color(0.7, 0.15, 0.17, 0.1)
+InkDynoChart/colors/text = Color(0.42, 0.37, 0.32, 1)
+InkDynoChart/colors/torque = Color(0.13, 0.27, 0.55, 1)
+InkDynoChart/fonts/font = ExtResource("2")
+PartPickButton/base_type = &"OptionButton"
+PartPickButton/colors/font_color = Color(0.102, 0.078, 0.086, 1)
+PartPickButton/colors/font_disabled_color = Color(0.102, 0.078, 0.086, 0.45)
+PartPickButton/colors/font_focus_color = Color(0.102, 0.078, 0.086, 1)
+PartPickButton/colors/font_hover_color = Color(0.102, 0.078, 0.086, 1)
+PartPickButton/colors/font_hover_pressed_color = Color(0.102, 0.078, 0.086, 1)
+PartPickButton/colors/font_pressed_color = Color(0.102, 0.078, 0.086, 1)
+PartPickButton/constants/outline_size = 0
+PartPickButton/font_sizes/font_size = 20
+PartPickButton/fonts/font = ExtResource("5")
+PartPickButton/styles/disabled = SubResource("pick_empty")
+PartPickButton/styles/focus = SubResource("empty")
+PartPickButton/styles/hover = SubResource("tape_small")
+PartPickButton/styles/normal = SubResource("tape_small")
+PartPickButton/styles/pressed = SubResource("tape_small")
+SmallTapeButton/base_type = &"Button"
+SmallTapeButton/colors/font_color = Color(0.102, 0.078, 0.086, 1)
+SmallTapeButton/colors/font_disabled_color = Color(0.102, 0.078, 0.086, 0.45)
+SmallTapeButton/colors/font_focus_color = Color(0.102, 0.078, 0.086, 1)
+SmallTapeButton/colors/font_hover_color = Color(0.102, 0.078, 0.086, 1)
+SmallTapeButton/colors/font_pressed_color = Color(0.102, 0.078, 0.086, 1)
+SmallTapeButton/constants/outline_size = 0
+SmallTapeButton/font_sizes/font_size = 22
+SmallTapeButton/fonts/font = ExtResource("5")
+SmallTapeButton/styles/disabled = SubResource("tape_disabled")
+SmallTapeButton/styles/focus = SubResource("empty")
+SmallTapeButton/styles/hover = SubResource("tape_small")
+SmallTapeButton/styles/normal = SubResource("tape_small")
+SmallTapeButton/styles/pressed = SubResource("tape_small")
+WhiteboardGreenLabel/base_type = &"Label"
+WhiteboardGreenLabel/colors/font_color = Color(0.12, 0.5, 0.28, 1)
+WhiteboardGreenLabel/font_sizes/font_size = 21
+WhiteboardGreenLabel/fonts/font = ExtResource("5")
+WhiteboardLabel/base_type = &"Label"
+WhiteboardLabel/colors/font_color = Color(0.11, 0.11, 0.14, 1)
+WhiteboardLabel/font_sizes/font_size = 26
+WhiteboardLabel/fonts/font = ExtResource("5")
+WhiteboardPanel/base_type = &"PanelContainer"
+WhiteboardPanel/styles/panel = SubResource("whiteboard")
+WhiteboardRedLabel/base_type = &"Label"
+WhiteboardRedLabel/colors/font_color = Color(0.78, 0.13, 0.15, 1)
+WhiteboardRedLabel/font_sizes/font_size = 26
+WhiteboardRedLabel/fonts/font = ExtResource("5")
+WhiteboardBlueLabel/base_type = &"Label"
+WhiteboardBlueLabel/colors/font_color = Color(0.12, 0.25, 0.6, 1)
+WhiteboardBlueLabel/font_sizes/font_size = 21
+WhiteboardBlueLabel/fonts/font = ExtResource("5")
 AccentButton/base_type = &"Button"
 AccentButton/colors/font_color = Color(0.976, 0.957, 0.961, 1)
 AccentButton/colors/font_focus_color = Color(0.976, 0.957, 0.961, 1)
@@ -301,13 +887,32 @@ DangerButton/styles/focus = SubResource("danger_hover")
 DangerButton/styles/hover = SubResource("danger_hover")
 DangerButton/styles/normal = SubResource("danger_normal")
 DangerButton/styles/pressed = SubResource("danger_pressed")
+DrawerButton/base_type = &"Button"
+DrawerButton/styles/disabled = SubResource("drawer")
+DrawerButton/styles/focus = SubResource("empty")
+DrawerButton/styles/hover = SubResource("drawer_hover")
+DrawerButton/styles/normal = SubResource("drawer")
+DrawerButton/styles/pressed = SubResource("drawer_open")
+DrawerOpenButton/base_type = &"Button"
+DrawerOpenButton/styles/focus = SubResource("empty")
+DrawerOpenButton/styles/hover = SubResource("drawer_open")
+DrawerOpenButton/styles/normal = SubResource("drawer_open")
+DrawerOpenButton/styles/pressed = SubResource("drawer_open")
+DymoLabel/base_type = &"Label"
+DymoLabel/colors/font_color = Color(0.96, 0.96, 0.96, 1)
+DymoLabel/colors/font_shadow_color = Color(0.45, 0.45, 0.45, 0.7)
+DymoLabel/constants/shadow_offset_x = 0
+DymoLabel/constants/shadow_offset_y = 1
+DymoLabel/font_sizes/font_size = 26
+DymoLabel/fonts/font = SubResource("dymo_font")
+DymoLabel/styles/normal = SubResource("dymo")
 EventDayPanel/base_type = &"PanelContainer"
 EventDayPanel/styles/panel = SubResource("event_day_panel")
 HSlider/styles/grabber_area = SubResource("slider_fill")
 HSlider/styles/grabber_area_highlight = SubResource("slider_fill")
 HSlider/styles/slider = SubResource("slider")
 HeadingLabel/base_type = &"Label"
-HeadingLabel/colors/font_color = Color(0.839, 0.251, 0.271, 1)
+HeadingLabel/colors/font_color = Color(0.91, 0.455, 0.231, 1)
 HeadingLabel/colors/font_outline_color = Color(0.06, 0.025, 0.03, 1)
 HeadingLabel/colors/font_shadow_color = Color(0, 0, 0, 0.55)
 HeadingLabel/constants/outline_size = 8
@@ -315,11 +920,33 @@ HeadingLabel/constants/shadow_offset_x = 2
 HeadingLabel/constants/shadow_offset_y = 3
 HeadingLabel/font_sizes/font_size = 28
 HeadingLabel/fonts/font = ExtResource("3")
+InkHeadingLabel/base_type = &"Label"
+InkHeadingLabel/colors/font_color = Color(0.102, 0.078, 0.086, 1)
+InkHeadingLabel/font_sizes/font_size = 38
+InkHeadingLabel/fonts/font = ExtResource("3")
+InkLabel/base_type = &"Label"
+InkLabel/colors/font_color = Color(0.102, 0.078, 0.086, 1)
+InkLabel/font_sizes/font_size = 26
+InkMutedLabel/base_type = &"Label"
+InkMutedLabel/colors/font_color = Color(0.42, 0.37, 0.32, 1)
+InkMutedLabel/font_sizes/font_size = 20
+InkMutedLabel/fonts/font = ExtResource("2")
 Label/colors/font_color = Color(0.976, 0.957, 0.961, 1)
+MarkerLabel/base_type = &"Label"
+MarkerLabel/colors/font_color = Color(0.133, 0.2, 0.31, 1)
+MarkerLabel/font_sizes/font_size = 28
+MarkerLabel/fonts/font = ExtResource("5")
 MutedLabel/base_type = &"Label"
-MutedLabel/colors/font_color = Color(0.6, 0.61, 0.66, 1)
+MutedLabel/colors/font_color = Color(0.76, 0.71, 0.66, 1)
 MutedLabel/font_sizes/font_size = 22
+MutedLabel/fonts/font = ExtResource("4")
 PanelContainer/styles/panel = SubResource("StyleBoxFlat_oesku")
+PaperPanel/base_type = &"PanelContainer"
+PaperPanel/styles/panel = SubResource("paper")
+PolaroidPanel/base_type = &"PanelContainer"
+PolaroidPanel/styles/panel = SubResource("polaroid")
+ReceiptPanel/base_type = &"PanelContainer"
+ReceiptPanel/styles/panel = SubResource("receipt")
 RibbonLabel/base_type = &"Label"
 RibbonLabel/colors/font_color = Color(0.102, 0.059, 0.063, 1)
 RibbonLabel/font_sizes/font_size = 28
@@ -329,6 +956,11 @@ SelectedButton/styles/focus = SubResource("selected_normal")
 SelectedButton/styles/hover = SubResource("selected_normal")
 SelectedButton/styles/normal = SubResource("selected_normal")
 SelectedButton/styles/pressed = SubResource("selected_normal")
+StampLabel/base_type = &"Label"
+StampLabel/colors/font_color = Color(0.7, 0.15, 0.17, 0.9)
+StampLabel/font_sizes/font_size = 22
+StampLabel/fonts/font = SubResource("dymo_font")
+StampLabel/styles/normal = SubResource("stamp")
 StoryLabel/base_type = &"Label"
 StoryLabel/colors/font_color = Color(0.102, 0.059, 0.063, 1)
 StoryLabel/colors/font_shadow_color = Color(1, 1, 1, 0.18)
@@ -336,6 +968,23 @@ StoryLabel/constants/shadow_offset_x = 2
 StoryLabel/constants/shadow_offset_y = 2
 StoryLabel/font_sizes/font_size = 52
 StoryLabel/fonts/font = ExtResource("3")
+TapeButton/base_type = &"Button"
+TapeButton/colors/font_color = Color(0.102, 0.078, 0.086, 1)
+TapeButton/colors/font_focus_color = Color(0.102, 0.078, 0.086, 1)
+TapeButton/colors/font_hover_color = Color(0.102, 0.078, 0.086, 1)
+TapeButton/colors/font_pressed_color = Color(0.102, 0.078, 0.086, 1)
+TapeButton/constants/outline_size = 0
+TapeButton/font_sizes/font_size = 22
+TapeButton/fonts/font = ExtResource("5")
+TapeButton/styles/focus = SubResource("empty")
+TapeButton/styles/hover = SubResource("tape")
+TapeButton/styles/normal = SubResource("tape")
+TapeButton/styles/pressed = SubResource("tape")
+TapeLabel/base_type = &"Label"
+TapeLabel/colors/font_color = Color(0.102, 0.078, 0.086, 1)
+TapeLabel/font_sizes/font_size = 26
+TapeLabel/fonts/font = ExtResource("5")
+TapeLabel/styles/normal = SubResource("tape")
 TitleLabel/base_type = &"Label"
 TitleLabel/colors/font_color = Color(0.976, 0.957, 0.961, 1)
 TitleLabel/colors/font_outline_color = Color(0.06, 0.025, 0.03, 1)
@@ -347,3 +996,5 @@ TitleLabel/font_sizes/font_size = 52
 TitleLabel/fonts/font = ExtResource("3")
 TodayPanel/base_type = &"PanelContainer"
 TodayPanel/styles/panel = SubResource("today_panel")
+ToolChestPanel/base_type = &"PanelContainer"
+ToolChestPanel/styles/panel = SubResource("toolchest")

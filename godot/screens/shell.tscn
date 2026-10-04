@@ -1,27 +1,19 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene format=3]
 
 [ext_resource type="Script" path="res://screens/shell.gd" id="1"]
+[ext_resource type="Texture2D" uid="uid://dfubsi38co685" path="res://textures/pegboard.png" id="2"]
+[ext_resource type="Texture2D" uid="uid://0le7g8p5jhgt" path="res://textures/handle.png" id="3"]
 
-[sub_resource type="StyleBoxFlat" id="Rail"]
-content_margin_left = 20.0
-content_margin_top = 36.0
-content_margin_right = 20.0
-content_margin_bottom = 12.0
-bg_color = Color(0.102, 0.059, 0.063, 1)
+[sub_resource type="Gradient" id="ShopLightGradient"]
+colors = PackedColorArray(1, 0.78, 0.48, 0.22, 1, 0.78, 0.48, 0)
 
-[sub_resource type="StyleBoxFlat" id="Ribbon"]
-content_margin_left = 20.0
-content_margin_top = 8.0
-content_margin_right = 20.0
-content_margin_bottom = 8.0
-bg_color = Color(0.839, 0.251, 0.271, 1)
-
-[sub_resource type="StyleBoxFlat" id="NavBar"]
-content_margin_left = 12.0
-content_margin_top = 16.0
-content_margin_right = 12.0
-content_margin_bottom = 24.0
-bg_color = Color(0, 0, 0, 0.89411765)
+[sub_resource type="GradientTexture2D" id="ShopLight"]
+gradient = SubResource("ShopLightGradient")
+width = 256
+height = 256
+fill = 1
+fill_from = Vector2(0.5, 0)
+fill_to = Vector2(1.05, 0.75)
 
 [node name="Shell" type="Control"]
 layout_mode = 3
@@ -32,6 +24,29 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1")
 
+[node name="Pegboard" type="TextureRect" parent="."]
+texture_repeat = 2
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("2")
+stretch_mode = 1
+
+[node name="ShopLight" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = SubResource("ShopLight")
+expand_mode = 1
+
 [node name="Column" type="VBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
@@ -41,9 +56,12 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 0
 
-[node name="TopRail" type="PanelContainer" parent="Column"]
+[node name="TopRail" type="MarginContainer" parent="Column"]
 layout_mode = 2
-theme_override_styles/panel = SubResource("Rail")
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 40
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 6
 
 [node name="RailRow" type="HBoxContainer" parent="Column/TopRail"]
 layout_mode = 2
@@ -53,62 +71,80 @@ theme_override_constants/separation = 14
 unique_name_in_owner = true
 custom_minimum_size = Vector2(64, 64)
 layout_mode = 2
-theme_type_variation = &"TitleLabel"
+size_flags_vertical = 4
+rotation = -0.07
+pivot_offset = Vector2(32, 32)
+theme_type_variation = &"TapeLabel"
+theme_override_font_sizes/font_size = 34
 text = "F"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="NameBox" type="VBoxContainer" parent="Column/TopRail/RailRow"]
-layout_mode = 2
-size_flags_horizontal = 3
-alignment = 1
-
-[node name="DriverName" type="Label" parent="Column/TopRail/RailRow/NameBox"]
+[node name="DriverName" type="Label" parent="Column/TopRail/RailRow"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_type_variation = &"HeadingLabel"
+size_flags_vertical = 4
+rotation = 0.035
+theme_type_variation = &"TapeLabel"
+theme_override_font_sizes/font_size = 30
 text = "FABA"
 
-[node name="CrewName" type="Label" parent="Column/TopRail/RailRow/NameBox"]
+[node name="RailSpacer" type="Control" parent="Column/TopRail/RailRow"]
 layout_mode = 2
-theme_type_variation = &"MutedLabel"
-text = "DEADTILDAWN"
+size_flags_horizontal = 3
 
-[node name="StatsBox" type="VBoxContainer" parent="Column/TopRail/RailRow"]
+[node name="Receipt" type="PanelContainer" parent="Column/TopRail/RailRow"]
 layout_mode = 2
-alignment = 1
+size_flags_vertical = 0
+rotation = -0.03
+theme_type_variation = &"ReceiptPanel"
 
-[node name="Cash" type="Label" parent="Column/TopRail/RailRow/StatsBox"]
+[node name="StatsBox" type="VBoxContainer" parent="Column/TopRail/RailRow/Receipt"]
+layout_mode = 2
+theme_override_constants/separation = -4
+
+[node name="CashCaption" type="Label" parent="Column/TopRail/RailRow/Receipt/StatsBox"]
+layout_mode = 2
+theme_type_variation = &"InkMutedLabel"
+theme_override_font_sizes/font_size = 15
+text = "CASH ON HAND"
+horizontal_alignment = 2
+
+[node name="Cash" type="Label" parent="Column/TopRail/RailRow/Receipt/StatsBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_type_variation = &"HeadingLabel"
+theme_type_variation = &"InkHeadingLabel"
+theme_override_font_sizes/font_size = 40
 text = "$250"
 horizontal_alignment = 2
 
-[node name="Rep" type="Label" parent="Column/TopRail/RailRow/StatsBox"]
+[node name="Rep" type="Label" parent="Column/TopRail/RailRow/Receipt/StatsBox"]
 unique_name_in_owner = true
 layout_mode = 2
+theme_type_variation = &"InkMutedLabel"
 text = "REP 0"
 horizontal_alignment = 2
 
-[node name="LocationRibbon" type="PanelContainer" parent="Column"]
+[node name="LocationRow" type="MarginContainer" parent="Column"]
 layout_mode = 2
-theme_override_styles/panel = SubResource("Ribbon")
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 24
 
-[node name="LocationLabel" type="Label" parent="Column/LocationRibbon"]
+[node name="LocationLabel" type="Label" parent="Column/LocationRow"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_type_variation = &"RibbonLabel"
-theme_override_colors/font_color = Color(0.102, 0.059, 0.063, 1)
-text = "THE WAREHOUSE // TERMINAL_01"
+size_flags_horizontal = 0
+theme_type_variation = &"DymoLabel"
+text = "THE WAREHOUSE"
 
 [node name="ContentMargin" type="MarginContainer" parent="Column"]
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_constants/margin_left = 24
-theme_override_constants/margin_top = 18
+theme_override_constants/margin_top = 14
 theme_override_constants/margin_right = 24
-theme_override_constants/margin_bottom = 18
+theme_override_constants/margin_bottom = 14
 
 [node name="ContentSlot" type="Control" parent="Column/ContentMargin"]
 unique_name_in_owner = true
@@ -116,39 +152,174 @@ layout_mode = 2
 
 [node name="BottomNavBar" type="PanelContainer" parent="Column"]
 layout_mode = 2
-theme_override_styles/panel = SubResource("NavBar")
+theme_type_variation = &"ToolChestPanel"
 
 [node name="IconBarRow" type="HBoxContainer" parent="Column/BottomNavBar"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 6
 
 [node name="ShopButton" type="Button" parent="Column/BottomNavBar/IconBarRow"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 96)
 layout_mode = 2
 size_flags_horizontal = 3
-text = "$"
+tooltip_text = "Parts"
+theme_type_variation = &"DrawerButton"
+
+[node name="Face" type="VBoxContainer" parent="Column/BottomNavBar/IconBarRow/ShopButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="Handle" type="TextureRect" parent="Column/BottomNavBar/IconBarRow/ShopButton/Face"]
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+texture = ExtResource("3")
+
+[node name="Tape" type="Label" parent="Column/BottomNavBar/IconBarRow/ShopButton/Face"]
+layout_mode = 2
+size_flags_horizontal = 4
+rotation = -0.05
+theme_type_variation = &"TapeLabel"
+theme_override_font_sizes/font_size = 24
+text = "$$$"
 
 [node name="CarButton" type="Button" parent="Column/BottomNavBar/IconBarRow"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 96)
 layout_mode = 2
 size_flags_horizontal = 3
-text = "CAR"
+tooltip_text = "The car"
+theme_type_variation = &"DrawerButton"
+
+[node name="Face" type="VBoxContainer" parent="Column/BottomNavBar/IconBarRow/CarButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="Handle" type="TextureRect" parent="Column/BottomNavBar/IconBarRow/CarButton/Face"]
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+texture = ExtResource("3")
+
+[node name="Tape" type="Label" parent="Column/BottomNavBar/IconBarRow/CarButton/Face"]
+layout_mode = 2
+size_flags_horizontal = 4
+rotation = 0.04
+theme_type_variation = &"TapeLabel"
+theme_override_font_sizes/font_size = 24
+text = "car"
 
 [node name="WarehouseButton" type="Button" parent="Column/BottomNavBar/IconBarRow"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 96)
 layout_mode = 2
 size_flags_horizontal = 3
-text = "WHSE"
+tooltip_text = "Home"
+theme_type_variation = &"DrawerButton"
+
+[node name="Face" type="VBoxContainer" parent="Column/BottomNavBar/IconBarRow/WarehouseButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="Handle" type="TextureRect" parent="Column/BottomNavBar/IconBarRow/WarehouseButton/Face"]
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+texture = ExtResource("3")
+
+[node name="Tape" type="Label" parent="Column/BottomNavBar/IconBarRow/WarehouseButton/Face"]
+layout_mode = 2
+size_flags_horizontal = 4
+rotation = -0.02
+theme_type_variation = &"TapeLabel"
+theme_override_font_sizes/font_size = 24
+text = "home"
 
 [node name="CalendarButton" type="Button" parent="Column/BottomNavBar/IconBarRow"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 96)
 layout_mode = 2
 size_flags_horizontal = 3
-text = "CAL"
+tooltip_text = "Calendar"
+theme_type_variation = &"DrawerButton"
+
+[node name="Face" type="VBoxContainer" parent="Column/BottomNavBar/IconBarRow/CalendarButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="Handle" type="TextureRect" parent="Column/BottomNavBar/IconBarRow/CalendarButton/Face"]
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+texture = ExtResource("3")
+
+[node name="Tape" type="Label" parent="Column/BottomNavBar/IconBarRow/CalendarButton/Face"]
+layout_mode = 2
+size_flags_horizontal = 4
+rotation = 0.05
+theme_type_variation = &"TapeLabel"
+theme_override_font_sizes/font_size = 24
+text = "cal"
 
 [node name="ExtraNavButton" type="Button" parent="Column/BottomNavBar/IconBarRow"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 96)
 layout_mode = 2
 size_flags_horizontal = 3
+tooltip_text = "Team (coming soon)"
 disabled = true
-text = "XTR"
+theme_type_variation = &"DrawerButton"
+
+[node name="Face" type="VBoxContainer" parent="Column/BottomNavBar/IconBarRow/ExtraNavButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="Handle" type="TextureRect" parent="Column/BottomNavBar/IconBarRow/ExtraNavButton/Face"]
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+texture = ExtResource("3")
+
+[node name="Tape" type="Label" parent="Column/BottomNavBar/IconBarRow/ExtraNavButton/Face"]
+layout_mode = 2
+size_flags_horizontal = 4
+rotation = -0.04
+theme_type_variation = &"TapeLabel"
+theme_override_font_sizes/font_size = 24
+text = "team"

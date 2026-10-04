@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3 uid="uid://dgjoqqwn0qtpt"]
+[gd_scene format=3 uid="uid://dgjoqqwn0qtpt"]
 
 [ext_resource type="Script" uid="uid://bgt4myfh4o6nq" path="res://screens/warehouse.gd" id="1"]
-[ext_resource type="Script" path="res://widgets/pedestal.gd" id="2"]
+[ext_resource type="Script" path="res://widgets/overlook.gd" id="2"]
+[ext_resource type="Texture2D" uid="uid://cylg33ri4iwl2" path="res://textures/tape.png" id="3"]
 
 [node name="Warehouse" type="Control"]
 layout_mode = 3
@@ -19,77 +20,133 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 18
+theme_override_constants/separation = 22
 
-[node name="Subtitle" type="Label" parent="Column"]
+[node name="PinnedPhoto" type="Control" parent="Column"]
+custom_minimum_size = Vector2(0, 430)
 layout_mode = 2
-theme_type_variation = &"MutedLabel"
-text = "Home. Garage. HQ. Faba's savings, your tools."
-autowrap_mode = 3
+size_flags_vertical = 3
 
-[node name="CarPedestal" type="SubViewportContainer" parent="Column"]
+[node name="Polaroid" type="PanelContainer" parent="Column/PinnedPhoto"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 14.0
+offset_top = 10.0
+offset_right = -14.0
+grow_horizontal = 2
+grow_vertical = 2
+rotation = -0.025
+theme_type_variation = &"PolaroidPanel"
+
+[node name="PhotoBox" type="VBoxContainer" parent="Column/PinnedPhoto/Polaroid"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Overlook" type="SubViewportContainer" parent="Column/PinnedPhoto/Polaroid/PhotoBox"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 stretch = true
 script = ExtResource("2")
 
-[node name="Crew" type="PanelContainer" parent="Column"]
-layout_mode = 2
-
-[node name="Box" type="VBoxContainer" parent="Column/Crew"]
-layout_mode = 2
-theme_override_constants/separation = 6
-
-[node name="CrewTitle" type="Label" parent="Column/Crew/Box"]
-layout_mode = 2
-theme_type_variation = &"HeadingLabel"
-text = "THE CREW"
-
-[node name="CrewLine" type="Label" parent="Column/Crew/Box"]
-layout_mode = 2
-text = "Faba drives. You build."
-autowrap_mode = 3
-
-[node name="Record" type="Label" parent="Column/Crew/Box"]
+[node name="Caption" type="Label" parent="Column/PinnedPhoto/Polaroid/PhotoBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_type_variation = &"MutedLabel"
-text = "Record 0 W - 0 L"
+theme_type_variation = &"MarkerLabel"
+text = "PCH turnout, wk 1. straight shitbox"
 
-[node name="StoryButton" type="Button" parent="Column/Crew/Box"]
+[node name="TapeStrip" type="TextureRect" parent="Column/PinnedPhoto"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -64.0
+offset_top = -6.0
+offset_right = 64.0
+offset_bottom = 26.0
+grow_horizontal = 2
+rotation = 0.06
+mouse_filter = 2
+texture = ExtResource("3")
+expand_mode = 1
+
+[node name="WorkOrder" type="PanelContainer" parent="Column"]
+layout_mode = 2
+rotation = 0.01
+theme_type_variation = &"PaperPanel"
+
+[node name="Box" type="VBoxContainer" parent="Column/WorkOrder"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="Header" type="HBoxContainer" parent="Column/WorkOrder/Box"]
+layout_mode = 2
+
+[node name="WorkOrderNo" type="Label" parent="Column/WorkOrder/Box/Header"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Replay the story"
+size_flags_horizontal = 3
+theme_type_variation = &"InkMutedLabel"
+text = "WORK ORDER #001"
 
-[node name="NextUp" type="PanelContainer" parent="Column"]
-layout_mode = 2
-
-[node name="Box" type="VBoxContainer" parent="Column/NextUp"]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="Kicker" type="Label" parent="Column/NextUp/Box"]
-layout_mode = 2
-theme_type_variation = &"HeadingLabel"
-text = "NEXT UP"
-
-[node name="EventTitle" type="Label" parent="Column/NextUp/Box"]
+[node name="When" type="Label" parent="Column/WorkOrder/Box/Header"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 30
-text = "FRI, WEEK 1: RACE NIGHT"
-autowrap_mode = 3
+theme_type_variation = &"InkMutedLabel"
+text = "FRI, WEEK 1"
 
-[node name="EventDetail" type="Label" parent="Column/NextUp/Box"]
+[node name="TitleRow" type="HBoxContainer" parent="Column/WorkOrder/Box"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="EventTitle" type="Label" parent="Column/WorkOrder/Box/TitleRow"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_type_variation = &"MutedLabel"
+size_flags_horizontal = 3
+theme_type_variation = &"InkHeadingLabel"
+text = "Rival night"
+
+[node name="Stamp" type="Label" parent="Column/WorkOrder/Box/TitleRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+rotation = -0.18
+pivot_offset = Vector2(40, 16)
+theme_type_variation = &"StampLabel"
+text = "RIVAL"
+
+[node name="EventDetail" type="Label" parent="Column/WorkOrder/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"InkLabel"
+theme_override_font_sizes/font_size = 24
 text = "Event details"
 autowrap_mode = 3
 
-[node name="GetReady" type="Button" parent="Column/NextUp/Box"]
+[node name="Record" type="Label" parent="Column/WorkOrder/Box"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_type_variation = &"AccentButton"
+theme_type_variation = &"InkMutedLabel"
+text = "Record 0 W - 0 L"
+
+[node name="ButtonRow" type="HBoxContainer" parent="Column"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="StoryButton" type="Button" parent="Column/ButtonRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+rotation = -0.04
+theme_type_variation = &"TapeButton"
+text = "the story"
+
+[node name="GetReady" type="Button" parent="Column/ButtonRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+rotation = 0.012
+theme_type_variation = &"GaffButton"
 text = "GET READY"

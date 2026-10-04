@@ -5,12 +5,15 @@ extends RefCounted
 ## Type variations defined in the theme:
 ##   Labels:  TitleLabel, HeadingLabel, MutedLabel, BigNumberLabel
 ##   Buttons: AccentButton (orange), DangerButton (red, SEND IT), SelectedButton
+## Garage props (paper, tape, whiteboard, corkboard...): see the theme itself.
 
 const BG := Color(0.102, 0.059, 0.063)    # #1A0F10 (instead of black)
 const ACCENT := Color(0.839, 0.251, 0.271)  # #D64045 deadtildawn red
 const GOOD := Color(0.46, 0.77, 0.4)
 const BAD := Color(0.93, 0.17, 0.24)
 const MUTED := Color(0.6, 0.61, 0.66)
+const INK := Color(0.102, 0.078, 0.086)       # #1A1416, ink on paper
+const INK_BAD := Color(0.7, 0.15, 0.17)       # red ink
 
 
 static func label(parent: Node, text: String, variation := "", color = null) -> Label:
@@ -57,12 +60,15 @@ static func button(parent: Node, text: String, on_press: Callable, variation := 
 	return b
 
 
-static func stat_row(parent: Node, name: String, value: String) -> void:
+## name_style / value_style: theme variations ("InkMutedLabel" / "InkLabel" on paper).
+static func stat_row(parent: Node, name: String, value: String, name_style := "MutedLabel",
+		value_style := "") -> HBoxContainer:
 	var row := hbox(parent, 12)
-	var n := label(row, name, "MutedLabel")
+	var n := label(row, name, name_style)
 	n.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var v := label(row, value)
+	var v := label(row, value, value_style)
 	v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	return row
 
 
 static func spacer(parent: Node, expand := true) -> Control:

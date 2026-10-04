@@ -1,0 +1,187 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://screens/reveal.gd" id="1"]
+[ext_resource type="Texture2D" uid="uid://dfubsi38co685" path="res://textures/pegboard.png" id="2"]
+[ext_resource type="Texture2D" uid="uid://cylg33ri4iwl2" path="res://textures/tape.png" id="3"]
+
+[node name="Reveal" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="Pegboard" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("2")
+stretch_mode = 1
+
+[node name="Column" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 0
+
+[node name="Top" type="MarginContainer" parent="Column"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 48
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 16
+
+[node name="TopCol" type="VBoxContainer" parent="Column/Top"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="From" type="Label" parent="Column/Top/TopCol"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+theme_type_variation = &"DymoLabel"
+text = "FROM: SWAP MEET LOT"
+
+[node name="Stage" type="VBoxContainer" parent="Column/Top/TopCol"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="BoxCenter" type="CenterContainer" parent="Column/Top/TopCol/Stage"]
+layout_mode = 2
+
+[node name="Box" type="PanelContainer" parent="Column/Top/TopCol/Stage/BoxCenter"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(460, 340)
+layout_mode = 2
+theme_type_variation = &"CardboardPanel"
+
+[node name="BoxCol" type="VBoxContainer" parent="Column/Top/TopCol/Stage/BoxCenter/Box"]
+layout_mode = 2
+alignment = 1
+
+[node name="Tape" type="TextureRect" parent="Column/Top/TopCol/Stage/BoxCenter/Box/BoxCol"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+mouse_filter = 2
+texture = ExtResource("3")
+expand_mode = 1
+
+[node name="Gap" type="Control" parent="Column/Top/TopCol/Stage/BoxCenter/Box/BoxCol"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ShipTag" type="PanelContainer" parent="Column/Top/TopCol/Stage/BoxCenter/Box/BoxCol"]
+layout_mode = 2
+size_flags_horizontal = 4
+rotation = -0.04
+theme_type_variation = &"PaperPanel"
+
+[node name="ShipLabel" type="Label" parent="Column/Top/TopCol/Stage/BoxCenter/Box/BoxCol/ShipTag"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"InkLabel"
+text = "SWAP MEET LOT
+AS IS  //  NO RETURNS"
+horizontal_alignment = 1
+
+[node name="Gap2" type="Control" parent="Column/Top/TopCol/Stage/BoxCenter/Box/BoxCol"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Part" type="VBoxContainer" parent="Column/Top/TopCol/Stage"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Rarity" type="Label" parent="Column/Top/TopCol/Stage/Part"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+text = "RARE"
+horizontal_alignment = 1
+
+[node name="PartName" type="Label" parent="Column/Top/TopCol/Stage/Part"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BigNumberLabel"
+text = "Street cams"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="Slot" type="Label" parent="Column/Top/TopCol/Stage/Part"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+text = "Cams"
+horizontal_alignment = 1
+
+[node name="Sheet" type="PanelContainer" parent="Column/Top/TopCol/Stage"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+rotation = 0.006
+theme_type_variation = &"DotMatrixPanel"
+
+[node name="SheetLines" type="VBoxContainer" parent="Column/Top/TopCol/Stage/Sheet"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Bench" type="PanelContainer" parent="Column"]
+custom_minimum_size = Vector2(0, 230)
+layout_mode = 2
+theme_type_variation = &"BenchPanel"
+
+[node name="Buttons" type="VBoxContainer" parent="Column/Bench"]
+layout_mode = 2
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="OpenButton" type="Button" parent="Column/Bench/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"GaffButton"
+text = "OPEN IT"
+
+[node name="DynoButton" type="Button" parent="Column/Bench/Buttons"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_type_variation = &"GaffButton"
+text = "DYNO IT"
+
+[node name="InstallButton" type="Button" parent="Column/Bench/Buttons"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_type_variation = &"GaffButton"
+text = "PUT IT ON"
+
+[node name="LaterButton" type="Button" parent="Column/Bench/Buttons"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 4
+theme_type_variation = &"SmallTapeButton"
+text = "later"
+
+[node name="KeepButton" type="Button" parent="Column/Bench/Buttons"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 4
+theme_type_variation = &"SmallTapeButton"
+text = "keep it as a spare"

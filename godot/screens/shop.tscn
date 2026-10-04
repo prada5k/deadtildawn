@@ -23,13 +23,14 @@ theme_override_constants/separation = 14
 [node name="Note" type="Label" parent="Column"]
 layout_mode = 2
 theme_type_variation = &"MutedLabel"
-text = "Pull for rolled parts, buy commons new, sell spares. Exact specs, no lap times: check them in practice."
+text = "Pull for rolled parts, buy commons new, scrap spares. Exact specs, never lap times."
 autowrap_mode = 3
 
 [node name="Message" type="Label" parent="Column"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_type_variation = &"HeadingLabel"
+rotation = -0.01
+theme_type_variation = &"TapeLabel"
 autowrap_mode = 3
 
 [node name="Scroll" type="ScrollContainer" parent="Column"]
@@ -41,4 +42,4 @@ horizontal_scroll_mode = 0
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 12
+theme_override_constants/separation = 16
