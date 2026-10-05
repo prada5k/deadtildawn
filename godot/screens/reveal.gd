@@ -12,6 +12,7 @@ signal install_pressed
 signal leave_pressed           # later / keep as spare
 
 const LINE_DELAY := 0.11       # s between printed lines (the print head)
+const JUNK_PCT := 20           # a roll under this % gets the sad trombone when the sheet's done
 const Voice := preload("res://voice.gd")
 
 var data := {}
@@ -134,6 +135,8 @@ func fill_sheet(animate: bool) -> void:
 		tw.tween_callback(Sound.play.bind("print", -6.0))   # the print head, line by line
 		tw.tween_property(l, "visible_ratio", 1.0, LINE_DELAY)
 	tw.tween_callback(func():
+		# the verdict, by ear: under 20% is junk (Spire)
+		Sound.play("bummer" if int(data["quality_pct"]) < JUNK_PCT else "decent", -2.0)
 		note.visible = note_text != ""
 		%InstallButton.visible = true
 		%KeepButton.visible = true)

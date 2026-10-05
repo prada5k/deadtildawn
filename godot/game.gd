@@ -57,6 +57,9 @@ const REP_OPEN_WIN := 4             # beating a street racer on an open road
 const REP_RIVAL_WIN := 15            # beating the rival: the night that moves you up
 const SKIP_REP_COST := 50            # chicken-out fee
 const LOOT_CHANCE := 0.05            # chance a win also drops an unopened part ("loot" pull)
+const JORGE_CONDITION := 0.7         # jorge mode: his engine at this share of its torque...
+const JORGE_TRIES := 15              # ...and a race Faba doesn't win is run again (new seeds) up to this often
+const JORGE_LOOT_Q := 0.0            # ...and every win drops a part rolled at 0% (Spire)
 const SCRAP_RATE := 0.25             # selling a spare: price x rate x (0.5 + quality)
 const NEW_QUALITY := 0.5             # shop parts are new in box: exactly the catalog spec
 const REP_LOSS := -5                 # every loss costs rep (half a win)
@@ -83,6 +86,7 @@ var track_info := {}
 var catalog := {}          # bridge "parts" reply (slots + parts with exact effects)
 var shop_message := ""
 var pending_race := {}     # race reply + result, held while a loot pull resolves
+var jorge_tries := 0       # jorge mode: races re-run tonight so Faba wins
 var pull_paid := 0         # price of the pull in flight: refunded if the sim fails
 var bridge: Node
 var screen: Control        # current UI screen (the shell while in the hub)
@@ -1041,11 +1045,23 @@ func send_it() -> void:
 	show_message("LIGHTS OUT", "Faba lines up the DX next to %s's %s.\n%s on the line, %s push." % [
 		state["night"]["name"], state["night"]["car"], UI.money(choice["wager"]),
 		str(choice["push"]).replace("_", " ")])
+	jorge_tries = 0
+	request_race()
+
+
+## Run tonight's race in the sim (a new seed each call). Jorge mode rigs it
+## (Spire: he wins every time): the other guy's motor is down to
+## JORGE_CONDITION of itself, and a run Faba doesn't win (a crash, mostly)
+## is run again with new seeds before anything is settled (_on_reply "race").
+func request_race() -> void:
 	var out := ProjectSettings.globalize_path("user://replays/race.json")
+	var condition := float(state["night"]["engine_condition"])
+	if state.get("jorge", false):
+		condition *= JORGE_CONDITION
 	bridge.request("race", ["race", "--track", state["night"]["track"], "--push", choice["push"],
 		"--seed", str(randi() % 1000000), "--out", out,
 		"--opponent", state["night"]["opponent"], "--opp-seed", str(randi() % 1000000),
-		"--opp-condition", str(state["night"]["engine_condition"]),
+		"--opp-condition", str(condition),
 		"--location", str(state["night"].get("location", "canyon"))] + parts_args())
 
 
@@ -1121,6 +1137,7 @@ func show_race(replay_path: String, result: Dictionary) -> void:
 	viewer = Viewer.new()
 	viewer.replay_path = replay_path        # the opponent rides along as the replay's ghost
 	viewer.embedded = true
+	viewer.sore_loser = result.get("stiffed", false)   # jorge mode: he leans on his horn after
 	# The DX as it raced (the result saved the build before any crash damage)
 	var raced: Array = result.get("parts", [])
 	if raced.size() == 2:
@@ -1142,6 +1159,9 @@ func show_results(result: Dictionary) -> void:
 		var lp := part_by_id(result["loot"])
 		loot_text = "%s paid up with more than cash: an unopened %s %s. It's on the bench in $$$." % [
 			result["rival"], str(lp.get("rarity", "")), lp.get("name", result["loot"])]
+		if result.get("stiffed", false):         # jorge mode: no cash, just a box of junk
+			loot_text = "%s won't pay. He threw a box at you instead: an unopened %s %s. It's on the bench in $$$." % [
+				result["rival"], str(lp.get("rarity", "")), lp.get("name", result["loot"])]
 	var replay = JSON.parse_string(FileAccess.get_file_as_string(last_replay)) 		if FileAccess.file_exists(last_replay) else null
 	r.setup(result, {"cash": int(state["cash"]), "rep": int(state["rep"]),
 		"faba_parts": installed_part_ids(), "loot_text": loot_text,
@@ -1221,7 +1241,7 @@ const CODES := {
 	"memories": "unlocks every TEAM memory",
 	"broke": "cash to $0 to see the BROKE screen (scrap parts there to get back)",
 	"startover": "wipes the save and starts the story over (asks first)",
-	"jorge": "jorge mode on / off: win a race and the other guy won't pay up",
+	"jorge": "jorge mode on / off: Faba wins every race, the other guy won't pay up, throws you a 0% part instead, and leans on his horn",
 	"mute": "sound off / on",
 }
 const CHEAT_CASH := 10000
@@ -1379,11 +1399,18 @@ The pull was refunded (%s)." % UI.money(pull_paid)
 			track_info = data
 			show_briefing()
 		"race":
+			var jorge: bool = state.get("jorge", false)
+			if jorge and not data["won"] and jorge_tries < JORGE_TRIES:
+				jorge_tries += 1                 # jorge mode: that one didn't happen
+				request_race()
+				return
 			var result := apply_result(data)
-			if result["won"] and randf() < LOOT_CHANCE:
-				# The rival paid up in parts too: roll it before the replay starts
+			if result["won"] and (jorge or randf() < LOOT_CHANCE):
+				# The rival paid up in parts too: roll it before the replay starts.
+				# Jorge mode: every win, and it's always a 0% part
 				pending_race = {"replay": data["replay"], "result": result}
-				bridge.request("loot", ["pull", "--source", "loot", "--seed", str(randi() % 1000000)])
+				var junk := ["--quality", str(JORGE_LOOT_Q)] if jorge else []
+				bridge.request("loot", ["pull", "--source", "loot", "--seed", str(randi() % 1000000)] + junk)
 			else:
 				show_race(data["replay"], result)
 
@@ -1544,6 +1571,16 @@ func game_test() -> void:
 	check(int(state["cash"]) == cash_jorge and stiffed["stiffed"] and int(stiffed["cash_change"]) == 0
 		and int(state["rep"]) == 23, "jorge mode: won, cash %d (expect %d, unpaid), rep %d (expect 23)" % [
 		state["cash"], cash_jorge, state["rep"]])
+	# ...and it's rigged: his motor at JORGE_CONDITION of itself. Through the
+	# real sim, Faba (hard push) should beat him nearly every run on his own,
+	# before the re-runs (request_race) catch the rest (a crash)
+	var jorge_wins := 0
+	for k in 5:
+		bridge.request("race", ["race", "--track", card["track"], "--push", "hard", "--seed", str(100 + k),
+			"--out", out, "--opponent", card["opponent"], "--opp-seed", str(200 + k),
+			"--opp-condition", str(float(card["engine_condition"]) * JORGE_CONDITION)])
+		jorge_wins += 1 if (await bridge.replied)[1]["won"] else 0
+	check(jorge_wins >= 4, "jorge mode: Faba beat the down-on-power Zed %d of 5 (expect 4+; re-runs catch the rest)" % jorge_wins)
 	state["jorge"] = false
 	# A damaged part stays in its slot but is off the car until repaired.
 	# Hand calc: rsb_19 is $320, repair 30% = $96, from $500 over tonight's minimum bet.

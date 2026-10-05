@@ -241,6 +241,8 @@ var chase: Node3D          # a pane's 3D world (widgets/chase3d.gd)
 var audio := {}            # full viewer: "car" / "ghost" -> CarAudio (each engine, live)
 var last_count := 99       # the count we last beeped (3, 2, 1, 0 = GO)
 var last_radio := -1       # the spotter whose call we last played
+var sore_loser := false    # jorge mode (game.gd): after Faba wins, he leans on his horn...
+var next_honk := 0.0       # ...again at this real time (s)
 
 
 # ------------------------------------------------------------------ setup
@@ -1439,7 +1441,11 @@ func fire_events(delta: float) -> void:
 		var flash: ColorRect = hud["flash"]
 		flash.color.a = 0.7
 		create_tween().tween_property(flash, "color:a", 0.0, 0.5)
-		Sound.play("horn", -5.0)                  # the guys at the line lean on their horns
+		if sore_loser:                            # jorge mode: one long blast from the loser...
+			Sound.play("honk_long", -2.0)
+			next_honk = Time.get_ticks_msec() / 1000.0 + 2.6
+		else:
+			Sound.play("horn", -5.0)              # the guys at the line lean on their horns
 
 
 func crash_fx(pos: Vector2, heading: float) -> void:
@@ -1751,6 +1757,7 @@ func restart() -> void:
 	crash_age = -1.0
 	last_count = 99
 	last_radio = -1
+	next_honk = 0.0
 	camcar_reset()
 	if chase != null:
 		chase.reset()
@@ -2275,6 +2282,11 @@ func build_audio() -> void:
 ## idling once it's over; dying after a crash while the wreck slides.
 ## Split screen pans him left and Faba right, like the picture.
 func update_audio() -> void:
+	# ...then he won't stop, for as long as you sit there at the line
+	var now := Time.get_ticks_msec() / 1000.0
+	if sore_loser and t >= end_time and next_honk > 0.0 and now >= next_honk:
+		Sound.play("honk_angry", -2.0, randf_range(0.95, 1.05))
+		next_honk = now + randf_range(2.2, 4.5)
 	var split := is_split() and ghost != null
 	var slow := clampf(SPEEDS[speed_i] * (SLOW_MO if finish_slow() else 1.0), 0.5, 1.0)
 	var elapsed := COUNTDOWN_S - countdown

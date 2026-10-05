@@ -81,7 +81,7 @@ func _on_button(b: BaseButton) -> void:
 	elif v.begins_with("Gaff"):
 		play("tape")
 	elif v.begins_with("Drawer"):
-		play("drawer", -3.0)
+		return                                   # the nav bar: silent (Spire)
 	else:
 		play("click", -4.0)
 
@@ -92,18 +92,27 @@ func build() -> void:
 	sounds["click"] = wav(mix([noise(0.03, 0.004, 0.6), tone(1900.0, 0.03, 0.01, 0.3)]))
 	sounds["osd"] = wav(square(2400.0, 0.06, 0.25))                     # camcorder menu beep
 	sounds["tape"] = wav(mix([tone(150.0, 0.12, 0.05, 0.7), noise(0.08, 0.025, 0.15, 0.5)]))
-	sounds["drawer"] = wav(mix([rattle(0.16), delay(tone(95.0, 0.14, 0.05, 0.6), 0.15)]))
 	sounds["stamp"] = wav(mix([tone(70.0, 0.25, 0.09, 0.9), noise(0.08, 0.03, 0.2, 0.6)]))
 	sounds["cash"] = wav(mix([noise(0.1, 0.04, 0.5, 0.35), delay(bell(1568.0, 0.6, 0.45), 0.06),
 		delay(bell(2093.0, 0.7, 0.4), 0.16)]))                         # the register: cha-ching
 	sounds["beep"] = wav(square(880.0, 0.14, 0.22))                     # the count: 3, 2, 1
 	sounds["go"] = wav(square(1760.0, 0.42, 0.22))
 	sounds["horn"] = wav(mix([square(350.0, 0.55, 0.16), square(440.0, 0.55, 0.16)]))   # the spotters, at the line
+	sounds["honk_long"] = wav(mix([square(330.0, 1.6, 0.2), square(415.0, 1.6, 0.2)]))  # jorge mode: the sore loser
+	sounds["honk_angry"] = wav(mix([square(330.0, 0.16, 0.2), square(415.0, 0.16, 0.2),
+		delay(mix([square(330.0, 0.16, 0.2), square(415.0, 0.16, 0.2)]), 0.24),
+		delay(mix([square(330.0, 0.5, 0.2), square(415.0, 0.5, 0.2)]), 0.48)]))   # honk honk HOOONK
 	sounds["squelch"] = wav(mix([radio_noise(0.2), delay(square(1150.0, 0.07, 0.12), 0.21)]))   # radio + roger beep
 	sounds["crash"] = wav(crash())
 	sounds["box"] = wav(mix([noise(0.09, 0.03, 0.25, 0.6), delay(noise(0.07, 0.025, 0.25, 0.6), 0.1),
 		delay(noise(0.3, 0.12, 0.5, 0.7), 0.22)]))                    # shake, shake, rip
 	sounds["print"] = wav(printer(0.1))                                 # one dot-matrix line
+	# The dyno sheet's verdict: a junk roll (under 20%) gets the sad trombone,
+	# anything better a little rising chime
+	sounds["bummer"] = wav(mix([brass(196.0, 0.32, 0.0), delay(brass(185.0, 0.32, 0.0), 0.36),
+		delay(brass(174.6, 0.32, 0.0), 0.72), delay(brass(164.8, 1.1, 6.0), 1.08)]))
+	sounds["decent"] = wav(mix([bell(1046.5, 0.5, 0.3), delay(bell(1318.5, 0.5, 0.3), 0.1),
+		delay(bell(1568.0, 0.8, 0.35), 0.2)]))
 	sounds["text"] = wav(mix([tone(1318.0, 0.09, 0.05, 0.35), delay(tone(1760.0, 0.16, 0.08, 0.35), 0.08)]))
 	sounds["hiss"] = looped(noise(2.0, 99.0, 0.35, 0.12))               # VHS tape hiss
 	sounds["static"] = looped(mix([noise(1.5, 99.0, 0.9, 0.35), crackle(1.5)]))
@@ -122,6 +131,23 @@ func tone(f: float, dur: float, tau: float, amp: float) -> PackedFloat32Array:
 ## A bell: a tone with inharmonic partials that ring on.
 func bell(f: float, dur: float, amp: float) -> PackedFloat32Array:
 	return mix([tone(f, dur, 0.25, amp), tone(f * 2.76, dur, 0.12, amp * 0.4), tone(f * 5.4, dur, 0.05, amp * 0.25)])
+
+
+## A muted trombone note: a sawtooth's first harmonics (1/n), swelling in
+## and out like a breath ("wah"), with vibrato (Hz, 0 = none) on a held one.
+func brass(f: float, dur: float, vibrato: float) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	out.resize(int(dur * RATE))
+	var ph := 0.0
+	for i in out.size():
+		var t := float(i) / RATE
+		ph += f * (1.0 + (0.012 * sin(TAU * vibrato * t) if vibrato > 0.0 else 0.0)) / RATE
+		var x := 0.0
+		for h in range(1, 7):
+			x += sin(TAU * ph * h) / h
+		var env := sin(PI * clampf(t / dur, 0.0, 1.0)) * (0.7 + 0.3 * minf(t * 8.0, 1.0))
+		out[i] = x * 0.22 * env
+	return out
 
 
 ## A square wave (beeps), flat with soft ends.
