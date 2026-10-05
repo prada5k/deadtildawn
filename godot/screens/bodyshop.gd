@@ -19,11 +19,17 @@ var trying := ""             # the item on preview ("" = none)
 
 
 func _ready() -> void:
-	%Lift.lower()                # the car comes down to the floor: easier to see what you're putting on it
 	%Back.pressed.connect(func(): go.emit("car"))
 	%Buy.pressed.connect(func():
 		if trying != "":
 			buy.emit(trying))
+
+
+## The car comes down to the floor (easier to see what you're putting on it):
+## riding down on the way in, already down when the screen's only rebuilt
+## after a buy / wear / take off (game.gd).
+func lower_lift(ride: bool) -> void:
+	%Lift.lower(not ride)
 
 
 ## info: parts (installed part ids), owned ([ids]), worn ({slot: id}),

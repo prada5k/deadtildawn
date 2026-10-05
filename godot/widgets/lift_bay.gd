@@ -26,6 +26,7 @@ var car: Node3D
 var cam: Camera3D
 var carriage: Node3D                 # what rides up and down with the car: carriages, arms, pads
 var yaw := 1.0                       # 3/4 front, right side
+var lift_h := LIFT_H                 # the car's height up on the lift (Spire's lift model sets its own)
 var height := LIFT_H                 # where the car sits now (0 = on the floor)
 var target := Vector3(0.3, LIFT_H + 0.5, 0.0)
 
@@ -53,10 +54,13 @@ func _ready() -> void:
 
 	build_bay(vp)
 	build_lift(vp)
+	lift_h = float(carriage.get_meta("built_at", LIFT_H))
+	height = lift_h
+	target.y = lift_h + 0.5
 
 	car = DxModel.new()
 	car.lights_on = false
-	car.position.y = LIFT_H
+	car.position.y = lift_h
 	vp.add_child(car)
 	show_parts([])
 
@@ -72,7 +76,7 @@ func show_parts(ids: Array) -> void:
 
 
 func place_camera() -> void:
-	var up := lerpf(1.0, -0.35, height / LIFT_H)      # up on the lift: looking up at it; on the floor: down on it
+	var up := lerpf(1.0, -0.35, height / lift_h)      # up on the lift: looking up at it; on the floor: down on it
 	var pos := target + Vector3(sin(yaw) * CAM_DIST, up, cos(yaw) * CAM_DIST)
 	cam.look_at_from_position(pos, target)
 
@@ -80,8 +84,8 @@ func place_camera() -> void:
 ## Bring the car down onto the floor (Spire: the body shop, so the car's
 ## easier to see while you dress it up). The arms come down with it and the
 ## camera follows. No ride in the stills / tests.
-func lower() -> void:
-	var stills := false
+func lower(instant := false) -> void:
+	var stills := instant
 	for a in OS.get_cmdline_user_args():
 		stills = stills or a == "--gametest" or a.begins_with("--gameshots")
 	if stills:
@@ -95,7 +99,7 @@ func lower() -> void:
 func set_height(h: float) -> void:
 	height = h
 	car.position.y = h
-	carriage.position.y = h - LIFT_H         # built at LIFT_H
+	carriage.position.y = h - lift_h         # built at lift_h
 	target.y = h + 0.5
 	place_camera()
 
@@ -215,9 +219,45 @@ func build_bay(vp: Node) -> void:
 		box(Vector3(6.0, 0.005, 0.08), Vector3(0.0, 0.003, z), Color(0.85, 0.7, 0.15), vp, 0.7)
 
 
+## Spire's lift model (models/car_lift.glb, Oct 2026) when it's there: its
+## posts and floor plate stay put; its arms and carriages ("lift*" nodes) ride
+## up and down with the car. Placed so its arms' center is under the car.
+## Model frame (Blender): posts along Y, arms along X, arms' pads up at
+## LIFT_MODEL_PADS; centered on LIFT_MODEL_CENTER.
+const LIFT_MODEL := "res://models/car_lift.glb"
+const LIFT_MODEL_CENTER := Vector2(1.52, 2.42)    # Blender x, y between the posts
+const LIFT_MODEL_PADS := 1.69                     # the raised arms' top (m)
+const SILL := 0.19                                # the car's sills over its tires' bottom (where the pads go)
+
+
+func build_lift_model(vp: Node) -> bool:
+	if not ResourceLoader.exists(LIFT_MODEL):
+		return false
+	var lift: Node3D = (load(LIFT_MODEL) as PackedScene).instantiate()
+	# Blender (x, y, z) arrives as Godot (x, z, -y): center it on the car (x = 0, z = 0)
+	lift.position = Vector3(-LIFT_MODEL_CENTER.x, 0.0, LIFT_MODEL_CENTER.y)
+	vp.add_child(lift)
+	carriage = Node3D.new()
+	vp.add_child(carriage)
+	for n in lift.find_children("*", "Node3D", true, false):
+		var name_l := String(n.name).to_lower()
+		if name_l.begins_with("icosphere"):           # a stray sphere in the file
+			n.queue_free()
+		elif name_l.begins_with("lift") and n is MeshInstance3D:
+			var g := (n as Node3D).global_transform
+			n.get_parent().remove_child(n)
+			carriage.add_child(n)
+			(n as Node3D).global_transform = g
+	# The arms are modeled raised: the carriage starts there (set_height moves it)
+	carriage.set_meta("built_at", LIFT_MODEL_PADS - SILL)
+	return true
+
+
 ## Two-post lift: posts either side of the car, an overhead beam, carriages at
 ## lift height, and two swing arms per post under the pinch welds.
 func build_lift(vp: Node) -> void:
+	if build_lift_model(vp):
+		return
 	carriage = Node3D.new()
 	vp.add_child(carriage)
 	for side: float in [-1.0, 1.0]:

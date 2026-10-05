@@ -506,7 +506,9 @@ func car_look() -> Array:
 
 func show_bodyshop(message := "") -> void:
 	var lk := look_state()
+	var already_in: bool = shell != null and shell.open_tab == "bodyshop"   # a buy / wear rebuilds the screen
 	var bs: Control = open_hub(BodyShopScene, "bodyshop")
+	bs.lower_lift(not already_in)            # Spire: lowers once on the way in, then stays down
 	bs.buy.connect(buy_look)
 	bs.wear.connect(func(id):
 		lk["worn"][BodyShop.ITEMS[id]["slot"]] = id
@@ -1969,10 +1971,10 @@ func game_shots(folder: String) -> void:
 	await snap(folder, "1b_car")
 	hub_content.get_node("%Scroll").scroll_vertical = 900
 	await snap(folder, "1b_car_parts")
-	look_state()["owned"] = ["paint_milano", "banner"]          # the body shop: two owned, one on trial
-	look_state()["worn"] = {"paint": "paint_milano", "banner": "banner"}
+	look_state()["owned"] = ["paint_milano", "fogs_yellow"]     # the body shop: two owned, one on trial
+	look_state()["worn"] = {"paint": "paint_milano", "fogs": "fogs_yellow"}
 	show_bodyshop()
-	hub_content.try_on("wing_duck")
+	hub_content.try_on("roof_spoiler")
 	await snap(folder, "1c_bodyshop")
 	state.erase("look")
 	var trial: Dictionary = state["installed"].duplicate()     # the swap comparison
