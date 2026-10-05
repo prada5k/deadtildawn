@@ -25,7 +25,8 @@ extends Node3D
 const BodyShop := preload("res://bodyshop.gd")
 const Voice := preload("res://voice.gd")
 const MODEL_PATH := "res://models/dx.glb"
-const SHELL_INFO := "res://models/dx.json"  # a fitted model's nose, tail, taillights (art/blender/prep_cars.py)
+const LIGHT_MODEL := "countergram"           # the lightweight wheels' model (Spire's)
+const SHELL_INFO :="res://models/dx.json"  # a fitted model's nose, tail, taillights (art/blender/prep_cars.py)
 const WHEEL_DIR := "res://models/wheels/"    # wheels_stock / wheels_light / wheels_forged .glb: a whole right-side wheel
 
 const LENGTH := 4.45
@@ -432,8 +433,15 @@ func build_wheels(drop: float) -> void:
 	var chrome: bool = (light and look("rims").is_empty()) or look("rims").get("chrome", false)
 	var camber := 0.035 if has_part("coilovers") else 0.0
 	var spokes := 6 if forged else 9
-	var model_path := WHEEL_DIR + ("wheels_forged" if forged else ("wheels_light" if light else "wheels_stock")) + ".glb"
+	# Which wheel model: a body shop wheel swap (looks only) over the part's own:
+	# lightweight = Spire's Countergram model, forged = the P1s, stock = the steelies
+	var style: String = look("wheels").get("model", "")
+	if style == "":
+		style = "wheels_forged" if forged else (LIGHT_MODEL if light and ResourceLoader.exists(WHEEL_DIR + LIGHT_MODEL + ".glb") else ("wheels_light" if light else "wheels_stock"))
+	var model_path := WHEEL_DIR + style + ".glb"
 	var wheel_model: PackedScene = load(model_path) if ResourceLoader.exists(model_path) else null
+	var shop_wheel: bool = wheel_info().has(style)      # Spire's downloaded wheels: their own finish
+	var needs_tire: bool = shop_wheel and not bool(wheel_info()[style].get("tire", true))
 	for axle: float in [FRONT_AXLE, REAR_AXLE]:
 		for side: float in [-1.0, 1.0]:
 			var w := Node3D.new()
@@ -447,6 +455,22 @@ func build_wheels(drop: float) -> void:
 				if side < 0.0:
 					wm.rotation.y = PI               # modeled as a right-side wheel: turn it to face out on the left
 				w.add_child(wm)
+				if needs_tire:                           # a rim-only model: the game's tire around it (a donut: the face shows)
+					var tire := MeshInstance3D.new()
+					var tm := TorusMesh.new()
+					tm.inner_radius = 0.19
+					tm.outer_radius = TIRE_R
+					tm.rings = 32
+					tm.ring_segments = 12
+					tire.mesh = tm
+					tire.material_override = mat(TIRE, 0.9)
+					tire.rotation.x = PI / 2.0                 # the torus' axis (y) along the axle (z)
+					tire.scale = Vector3(1.0, TIRE_W / (TIRE_R - 0.19), 1.0)
+					w.add_child(tire)
+				if shop_wheel:
+					finish_shop_wheel(wm, look("rims"))
+					add_tire_letters(w, face)
+					continue
 				# Low metal values: a fully metallic surface only mirrors its surroundings, and
 				# the night / garage scenes are dark, so real "chrome" renders near black
 				var rim_mat := mat(rim_col, 0.15, 0.45) if chrome else mat(rim_col, 0.4, 0.15 if forged else 0.3)
@@ -479,6 +503,44 @@ func build_wheels(drop: float) -> void:
 				cyl(0.19, 0.02, Vector3(0, 0, face), mat(HUBCAP if look("rims").is_empty() else rim_col, 0.35, 0.8),
 					Vector3(PI / 2.0, 0, 0), w)
 			add_tire_letters(w, face)
+
+
+## A downloaded wheel's finish: its own colors, but metal toned down (fully
+## metallic renders near black in the dark scenes); the body shop's rim color
+## paints every part of it except the tire and the small bits (bolts, logos,
+## valve, brakes).
+func finish_shop_wheel(wm: Node, rims: Dictionary) -> void:
+	var paint: StandardMaterial3D = null
+	if not rims.is_empty():
+		paint = mat(rims["color"], 0.15 if rims.get("chrome", false) else 0.4, 0.45 if rims.get("chrome", false) else 0.3)
+		paint.cull_mode = BaseMaterial3D.CULL_DISABLED
+	for mi in wm.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		for i in m.mesh.get_surface_count():
+			var sm := m.mesh.surface_get_material(i) as BaseMaterial3D
+			if sm == null:
+				continue
+			var n := sm.resource_name.to_lower()
+			var keep := ["tire", "tyre", "bolt", "logo", "valve", "calliper", "caliper", "disc", "brake", "nut"].any(
+				func(k: String): return n.contains(k))
+			if paint != null and not keep:
+				m.set_surface_override_material(i, paint)
+			elif sm.metallic > 0.5:
+				var d := sm.duplicate() as BaseMaterial3D
+				d.metallic = 0.45
+				d.roughness = maxf(d.roughness, 0.18)
+				d.albedo_color = d.albedo_color.lightened(0.15)
+				m.set_surface_override_material(i, d)
+
+
+## Spire's downloaded wheels (art/blender/prep_wheels.py writes wheels.json:
+## name -> {tire: has its own tire}). Read once.
+static var _wheel_info := {}
+static func wheel_info() -> Dictionary:
+	if _wheel_info.is_empty() and FileAccess.file_exists(WHEEL_DIR + "wheels.json"):
+		var d = JSON.parse_string(FileAccess.get_file_as_string(WHEEL_DIR + "wheels.json"))
+		_wheel_info = d if d is Dictionary else {"_": {}}
+	return _wheel_info
 
 
 ## R-compound tires: yellow letters around the sidewall.

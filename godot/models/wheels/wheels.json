@@ -1,0 +1,22 @@
+{
+ "countergram": {
+  "tire": true,
+  "width": 0.2320479229092598
+ },
+ "eqp40": {
+  "tire": false,
+  "width": 0.24189536273479462
+ },
+ "rvnge": {
+  "tire": false,
+  "width": 0.24211996048688889
+ },
+ "s1j": {
+  "tire": true,
+  "width": 0.24350928515195847
+ },
+ "tandem": {
+  "tire": false,
+  "width": 0.19870995730161667
+ }
+}
