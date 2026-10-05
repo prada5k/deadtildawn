@@ -224,3 +224,6 @@ data/tracks/generated/open_road_*.txt
 
 # Blender's automatic backup of the previous save
 *.blend1
+
+# prep_cars.py check renders
+art/models/_check/

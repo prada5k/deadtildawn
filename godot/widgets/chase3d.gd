@@ -793,10 +793,10 @@ func build_car(v: Node) -> void:
 		dx.position.y = -0.5
 		body.add_child(dx)
 		dx.build(v.faba_parts)
-		half = DxModel.LENGTH / 2.0
+		half = DxModel.front_x()                     # the shell on (Spire's EG6, or the EJ)
 		width = DxModel.WIDTH
 		lamp_h = 0.64
-		tails = [Vector3(-2.235, 0.74, -0.55), Vector3(-2.235, 0.74, 0.55)]
+		tails = DxModel.taillights()
 	else:
 		var cm: Node3D = CarModel.new()
 		cm.position.y = -0.5

@@ -159,11 +159,46 @@ func greenhouse(p: Dictionary) -> PackedVector2Array:
 		Vector2(roof_rear, h), Vector2(back, belt - 0.01)])
 
 
+## A real model (Spire's low-poly cars, prepped by art/blender/prep_cars.py:
+## nose +x, on the ground, centered, real length) for a car's keyword. The
+## first key the car's name contains wins. Looks only: the race is the sim's.
+const MODELS := {
+	"280Z": "240z",          # the 240Z's body = the 280Z's
+	"370Z": "370z",
+	"AE86": "ae86",
+	"Accord": "accord94",
+	"2007 Honda Civic": "fd2",
+	"Celica": "celica6",
+	"Lancer": "evo3",
+	"Evo": "evo3",
+}
+const MODEL_DIR := "res://models/cars/"
+## Cars shown as another car (looks only; the race is still the sim's car).
+## Spire, Oct 2026: Zed in the 370Z to see how it looks. Delete the line to
+## put him back in his 280Z.
+const LOOKS_AS := {"280Z": "370Z"}
+
+
+static func model_path(car_name: String) -> String:
+	for key in MODELS:
+		if car_name.contains(key):
+			var path: String = MODEL_DIR + MODELS[key] + ".glb"
+			return path if ResourceLoader.exists(path) else ""
+	return ""
+
+
 func build_car(car_name: String, lights_on := true) -> void:
 	for c in get_children():
 		c.queue_free()
+	for key in LOOKS_AS:
+		if car_name.contains(key):
+			car_name = LOOKS_AS[key]
 	var p := profile_for(car_name)
 	spec = p
+	var model := model_path(car_name)
+	if model != "":
+		add_child((load(model) as PackedScene).instantiate())
+		return
 	var w: float = p["width"]
 	var paint := mat(p["paint"], 0.32, 0.1)
 	extrude(body_profile(p), w, paint)

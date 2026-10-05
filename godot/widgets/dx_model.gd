@@ -24,7 +24,8 @@ extends Node3D
 const BodyShop := preload("res://bodyshop.gd")
 const Voice := preload("res://voice.gd")
 const MODEL_PATH := "res://models/dx.glb"
-const LOOK_DIR := "res://models/looks/"      # <body shop item id>.glb replaces its code-built version (in the car's frame)
+const SHELL_INFO := "res://models/dx.json"  # a fitted model's nose, tail, taillights (art/blender/prep_cars.py)
+const LOOK_DIR :="res://models/looks/"      # <body shop item id>.glb replaces its code-built version (in the car's frame)
 const WHEEL_DIR := "res://models/wheels/"    # wheels_stock / wheels_light / wheels_forged .glb: a whole right-side wheel
 
 const LENGTH := 4.45
@@ -82,6 +83,32 @@ var rough := true            # Faba's DX: faded clearcoat, primer fender, missin
 var paint_color := FROST_WHITE   # a clean car (rough = false) in another paint: opponents
 var target: Node3D           # where extrude() and box() put things
 var looks := {}              # slot -> body shop item (from the "look:" entries)
+
+
+## Where the car's shell ends (Spire's EG6 from art/models/, fitted to the DX's
+## axles): {front, rear, width, height, tails: [[x, y, z]...], ...}. Empty for the
+## script-built EJ shell (its numbers are the constants above).
+static func shell_info() -> Dictionary:
+	if not FileAccess.file_exists(SHELL_INFO) or not ResourceLoader.exists(MODEL_PATH):
+		return {}
+	var d = JSON.parse_string(FileAccess.get_file_as_string(SHELL_INFO))
+	return d if d is Dictionary else {}
+
+
+## The nose and tail (x) and the taillights, whichever shell is on.
+static func front_x() -> float:
+	return float(shell_info().get("front", LENGTH / 2.0))
+
+
+static func rear_x() -> float:
+	return float(shell_info().get("rear", -LENGTH / 2.0))
+
+
+static func taillights() -> Array:
+	var out := []
+	for t in shell_info().get("tails", []):          # their height and side; at the very back (the brake glow)
+		out.append(Vector3(rear_x() - 0.01, t[1], t[2]))
+	return out if not out.is_empty() else [Vector3(-2.235, 0.74, -0.55), Vector3(-2.235, 0.74, 0.55)]
 
 
 func mat(color: Color, rough := 0.5, metal := 0.0, emit := Color.BLACK) -> StandardMaterial3D:
@@ -232,8 +259,9 @@ func build_shell_model(paint: Material, faded: Material, hood: Material, fender:
 ## once the interior's stripped.
 func build_interior() -> void:
 	var dash := mat(TRIM, 0.8)
-	box(Vector3(0.35, 0.16, WIDTH * 0.78), Vector3(0.42, 0.9, 0), dash)
-	box(Vector3(0.05, 0.05, 0.3), Vector3(0.28, 0.98, -0.36), dash, Vector3(0, 0, 0.4))   # the wheel
+	if shell_info().is_empty():                        # (a fitted model brings its own dash)
+		box(Vector3(0.35, 0.16, WIDTH * 0.78), Vector3(0.42, 0.9, 0), dash)
+		box(Vector3(0.05, 0.05, 0.3), Vector3(0.28, 0.98, -0.36), dash, Vector3(0, 0, 0.4))   # the wheel
 	for side: float in [-1.0, 1.0]:
 		var z := side * 0.36
 		if has_part("seats"):
@@ -263,8 +291,9 @@ func build_exhaust() -> void:
 	elif has_part("header"):
 		r = 0.038
 		length = 0.16
-	cyl(r, length, EXHAUST_AT, steel, Vector3(0, 0, PI / 2.0 + (0.25 if r < 0.03 else 0.0)))
-	cyl(r * 0.7, length + 0.005, EXHAUST_AT, mat(Color(0.02, 0.02, 0.02), 1.0), Vector3(0, 0, PI / 2.0))
+	var at := EXHAUST_AT if shell_info().is_empty() else Vector3(rear_x() + 0.025, EXHAUST_AT.y, EXHAUST_AT.z)
+	cyl(r, length, at, steel, Vector3(0, 0, PI / 2.0 + (0.25 if r < 0.03 else 0.0)))
+	cyl(r * 0.7, length + 0.005, at, mat(Color(0.02, 0.02, 0.02), 1.0), Vector3(0, 0, PI / 2.0))
 
 
 ## The body shop's add-ons (bodyshop.gd), on the paint `color`.
@@ -274,7 +303,7 @@ func build_exhaust() -> void:
 func look_model(slot: String, color: Color, contrast: Color) -> bool:
 	var id: String = look(slot).get("id", "")
 	var path := LOOK_DIR + id + ".glb"
-	if id == "" or not ResourceLoader.exists(path):
+	if id == "" or not ResourceLoader.exists(path) or not shell_info().is_empty():   # (built on the EJ's surface)
 		return false
 	var m: Node3D = (load(path) as PackedScene).instantiate()
 	target.add_child(m)
