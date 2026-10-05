@@ -47,7 +47,7 @@ const BOARD_RIVAL := "zed"
 const BOARD_SKIPPED := "bitched tf out"
 
 # BROKE screen title
-const BROKE := "you fucked it pa"
+const BROKE := "you fucked up pa"
 
 
 # ---------------------------------------------------------------- Faba
@@ -77,8 +77,8 @@ const FABA_CRASHED := "brah fuckkkkk we might be cooked"
 const FABA_NO_CONTEST := "come on son"
 # Jorge mode (code "jorge", Spire): you win, he doesn't pay. What he says, and
 # the receipt's note
-const JORGE_LINE := "fuck you"
-const JORGE_RECEIPT := "didn't pay up"
+const JORGE_LINE := "fuck you jorge"
+const JORGE_RECEIPT := "slashed your tires, spit on ur shoe, and drove away"
 
 # Results: why it went that way (sim/breakdown.py "verdict": the cause behind
 # the biggest loss, or the biggest gain on a win). Said under the breakdown
