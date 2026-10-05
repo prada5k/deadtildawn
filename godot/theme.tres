@@ -21,6 +21,17 @@
 [ext_resource type="Texture2D" uid="uid://be5w4n5b3rvvo" path="res://textures/bench.jpg" id="t_bench"]
 [ext_resource type="Texture2D" uid="uid://c5geiujlla6rp" path="res://textures/hardboard.jpg" id="t_hardboard"]
 
+[ext_resource type="Texture2D" path="res://textures/vinyl/label.png" id="t_v_label"]
+[ext_resource type="Texture2D" path="res://textures/vinyl/label_small.png" id="t_v_label_small"]
+[ext_resource type="Texture2D" path="res://textures/vinyl/orange.png" id="t_v_orange"]
+[ext_resource type="Texture2D" path="res://textures/vinyl/orange_small.png" id="t_v_orange_small"]
+[ext_resource type="Texture2D" path="res://textures/vinyl/red.png" id="t_v_red"]
+
+[ext_resource type="Texture2D" path="res://textures/vinyl/panel.png" id="t_v_panel"]
+[ext_resource type="Texture2D" path="res://textures/vinyl/panel_yellow.png" id="t_v_panel_y"]
+[ext_resource type="Texture2D" path="res://textures/vinyl/panel_pink.png" id="t_v_panel_p"]
+[ext_resource type="Texture2D" path="res://textures/vinyl/panel_blue.png" id="t_v_panel_b"]
+[ext_resource type="Texture2D" path="res://textures/vinyl/panel_cardboard.png" id="t_v_panel_c"]
 [sub_resource type="StyleBoxFlat" id="accent_hover"]
 content_margin_left = 22.0
 content_margin_top = 16.0
@@ -271,81 +282,49 @@ corner_radius_bottom_right = 0
 corner_radius_bottom_left = 0
 anti_aliasing = true
 
-[sub_resource type="StyleBoxFlat" id="tape"]
-content_margin_left = 18.0
-content_margin_top = 6.0
-content_margin_right = 18.0
-content_margin_bottom = 8.0
-bg_color = Color(0.960, 0.950, 0.910, 1.00)
-border_width_left = 4
-border_width_top = 4
-border_width_right = 4
-border_width_bottom = 4
-border_color = Color(1, 1, 1, 1)
-corner_radius_top_left = 16
-corner_radius_top_right = 16
-corner_radius_bottom_right = 16
-corner_radius_bottom_left = 16
-shadow_color = Color(0, 0, 0, 0.45)
-shadow_size = 4
-shadow_offset = Vector2(0, 3)
-
-[sub_resource type="StyleBoxFlat" id="paper"]
+[sub_resource type="StyleBoxTexture" id="tape"]
 content_margin_left = 22.0
-content_margin_top = 18.0
+content_margin_top = 10.0
 content_margin_right = 22.0
-content_margin_bottom = 20.0
-bg_color = Color(0.950, 0.930, 0.870, 1.00)
-border_width_left = 4
-border_width_top = 4
-border_width_right = 4
-border_width_bottom = 4
-border_color = Color(1, 1, 1, 1.00)
-corner_radius_top_left = 18
-corner_radius_top_right = 18
-corner_radius_bottom_right = 18
-corner_radius_bottom_left = 18
-shadow_color = Color(0, 0, 0, 0.5)
-shadow_size = 6
-shadow_offset = Vector2(0, 4)
+content_margin_bottom = 12.0
+texture = ExtResource("t_v_label")
+texture_margin_left = 22.0
+texture_margin_top = 22.0
+texture_margin_right = 22.0
+texture_margin_bottom = 22.0
 
-[sub_resource type="StyleBoxFlat" id="polaroid"]
-content_margin_left = 18.0
-content_margin_top = 18.0
-content_margin_right = 18.0
-content_margin_bottom = 14.0
-bg_color = Color(0.980, 0.980, 0.970, 1.00)
-border_width_left = 4
-border_width_top = 4
-border_width_right = 4
-border_width_bottom = 4
-border_color = Color(1, 1, 1, 1.00)
-corner_radius_top_left = 10
-corner_radius_top_right = 10
-corner_radius_bottom_right = 10
-corner_radius_bottom_left = 10
-shadow_color = Color(0, 0, 0, 0.5)
-shadow_size = 6
-shadow_offset = Vector2(0, 4)
+[sub_resource type="StyleBoxTexture" id="paper"]
+content_margin_left = 22.0
+content_margin_top = 22.0
+content_margin_right = 22.0
+content_margin_bottom = 22.0
+texture = ExtResource("t_v_panel")
+texture_margin_left = 24.0
+texture_margin_top = 24.0
+texture_margin_right = 24.0
+texture_margin_bottom = 24.0
 
-[sub_resource type="StyleBoxFlat" id="receipt"]
-content_margin_left = 18.0
-content_margin_top = 12.0
-content_margin_right = 18.0
-content_margin_bottom = 20.0
-bg_color = Color(0.990, 0.990, 0.980, 1.00)
-border_width_left = 4
-border_width_top = 4
-border_width_right = 4
-border_width_bottom = 4
-border_color = Color(1, 1, 1, 1.00)
-corner_radius_top_left = 14
-corner_radius_top_right = 14
-corner_radius_bottom_right = 14
-corner_radius_bottom_left = 14
-shadow_color = Color(0, 0, 0, 0.5)
-shadow_size = 5
-shadow_offset = Vector2(0, 4)
+[sub_resource type="StyleBoxTexture" id="polaroid"]
+content_margin_left = 22.0
+content_margin_top = 22.0
+content_margin_right = 22.0
+content_margin_bottom = 22.0
+texture = ExtResource("t_v_panel")
+texture_margin_left = 24.0
+texture_margin_top = 24.0
+texture_margin_right = 24.0
+texture_margin_bottom = 24.0
+
+[sub_resource type="StyleBoxTexture" id="receipt"]
+content_margin_left = 22.0
+content_margin_top = 22.0
+content_margin_right = 22.0
+content_margin_bottom = 22.0
+texture = ExtResource("t_v_panel")
+texture_margin_left = 24.0
+texture_margin_top = 24.0
+texture_margin_right = 24.0
+texture_margin_bottom = 24.0
 
 [sub_resource type="StyleBoxTexture" id="drawer"]
 content_margin_left = 6.0
@@ -411,132 +390,86 @@ bg_color = Color(0.4, 0.075, 0.09, 1)
 border_width_top = 4
 border_color = Color(0.25, 0.04, 0.05, 1)
 
-[sub_resource type="StyleBoxFlat" id="gaff"]
-content_margin_left = 42.0
-content_margin_top = 14.0
-content_margin_right = 42.0
-content_margin_bottom = 18.0
-bg_color = Color(0.960, 0.470, 0.120, 1.00)
-border_width_left = 5
-border_width_top = 5
-border_width_right = 5
-border_width_bottom = 5
-border_color = Color(1, 1, 1, 1)
-corner_radius_top_left = 26
-corner_radius_top_right = 26
-corner_radius_bottom_right = 26
-corner_radius_bottom_left = 26
-shadow_color = Color(0, 0, 0, 0.45)
-shadow_size = 6
-shadow_offset = Vector2(0, 5)
+[sub_resource type="StyleBoxTexture" id="gaff"]
+content_margin_left = 44.0
+content_margin_top = 18.0
+content_margin_right = 44.0
+content_margin_bottom = 22.0
+texture = ExtResource("t_v_orange")
+texture_margin_left = 22.0
+texture_margin_top = 22.0
+texture_margin_right = 22.0
+texture_margin_bottom = 22.0
 
-[sub_resource type="StyleBoxFlat" id="gaff_hover"]
-content_margin_left = 42.0
-content_margin_top = 14.0
-content_margin_right = 42.0
-content_margin_bottom = 18.0
-bg_color = Color(1.000, 0.508, 0.130, 1.00)
-border_width_left = 5
-border_width_top = 5
-border_width_right = 5
-border_width_bottom = 5
-border_color = Color(1, 1, 1, 1)
-corner_radius_top_left = 26
-corner_radius_top_right = 26
-corner_radius_bottom_right = 26
-corner_radius_bottom_left = 26
-shadow_color = Color(0, 0, 0, 0.45)
-shadow_size = 6
-shadow_offset = Vector2(0, 5)
+[sub_resource type="StyleBoxTexture" id="gaff_hover"]
+content_margin_left = 44.0
+content_margin_top = 18.0
+content_margin_right = 44.0
+content_margin_bottom = 22.0
+texture = ExtResource("t_v_orange")
+texture_margin_left = 22.0
+texture_margin_top = 22.0
+texture_margin_right = 22.0
+texture_margin_bottom = 22.0
+modulate_color = Color(1.08, 1.06, 1.04, 1)
 
-[sub_resource type="StyleBoxFlat" id="gaff_pressed"]
-content_margin_left = 42.0
-content_margin_top = 17.0
-content_margin_right = 42.0
-content_margin_bottom = 15.0
-bg_color = Color(0.826, 0.404, 0.103, 1.00)
-border_width_left = 5
-border_width_top = 5
-border_width_right = 5
-border_width_bottom = 5
-border_color = Color(1, 1, 1, 1)
-corner_radius_top_left = 26
-corner_radius_top_right = 26
-corner_radius_bottom_right = 26
-corner_radius_bottom_left = 26
-shadow_color = Color(0, 0, 0, 0.45)
-shadow_size = 2
-shadow_offset = Vector2(0, 1)
+[sub_resource type="StyleBoxTexture" id="gaff_pressed"]
+content_margin_left = 44.0
+content_margin_top = 21.0
+content_margin_right = 44.0
+content_margin_bottom = 19.0
+texture = ExtResource("t_v_orange")
+texture_margin_left = 22.0
+texture_margin_top = 22.0
+texture_margin_right = 22.0
+texture_margin_bottom = 22.0
+modulate_color = Color(0.82, 0.8, 0.78, 1)
 
-[sub_resource type="StyleBoxFlat" id="gaff_disabled"]
-content_margin_left = 42.0
-content_margin_top = 14.0
-content_margin_right = 42.0
-content_margin_bottom = 18.0
-bg_color = Color(0.500, 0.460, 0.440, 1.00)
-border_width_left = 5
-border_width_top = 5
-border_width_right = 5
-border_width_bottom = 5
-border_color = Color(1, 1, 1, 1)
-corner_radius_top_left = 26
-corner_radius_top_right = 26
-corner_radius_bottom_right = 26
-corner_radius_bottom_left = 26
+[sub_resource type="StyleBoxTexture" id="gaff_disabled"]
+content_margin_left = 44.0
+content_margin_top = 18.0
+content_margin_right = 44.0
+content_margin_bottom = 22.0
+texture = ExtResource("t_v_orange")
+texture_margin_left = 22.0
+texture_margin_top = 22.0
+texture_margin_right = 22.0
+texture_margin_bottom = 22.0
+modulate_color = Color(0.5, 0.48, 0.48, 1)
 
-[sub_resource type="StyleBoxFlat" id="tape_small"]
-content_margin_left = 14.0
-content_margin_top = 4.0
-content_margin_right = 14.0
-content_margin_bottom = 6.0
-bg_color = Color(0.960, 0.950, 0.910, 1.00)
-border_width_left = 3
-border_width_top = 3
-border_width_right = 3
-border_width_bottom = 3
-border_color = Color(1, 1, 1, 1)
-corner_radius_top_left = 12
-corner_radius_top_right = 12
-corner_radius_bottom_right = 12
-corner_radius_bottom_left = 12
-shadow_color = Color(0, 0, 0, 0.45)
-shadow_size = 3
-shadow_offset = Vector2(0, 2)
+[sub_resource type="StyleBoxTexture" id="tape_small"]
+content_margin_left = 18.0
+content_margin_top = 9.0
+content_margin_right = 18.0
+content_margin_bottom = 11.0
+texture = ExtResource("t_v_label_small")
+texture_margin_left = 22.0
+texture_margin_top = 22.0
+texture_margin_right = 22.0
+texture_margin_bottom = 22.0
 
-[sub_resource type="StyleBoxFlat" id="tape_disabled"]
-content_margin_left = 14.0
-content_margin_top = 4.0
-content_margin_right = 14.0
-content_margin_bottom = 6.0
-bg_color = Color(0.660, 0.660, 0.640, 0.80)
-border_width_left = 3
-border_width_top = 3
-border_width_right = 3
-border_width_bottom = 3
-border_color = Color(1, 1, 1, 1)
-corner_radius_top_left = 12
-corner_radius_top_right = 12
-corner_radius_bottom_right = 12
-corner_radius_bottom_left = 12
+[sub_resource type="StyleBoxTexture" id="tape_disabled"]
+content_margin_left = 18.0
+content_margin_top = 9.0
+content_margin_right = 18.0
+content_margin_bottom = 11.0
+texture = ExtResource("t_v_label_small")
+texture_margin_left = 22.0
+texture_margin_top = 22.0
+texture_margin_right = 22.0
+texture_margin_bottom = 22.0
+modulate_color = Color(0.6, 0.6, 0.6, 0.75)
 
-[sub_resource type="StyleBoxFlat" id="whiteboard"]
+[sub_resource type="StyleBoxTexture" id="whiteboard"]
 content_margin_left = 34.0
 content_margin_top = 28.0
 content_margin_right = 34.0
 content_margin_bottom = 36.0
-bg_color = Color(0.970, 0.970, 0.960, 1.00)
-border_width_left = 4
-border_width_top = 4
-border_width_right = 4
-border_width_bottom = 4
-border_color = Color(1, 1, 1, 1.00)
-corner_radius_top_left = 18
-corner_radius_top_right = 18
-corner_radius_bottom_right = 18
-corner_radius_bottom_left = 18
-shadow_color = Color(0, 0, 0, 0.5)
-shadow_size = 6
-shadow_offset = Vector2(0, 4)
+texture = ExtResource("t_v_panel")
+texture_margin_left = 24.0
+texture_margin_top = 24.0
+texture_margin_right = 24.0
+texture_margin_bottom = 24.0
 
 [sub_resource type="StyleBoxFlat" id="corkboard"]
 content_margin_left = 25.0
@@ -554,81 +487,49 @@ corner_radius_top_right = 20
 corner_radius_bottom_right = 20
 corner_radius_bottom_left = 20
 
-[sub_resource type="StyleBoxFlat" id="flyer_yellow"]
-content_margin_left = 20.0
-content_margin_top = 8.0
-content_margin_right = 20.0
-content_margin_bottom = 20.0
-bg_color = Color(0.990, 0.870, 0.360, 1.00)
-border_width_left = 4
-border_width_top = 4
-border_width_right = 4
-border_width_bottom = 4
-border_color = Color(1, 1, 1, 1.00)
-corner_radius_top_left = 16
-corner_radius_top_right = 16
-corner_radius_bottom_right = 16
-corner_radius_bottom_left = 16
-shadow_color = Color(0, 0, 0, 0.5)
-shadow_size = 5
-shadow_offset = Vector2(0, 4)
+[sub_resource type="StyleBoxTexture" id="flyer_yellow"]
+content_margin_left = 22.0
+content_margin_top = 22.0
+content_margin_right = 22.0
+content_margin_bottom = 22.0
+texture = ExtResource("t_v_panel_y")
+texture_margin_left = 24.0
+texture_margin_top = 24.0
+texture_margin_right = 24.0
+texture_margin_bottom = 24.0
 
-[sub_resource type="StyleBoxFlat" id="flyer_pink"]
-content_margin_left = 20.0
-content_margin_top = 8.0
-content_margin_right = 20.0
-content_margin_bottom = 20.0
-bg_color = Color(0.990, 0.740, 0.800, 1.00)
-border_width_left = 4
-border_width_top = 4
-border_width_right = 4
-border_width_bottom = 4
-border_color = Color(1, 1, 1, 1.00)
-corner_radius_top_left = 16
-corner_radius_top_right = 16
-corner_radius_bottom_right = 16
-corner_radius_bottom_left = 16
-shadow_color = Color(0, 0, 0, 0.5)
-shadow_size = 5
-shadow_offset = Vector2(0, 4)
+[sub_resource type="StyleBoxTexture" id="flyer_pink"]
+content_margin_left = 22.0
+content_margin_top = 22.0
+content_margin_right = 22.0
+content_margin_bottom = 22.0
+texture = ExtResource("t_v_panel_p")
+texture_margin_left = 24.0
+texture_margin_top = 24.0
+texture_margin_right = 24.0
+texture_margin_bottom = 24.0
 
-[sub_resource type="StyleBoxFlat" id="flyer_blue"]
-content_margin_left = 20.0
-content_margin_top = 8.0
-content_margin_right = 20.0
-content_margin_bottom = 20.0
-bg_color = Color(0.720, 0.850, 0.990, 1.00)
-border_width_left = 4
-border_width_top = 4
-border_width_right = 4
-border_width_bottom = 4
-border_color = Color(1, 1, 1, 1.00)
-corner_radius_top_left = 16
-corner_radius_top_right = 16
-corner_radius_bottom_right = 16
-corner_radius_bottom_left = 16
-shadow_color = Color(0, 0, 0, 0.5)
-shadow_size = 5
-shadow_offset = Vector2(0, 4)
+[sub_resource type="StyleBoxTexture" id="flyer_blue"]
+content_margin_left = 22.0
+content_margin_top = 22.0
+content_margin_right = 22.0
+content_margin_bottom = 22.0
+texture = ExtResource("t_v_panel_b")
+texture_margin_left = 24.0
+texture_margin_top = 24.0
+texture_margin_right = 24.0
+texture_margin_bottom = 24.0
 
-[sub_resource type="StyleBoxFlat" id="cardboard"]
+[sub_resource type="StyleBoxTexture" id="cardboard"]
 content_margin_left = 26.0
 content_margin_top = 22.0
 content_margin_right = 26.0
 content_margin_bottom = 24.0
-bg_color = Color(0.700, 0.550, 0.370, 1.00)
-border_width_left = 4
-border_width_top = 4
-border_width_right = 4
-border_width_bottom = 4
-border_color = Color(1, 1, 1, 1.00)
-corner_radius_top_left = 16
-corner_radius_top_right = 16
-corner_radius_bottom_right = 16
-corner_radius_bottom_left = 16
-shadow_color = Color(0, 0, 0, 0.5)
-shadow_size = 5
-shadow_offset = Vector2(0, 4)
+texture = ExtResource("t_v_panel_c")
+texture_margin_left = 24.0
+texture_margin_top = 24.0
+texture_margin_right = 24.0
+texture_margin_bottom = 24.0
 
 [sub_resource type="StyleBoxTexture" id="dotmatrix"]
 content_margin_left = 50.0
@@ -649,59 +550,40 @@ variation_opentype = {
 1380929092: 100
 }
 
-[sub_resource type="StyleBoxFlat" id="gaff_small"]
-content_margin_left = 24.0
-content_margin_top = 8.0
-content_margin_right = 24.0
-content_margin_bottom = 10.0
-bg_color = Color(0.960, 0.470, 0.120, 1.00)
-border_width_left = 4
-border_width_top = 4
-border_width_right = 4
-border_width_bottom = 4
-border_color = Color(1, 1, 1, 1)
-corner_radius_top_left = 18
-corner_radius_top_right = 18
-corner_radius_bottom_right = 18
-corner_radius_bottom_left = 18
-shadow_color = Color(0, 0, 0, 0.45)
-shadow_size = 4
-shadow_offset = Vector2(0, 3)
+[sub_resource type="StyleBoxTexture" id="gaff_small"]
+content_margin_left = 28.0
+content_margin_top = 12.0
+content_margin_right = 28.0
+content_margin_bottom = 14.0
+texture = ExtResource("t_v_orange_small")
+texture_margin_left = 22.0
+texture_margin_top = 22.0
+texture_margin_right = 22.0
+texture_margin_bottom = 22.0
 
-[sub_resource type="StyleBoxFlat" id="gaff_small_pressed"]
-content_margin_left = 24.0
-content_margin_top = 10.0
-content_margin_right = 24.0
-content_margin_bottom = 8.0
-bg_color = Color(0.826, 0.404, 0.103, 1.00)
-border_width_left = 4
-border_width_top = 4
-border_width_right = 4
-border_width_bottom = 4
-border_color = Color(1, 1, 1, 1)
-corner_radius_top_left = 18
-corner_radius_top_right = 18
-corner_radius_bottom_right = 18
-corner_radius_bottom_left = 18
-shadow_color = Color(0, 0, 0, 0.45)
-shadow_size = 1
-shadow_offset = Vector2(0, 1)
+[sub_resource type="StyleBoxTexture" id="gaff_small_pressed"]
+content_margin_left = 28.0
+content_margin_top = 14.0
+content_margin_right = 28.0
+content_margin_bottom = 12.0
+texture = ExtResource("t_v_orange_small")
+texture_margin_left = 22.0
+texture_margin_top = 22.0
+texture_margin_right = 22.0
+texture_margin_bottom = 22.0
+modulate_color = Color(0.82, 0.8, 0.78, 1)
 
-[sub_resource type="StyleBoxFlat" id="gaff_small_disabled"]
-content_margin_left = 24.0
-content_margin_top = 8.0
-content_margin_right = 24.0
-content_margin_bottom = 10.0
-bg_color = Color(0.500, 0.460, 0.440, 1.00)
-border_width_left = 4
-border_width_top = 4
-border_width_right = 4
-border_width_bottom = 4
-border_color = Color(1, 1, 1, 1)
-corner_radius_top_left = 18
-corner_radius_top_right = 18
-corner_radius_bottom_right = 18
-corner_radius_bottom_left = 18
+[sub_resource type="StyleBoxTexture" id="gaff_small_disabled"]
+content_margin_left = 28.0
+content_margin_top = 12.0
+content_margin_right = 28.0
+content_margin_bottom = 14.0
+texture = ExtResource("t_v_orange_small")
+texture_margin_left = 22.0
+texture_margin_top = 22.0
+texture_margin_right = 22.0
+texture_margin_bottom = 22.0
+modulate_color = Color(0.5, 0.48, 0.48, 1)
 
 [sub_resource type="StyleBoxFlat" id="bench"]
 content_margin_left = 27.0
@@ -719,100 +601,62 @@ corner_radius_top_right = 20
 corner_radius_bottom_right = 20
 corner_radius_bottom_left = 20
 
-[sub_resource type="StyleBoxFlat" id="gaff_red"]
-content_margin_left = 42.0
-content_margin_top = 14.0
-content_margin_right = 42.0
-content_margin_bottom = 18.0
-bg_color = Color(0.860, 0.140, 0.120, 1.00)
-border_width_left = 5
-border_width_top = 5
-border_width_right = 5
-border_width_bottom = 5
-border_color = Color(1, 1, 1, 1)
-corner_radius_top_left = 26
-corner_radius_top_right = 26
-corner_radius_bottom_right = 26
-corner_radius_bottom_left = 26
-shadow_color = Color(0, 0, 0, 0.45)
-shadow_size = 6
-shadow_offset = Vector2(0, 5)
-
-[sub_resource type="StyleBoxFlat" id="gaff_red_hover"]
-content_margin_left = 42.0
-content_margin_top = 14.0
-content_margin_right = 42.0
-content_margin_bottom = 18.0
-bg_color = Color(0.946, 0.154, 0.132, 1.00)
-border_width_left = 5
-border_width_top = 5
-border_width_right = 5
-border_width_bottom = 5
-border_color = Color(1, 1, 1, 1)
-corner_radius_top_left = 26
-corner_radius_top_right = 26
-corner_radius_bottom_right = 26
-corner_radius_bottom_left = 26
-shadow_color = Color(0, 0, 0, 0.45)
-shadow_size = 6
-shadow_offset = Vector2(0, 5)
-
-[sub_resource type="StyleBoxFlat" id="gaff_red_pressed"]
-content_margin_left = 42.0
-content_margin_top = 17.0
-content_margin_right = 42.0
-content_margin_bottom = 15.0
-bg_color = Color(0.731, 0.119, 0.102, 1.00)
-border_width_left = 5
-border_width_top = 5
-border_width_right = 5
-border_width_bottom = 5
-border_color = Color(1, 1, 1, 1)
-corner_radius_top_left = 26
-corner_radius_top_right = 26
-corner_radius_bottom_right = 26
-corner_radius_bottom_left = 26
-shadow_color = Color(0, 0, 0, 0.45)
-shadow_size = 2
-shadow_offset = Vector2(0, 1)
-
-[sub_resource type="StyleBoxFlat" id="speech"]
-content_margin_left = 24.0
-content_margin_top = 16.0
-content_margin_right = 24.0
-content_margin_bottom = 18.0
-bg_color = Color(0.980, 0.980, 0.970, 1.00)
-border_width_left = 4
-border_width_top = 4
-border_width_right = 4
-border_width_bottom = 4
-border_color = Color(1, 1, 1, 1.00)
-corner_radius_top_left = 22
-corner_radius_top_right = 22
-corner_radius_bottom_right = 22
-corner_radius_bottom_left = 22
-shadow_color = Color(0, 0, 0, 0.5)
-shadow_size = 5
-shadow_offset = Vector2(0, 4)
-
-[sub_resource type="StyleBoxFlat" id="clipboard"]
-content_margin_left = 20.0
-content_margin_top = 38.0
-content_margin_right = 20.0
+[sub_resource type="StyleBoxTexture" id="gaff_red"]
+content_margin_left = 44.0
+content_margin_top = 18.0
+content_margin_right = 44.0
 content_margin_bottom = 22.0
-bg_color = Color(0.950, 0.930, 0.870, 1.00)
-border_width_left = 4
-border_width_top = 4
-border_width_right = 4
-border_width_bottom = 4
-border_color = Color(1, 1, 1, 1.00)
-corner_radius_top_left = 18
-corner_radius_top_right = 18
-corner_radius_bottom_right = 18
-corner_radius_bottom_left = 18
-shadow_color = Color(0, 0, 0, 0.5)
-shadow_size = 6
-shadow_offset = Vector2(0, 4)
+texture = ExtResource("t_v_red")
+texture_margin_left = 22.0
+texture_margin_top = 22.0
+texture_margin_right = 22.0
+texture_margin_bottom = 22.0
+
+[sub_resource type="StyleBoxTexture" id="gaff_red_hover"]
+content_margin_left = 44.0
+content_margin_top = 18.0
+content_margin_right = 44.0
+content_margin_bottom = 22.0
+texture = ExtResource("t_v_red")
+texture_margin_left = 22.0
+texture_margin_top = 22.0
+texture_margin_right = 22.0
+texture_margin_bottom = 22.0
+modulate_color = Color(1.1, 1.05, 1.05, 1)
+
+[sub_resource type="StyleBoxTexture" id="gaff_red_pressed"]
+content_margin_left = 44.0
+content_margin_top = 21.0
+content_margin_right = 44.0
+content_margin_bottom = 19.0
+texture = ExtResource("t_v_red")
+texture_margin_left = 22.0
+texture_margin_top = 22.0
+texture_margin_right = 22.0
+texture_margin_bottom = 22.0
+modulate_color = Color(0.82, 0.8, 0.8, 1)
+
+[sub_resource type="StyleBoxTexture" id="speech"]
+content_margin_left = 24.0
+content_margin_top = 22.0
+content_margin_right = 24.0
+content_margin_bottom = 22.0
+texture = ExtResource("t_v_panel")
+texture_margin_left = 24.0
+texture_margin_top = 24.0
+texture_margin_right = 24.0
+texture_margin_bottom = 24.0
+
+[sub_resource type="StyleBoxTexture" id="clipboard"]
+content_margin_left = 22.0
+content_margin_top = 38.0
+content_margin_right = 22.0
+content_margin_bottom = 22.0
+texture = ExtResource("t_v_panel")
+texture_margin_left = 24.0
+texture_margin_top = 24.0
+texture_margin_right = 24.0
+texture_margin_bottom = 24.0
 
 [sub_resource type="StyleBoxFlat" id="stamp_big"]
 content_margin_left = 18.0
@@ -826,24 +670,16 @@ border_width_right = 7
 border_width_bottom = 7
 border_color = Color(0.84, 0.2, 0.2, 0.92)
 
-[sub_resource type="StyleBoxFlat" id="memory_photo"]
-content_margin_left = 12.0
-content_margin_top = 12.0
-content_margin_right = 12.0
-content_margin_bottom = 12.0
-bg_color = Color(0.980, 0.980, 0.970, 1.00)
-border_width_left = 4
-border_width_top = 4
-border_width_right = 4
-border_width_bottom = 4
-border_color = Color(1, 1, 1, 1.00)
-corner_radius_top_left = 10
-corner_radius_top_right = 10
-corner_radius_bottom_right = 10
-corner_radius_bottom_left = 10
-shadow_color = Color(0, 0, 0, 0.5)
-shadow_size = 6
-shadow_offset = Vector2(0, 4)
+[sub_resource type="StyleBoxTexture" id="memory_photo"]
+content_margin_left = 22.0
+content_margin_top = 22.0
+content_margin_right = 22.0
+content_margin_bottom = 22.0
+texture = ExtResource("t_v_panel")
+texture_margin_left = 24.0
+texture_margin_top = 24.0
+texture_margin_right = 24.0
+texture_margin_bottom = 24.0
 
 [sub_resource type="StyleBoxFlat" id="phone"]
 content_margin_left = 22.0

@@ -61,7 +61,7 @@
     {"id": "coilovers_street", "slot": "springs", "name": "Street coilovers", "rarity": "rare", "price": 1100,
      "effects": {"cg_height_m": -0.04, "mass_kg": -2}, "blurb": "Lower and tighter."},
 
-    {"id": "interior_strip", "slot": "interior", "name": "Strip the interior", "rarity": "common", "price": 1400,
+    {"id": "interior_strip", "slot": "interior", "name": "Strip the interior", "rarity": "legendary", "price": 1400,
      "effects": {"mass_kg": -40}, "blurb": "Rear seats, carpet, trim, sound deadening. Gone."},
     {"id": "hood_carbon", "slot": "hood", "name": "Carbon hood", "rarity": "rare", "price": 520,
      "effects": {"mass_kg": -8}, "blurb": "Light, and it looks the part."},

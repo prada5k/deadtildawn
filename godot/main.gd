@@ -229,6 +229,8 @@ var pane := ""            # "" = the full viewer; "them" / "faba" = one half of 
 var panes := []           # full viewer: the two pane viewers [them, faba]
 var pane_boxes := []      # ...their SubViewportContainers
 var pane_tags := []       # ...and a name + speed tag on each
+var pane_mutes := []      # ...and a MUTE button on each (Spire: mute one car's engine)
+var muted := {}           # "car" / "ghost" -> true: that engine is silent
 var wander := {}          # "car" / "ghost" -> FastNoiseLite: each driver's own wander
 var lines := {}           # "car" / "ghost" -> the smoothed racing line (build_lines)
 var bend := PackedFloat32Array()   # the road's smoothed curvature (build_lines)
@@ -948,6 +950,18 @@ func build_panes(layer: CanvasLayer) -> void:
 		pane_boxes.append(box)
 		pane_tags.append(osd_label(layer, Vector2.ZERO, 32,
 			GHOST_MARKER_COLOR if who == "them" else MARKER_COLOR))
+		var engine := "ghost" if who == "them" else "car"
+		var m := Button.new()
+		m.text = "MUTE"
+		m.theme_type_variation = "OsdButton"
+		m.focus_mode = Control.FOCUS_NONE
+		m.visible = false
+		m.pressed.connect(func():
+			muted[engine] = not muted.get(engine, false)
+			m.text = "MUTED" if muted[engine] else "MUTE"
+			m.theme_type_variation = "OsdOnButton" if muted[engine] else "OsdButton")
+		layer.add_child(m)
+		pane_mutes.append(m)
 	if ghost != null:
 		build_opp_dash(layer)
 
@@ -1020,6 +1034,11 @@ func update_panes(vp: Vector2) -> void:
 		tag.reset_size()
 		tag.position = Vector2(box.position.x + 14 if them else vp.x - tag.size.x - 14,
 			area.end.y - tag.size.y - 10)
+		var mute: Button = pane_mutes[i]                # the inner bottom corner of its half
+		mute.visible = split and n > 1 and pane == ""
+		mute.reset_size()
+		mute.position = Vector2(box.position.x + box.size.x - mute.size.x - 10 if them else box.position.x + 10,
+			area.end.y - mute.size.y - 8)
 	if hud.has("opp") and not pane_tags.is_empty():
 		var o: Dictionary = hud["opp"]
 		o["dash"].visible = split
@@ -2376,7 +2395,7 @@ func update_audio() -> void:
 		var them := who == "ghost"
 		a.pan = (-0.6 if them else 0.6) if split else 0.0
 		a.time_scale = slow
-		a.gain = 1.0 if playing else 0.0                # a paused tape is silent
+		a.gain = 1.0 if playing and not muted.get(who, false) else 0.0   # a paused tape is silent; so is a muted car
 		a.alive = 1.0
 		a.squeal = 0.0
 		var ev := shift_events(who)             # downshifts: the blip, then the pops

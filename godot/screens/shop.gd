@@ -15,6 +15,8 @@ signal repair(uid: String)      # damaged in a crash: off the car until repaired
 
 const UI := preload("res://ui.gd")
 const PartArt := preload("res://widgets/part_art.gd")
+const KeiShop := preload("res://widgets/kei_shop.gd")
+const KEI_H := 470.0            # the kei truck's view (px)
 const Voice := preload("res://voice.gd")
 const PIN := preload("res://textures/pin.png")
 const PIC_PX := 112            # a part's picture on the counter + the shelf (Spire: bigger)
@@ -87,20 +89,26 @@ func setup(info: Dictionary, catalog: Dictionary, inventory: Array, installed: D
 			b.size_flags_horizontal = Control.SIZE_SHRINK_END
 			b.disabled = cost > spendable
 
-	# Pulls: flyers pinned on the corkboard
+	# Pulls: boxes in a kei truck's bed (Spire), the picked one's card under it
 	tape_header(list, "pulls", 0.012)
-	var cork := PanelContainer.new()
-	cork.theme_type_variation = "CorkPanel"
-	list.add_child(cork)
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 18)
-	grid.add_theme_constant_override("v_separation", 22)
-	cork.add_child(grid)
-	var i := 0
+	var kei: SubViewportContainer = KeiShop.new()
+	kei.custom_minimum_size = Vector2(0, KEI_H)
+	list.add_child(kei)
+	var srcs := {}
 	for id in catalog["sources"]:
-		flyer(grid, id, catalog["sources"][id], i, int(info["rep"]), spendable, int(pity.get(id, 0)))
-		i += 1
+		var s: Dictionary = catalog["sources"][id]
+		srcs[id] = {"price": s["price"], "rep_required": s["rep_required"], "locked": int(info["rep"]) < int(s["rep_required"])}
+	kei.setup(srcs)
+	var card_slot := VBoxContainer.new()
+	list.add_child(card_slot)
+	var show_card := func(id: String):
+		for c in card_slot.get_children():
+			c.queue_free()
+		if catalog["sources"].has(id):
+			flyer(card_slot, id, catalog["sources"][id], KeiShop.BOXES.keys().find(id), int(info["rep"]),
+				spendable, int(pity.get(id, 0)))
+	kei.picked.connect(show_card)
+	show_card.call(kei.selected)
 
 	# The bench: pulled or looted boxes, not dynoed yet
 	var unopened := inventory.filter(func(inst): return not inst["revealed"])
@@ -206,9 +214,9 @@ func paper(parent: Node, variation: String, tilt: float) -> PanelContainer:
 
 
 ## One pull source as a flyer pinned to the cork: name, price, blurb, pity, PULL.
-func flyer(grid: GridContainer, id: String, src: Dictionary, index: int, rep: int,
+func flyer(grid: Node, id: String, src: Dictionary, index: int, rep: int,
 		spendable: int, pity_count: int) -> void:
-	var sheet := paper(grid, FLYERS[index % FLYERS.size()], [-0.025, 0.02, 0.012][index % 3])
+	var sheet := paper(grid, FLYERS[maxi(index, 0) % FLYERS.size()], [-0.025, 0.02, 0.012][maxi(index, 0) % 3])
 	sheet.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var col := UI.vbox(sheet, 4)
 	var pin := TextureRect.new()
