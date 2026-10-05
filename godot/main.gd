@@ -1808,9 +1808,12 @@ func self_test() -> void:
 	print("BANNER " + banner_result()["text"].replace("\n", " | "))
 	for who: String in shifts:                      # downshifts: a blip each, then the pops (+ flames)
 		var n_pops := 0
+		var popped := 0
 		for sh: Dictionary in shifts[who]:
 			n_pops += sh["pops"].size()
-		print("SHIFTS %s: %d downshifts, %d pops" % [who, shifts[who].size(), n_pops])
+			popped += 1 if sh["pops"].size() > 0 else 0
+		print("SHIFTS %s: %d downshifts, %d popped (chance %.0f%%), %d pops" % [
+			who, shifts[who].size(), popped, POP_CHANCE * 100.0, n_pops])
 	# Each chase pane through the whole run at 60 fps: its camera car never on
 	# the bumper, never further than the max gap, and its car always in the shot
 	set_cam_mode(CamMode.CHASE)
@@ -2281,8 +2284,10 @@ func camcar_ride() -> Vector2:
 ## Every downshift in a car's run (sim: one gear at a time while braking; the
 ## gear reads 0 for the 0.4 s the clutch is in): the gap (t0 -> t1) is when
 ## the driver blips the throttle to match revs, and just after it, off the
-## gas, the exhaust pops (2-5 bangs). The pop times come from a seed per
-## shift, so the full viewer's sound and each pane's flames agree.
+## gas, the exhaust MAY pop (2-5 bangs + flames, POP_CHANCE of the time; Spire:
+## not every single time). The pops come from a seed per shift, so the full
+## viewer's sound and each pane's flames agree.
+const POP_CHANCE := 0.4
 func build_shifts() -> void:
 	shifts["car"] = find_downshifts(samples, "car")
 	if ghost != null and ghost["samples"].has("gear"):
@@ -2305,10 +2310,11 @@ func find_downshifts(smp: Dictionary, who: String) -> Array:
 		if last > 0 and g < last:
 			rng.seed = hash("%s/%d" % [who, i])      # the same pops in the picture and the sound
 			var pops := []
-			var tp := float(ts[i]) + rng.randf_range(0.04, 0.14)
-			for k in rng.randi_range(2, 5):
-				pops.append(tp)
-				tp += rng.randf_range(0.07, 0.24)
+			if rng.randf() < POP_CHANCE:                 # the blip always; the pops + flames only sometimes
+				var tp := float(ts[i]) + rng.randf_range(0.04, 0.14)
+				for k in rng.randi_range(2, 5):
+					pops.append(tp)
+					tp += rng.randf_range(0.07, 0.24)
 			out.append({"t0": gap_t if gap_t >= 0.0 else float(ts[i]), "t1": float(ts[i]), "pops": pops})
 		last = g
 		gap_t = -1.0

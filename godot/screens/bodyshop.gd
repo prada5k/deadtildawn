@@ -19,6 +19,7 @@ var trying := ""             # the item on preview ("" = none)
 
 
 func _ready() -> void:
+	%Lift.lower()                # the car comes down to the floor: easier to see what you're putting on it
 	%Back.pressed.connect(func(): go.emit("car"))
 	%Buy.pressed.connect(func():
 		if trying != "":

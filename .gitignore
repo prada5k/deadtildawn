@@ -221,3 +221,6 @@ runs/
 # open-road tracks are generated at runtime by the bridge (cache)
 data/tracks/generated/open_week_*.txt
 data/tracks/generated/open_road_*.txt
+
+# Blender's automatic backup of the previous save
+*.blend1

@@ -20,9 +20,13 @@ const YAW_MIN := 0.45                # radians around the car; 0 = side on (the 
 const YAW_MAX := 1.45                # ~ head on
 const CAM_DIST := 4.9
 
+const LOWER_S := 2.2                 # the lift coming down (body shop), seconds
+
 var car: Node3D
 var cam: Camera3D
+var carriage: Node3D                 # what rides up and down with the car: carriages, arms, pads
 var yaw := 1.0                       # 3/4 front, right side
+var height := LIFT_H                 # where the car sits now (0 = on the floor)
 var target := Vector3(0.3, LIFT_H + 0.5, 0.0)
 
 
@@ -68,8 +72,32 @@ func show_parts(ids: Array) -> void:
 
 
 func place_camera() -> void:
-	var pos := target + Vector3(sin(yaw) * CAM_DIST, -0.35, cos(yaw) * CAM_DIST)
+	var up := lerpf(1.0, -0.35, height / LIFT_H)      # up on the lift: looking up at it; on the floor: down on it
+	var pos := target + Vector3(sin(yaw) * CAM_DIST, up, cos(yaw) * CAM_DIST)
 	cam.look_at_from_position(pos, target)
+
+
+## Bring the car down onto the floor (Spire: the body shop, so the car's
+## easier to see while you dress it up). The arms come down with it and the
+## camera follows. No ride in the stills / tests.
+func lower() -> void:
+	var stills := false
+	for a in OS.get_cmdline_user_args():
+		stills = stills or a == "--gametest" or a.begins_with("--gameshots")
+	if stills:
+		set_height(0.0)
+		return
+	var tw := create_tween()
+	tw.tween_interval(0.25)
+	tw.tween_method(set_height, height, 0.0, LOWER_S).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+func set_height(h: float) -> void:
+	height = h
+	car.position.y = h
+	carriage.position.y = h - LIFT_H         # built at LIFT_H
+	target.y = h + 0.5
+	place_camera()
 
 
 ## Drag sideways to walk around the car. Only sideways drags are taken, so a
@@ -190,21 +218,23 @@ func build_bay(vp: Node) -> void:
 ## Two-post lift: posts either side of the car, an overhead beam, carriages at
 ## lift height, and two swing arms per post under the pinch welds.
 func build_lift(vp: Node) -> void:
+	carriage = Node3D.new()
+	vp.add_child(carriage)
 	for side: float in [-1.0, 1.0]:
 		var z := side * POST_Z
 		box(Vector3(0.22, 3.8, 0.26), Vector3(POST_X, 1.9, z), LIFT_RED, vp, 0.55, 0.2)
 		box(Vector3(0.7, 0.03, 0.6), Vector3(POST_X, 0.015, z), Color(0.25, 0.25, 0.27), vp, 0.6, 0.5)
 		box(Vector3(0.38, 0.5, 0.36), Vector3(POST_X, LIFT_H + 0.1, z - side * 0.02),
-			Color(0.3, 0.3, 0.32), vp, 0.5, 0.6)                       # carriage
+			Color(0.3, 0.3, 0.32), carriage, 0.5, 0.6)                 # carriage
 		for arm_x: float in [1.0, -1.25]:                                  # front, rear lift points
 			var reach := Vector3(arm_x - POST_X, 0.0, -side * (POST_Z - 0.62))
 			var arm := box(Vector3(reach.length(), 0.09, 0.14), Vector3.ZERO,
-				Color(0.32, 0.32, 0.35), vp, 0.5, 0.6)
+				Color(0.32, 0.32, 0.35), carriage, 0.5, 0.6)
 			arm.position = Vector3(POST_X, LIFT_H + 0.07, z) + reach / 2.0
 			arm.rotation.y = -atan2(reach.z, reach.x)
 			var pad := CylinderMesh.new()
 			pad.top_radius = 0.07
 			pad.bottom_radius = 0.07
 			pad.height = 0.14
-			solid(pad, Vector3(arm_x, LIFT_H + 0.19, side * 0.62), Color(0.08, 0.08, 0.08), vp, 0.9)
+			solid(pad, Vector3(arm_x, LIFT_H + 0.19, side * 0.62), Color(0.08, 0.08, 0.08), carriage, 0.9)
 	box(Vector3(0.2, 0.2, POST_Z * 2.0 + 0.26), Vector3(POST_X, 3.85, 0), LIFT_RED, vp, 0.55, 0.2)

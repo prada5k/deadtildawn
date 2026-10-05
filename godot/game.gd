@@ -1801,10 +1801,10 @@ func game_test() -> void:
 	state["cash"] = min_bet() + 700
 	state.erase("look")
 	buy_look("paint_milano")
-	buy_look("tow")                                       # $40: would cross the buy-in
+	buy_look("battle_tape")                               # $15: would cross the buy-in
 	check(int(state["cash"]) == min_bet() and "look:paint_milano" in car_look()
-		and not "tow" in look_state()["owned"],
-		"body shop: Milano Red bought and worn, cash at the buy-in (%d), the tow hooks refused" % state["cash"])
+		and not "battle_tape" in look_state()["owned"],
+		"body shop: Milano Red bought and worn, cash at the buy-in (%d), the battle tape refused" % state["cash"])
 	state.erase("look")
 	lock_build()
 	var lock_part := add_instance("rsb_24", 0.5, true, "shop")

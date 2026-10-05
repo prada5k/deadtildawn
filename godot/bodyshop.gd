@@ -9,6 +9,7 @@ extends RefCounted
 ## its paint and stickers too (widgets/dx_model.gd reads them).
 ##
 ## Paint names are Honda's real colors of the era. Prices are Spire's to tune.
+## No tow hooks (Spire hates them; an old save's are simply ignored).
 
 const SLOTS := {
 	"paint": "Paint",
@@ -19,7 +20,6 @@ const SLOTS := {
 	"lip": "Front lip",
 	"wing": "Wing",
 	"rims": "Rim color",
-	"tow": "Tow hooks",
 	"tape": "Battle tape",
 }
 
@@ -44,7 +44,6 @@ const ITEMS := {
 	"rims_gold": {"slot": "rims", "name": "Gold rims", "price": 150, "color": Color(0.78, 0.6, 0.2)},
 	"rims_black": {"slot": "rims", "name": "Gloss black rims", "price": 150, "color": Color(0.07, 0.07, 0.08)},
 	"rims_white": {"slot": "rims", "name": "Championship White rims", "price": 180, "color": Color(0.95, 0.95, 0.92)},
-	"tow": {"slot": "tow", "name": "Red tow hooks", "price": 40},
 	"battle_tape": {"slot": "tape", "name": "Battle tape (the bumper's held on with it)", "price": 15},
 }
 

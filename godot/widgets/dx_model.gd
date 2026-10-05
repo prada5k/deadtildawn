@@ -13,7 +13,7 @@ extends Node3D
 ##   canister); buckets in place of the stock seats, no rear seat once the
 ##   interior's stripped (seen through the glass); the carbon hood.
 ##   LOOKS ("look:<id>", bodyshop.gd): a respray (fixes the primer and the
-##   fade), banner, stripes, stickers, tint, lip, wing, rim color, tow hooks.
+##   fade), banner, stripes, stickers, tint, lip, wing, rim color.
 ##
 ## A real model: put a glTF at MODEL_PATH (docs/MODELS.md) and it replaces the
 ## code-built shell; wheels, interior and the add-ons stay code-built on it.
@@ -166,14 +166,14 @@ func build(installed: Array = []) -> void:
 	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	glass.albedo_color.a = 0.93 if not look("tint").is_empty() else 0.62   # see the seats (unless tinted)
 
+	var hood_mat := mat(CARBON, 0.3, 0.2) if has_part("hood") else faded
 	if ResourceLoader.exists(MODEL_PATH):
-		build_shell_model(color, glass)
+		build_shell_model(paint, faded, hood_mat, mat(PRIMER, 1.0) if worn else paint, glass)
 	else:
 		extrude(BODY_PROFILE, WIDTH, 0.0, paint)
 		extrude(GREENHOUSE, WIDTH * 0.84, 0.0, glass)
 		# Roof and hood: sun-faded clearcoat (or a carbon hood once you buy one)
 		box(Vector3(0.70, 0.02, WIDTH * 0.78), Vector3(-0.44, 1.335, 0), faded)
-		var hood_mat := mat(CARBON, 0.3, 0.2) if has_part("hood") else faded
 		var hood_angle := atan2(0.89 - 0.77, 1.90 - 0.62)
 		box(Vector3(1.30, 0.02, WIDTH * 0.86), Vector3(1.26, 0.84, 0), hood_mat, Vector3(0, 0, -hood_angle))
 		if worn:                                      # primer fender on the right side
@@ -209,23 +209,24 @@ func build_details(paint: Material) -> void:
 	box(Vector3(0.03, 0.1, 0.28), Vector3(2.23, 0.4, 0), mat(Color(0.85, 0.85, 0.82), 0.6))
 
 
-## A real model (docs/MODELS.md): its materials named "Paint" and "Glass" take
-## the paint and the glass; the rest is as modeled.
-func build_shell_model(color: Color, glass: Material) -> void:
+## A real model (docs/MODELS.md, art/blender/build_dx.py): the game swaps its
+## materials by name (Paint, Roof, Hood, Fender, Glass, lights); the rest is
+## as modeled.
+func build_shell_model(paint: Material, faded: Material, hood: Material, fender: Material, glass: Material) -> void:
 	var shell: Node3D = (load(MODEL_PATH) as PackedScene).instantiate()
 	target.add_child(shell)
+	var swaps := {
+		"Paint": paint, "Roof": faded, "Hood": hood, "Fender": fender, "Glass": glass,
+		"Headlight": mat(Color(1, 0.96, 0.85), 0.2, 0.0, Color(1.0, 0.92, 0.72) if lights_on else Color.BLACK),
+		"Taillight": mat(Color(0.6, 0.05, 0.05), 0.3, 0.0, Color(0.9, 0.05, 0.03) if lights_on else Color.BLACK),
+		"Amber": mat(AMBER, 0.3, 0.0, AMBER * 0.6 if lights_on else Color.BLACK),
+	}
 	for mi in shell.find_children("*", "MeshInstance3D", true, false):
 		var m := mi as MeshInstance3D
 		for i in m.mesh.get_surface_count():
 			var sm := m.mesh.surface_get_material(i)
-			if sm == null:
-				continue
-			if sm.resource_name == "Paint":
-				var p := (sm as BaseMaterial3D).duplicate() as BaseMaterial3D
-				p.albedo_color = color
-				m.set_surface_override_material(i, p)
-			elif sm.resource_name == "Glass":
-				m.set_surface_override_material(i, glass)
+			if sm != null and swaps.has(sm.resource_name):
+				m.set_surface_override_material(i, swaps[sm.resource_name])
 
 
 ## Seats and dash, seen through the glass: stock cloth seats and a rear
@@ -334,10 +335,6 @@ func build_looks(color: Color) -> void:
 			box(Vector3(0.09, 0.05, 0.005), Vector3(2.0 - k * 0.07, 0.5 + k * 0.06, -(WIDTH / 2.0 + 0.006)),
 				tape, Vector3(0, 0, 0.5 - k * 0.3))
 			box(Vector3(0.005, 0.05, 0.12), Vector3(2.226, 0.46 + k * 0.06, -0.62 + k * 0.03), tape, Vector3(0.4 * k, 0, 0))
-	if not look("tow").is_empty():
-		var red := mat(Color(0.85, 0.08, 0.06), 0.4)
-		box(Vector3(0.1, 0.03, 0.04), Vector3(2.25, 0.33, -0.45), red, Vector3(0, 0, -0.3))
-		box(Vector3(0.1, 0.03, 0.04), Vector3(-2.26, 0.33, -0.45), red, Vector3(0, 0, 0.3))
 
 
 ## Wheels: steelies with hubcaps (the front right lost on the 5), or the
