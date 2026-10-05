@@ -404,6 +404,42 @@ def slim(ob):
         bpy.ops.object.modifier_apply(modifier="lod")
 
 
+# A car's own look for the whole game (Spire): its paint and a wheel swap.
+# The model's wheels come off (rims, tires, brakes inside each wheel); the game
+# mounts the named wheel (godot/models/wheels/<name>.glb) at the saved centers:
+# godot/models/cars/<car>.json {"wheels": name, "finish": "chrome", "centers": [[x, y, z]...], "radius": r}
+STYLE = {
+    "370z": {"paint": (0.02, 0.02, 0.025, 1.0), "wheels": "tandem", "finish": "chrome"},
+}
+
+
+def restyle(ob, name, style):
+    if "paint" in style:
+        for m in ob.data.materials:
+            if m and m.name.split(".")[0].lower() == "paint":
+                m.diffuse_color = style["paint"]
+                for nd in m.node_tree.nodes:
+                    if nd.type == "BSDF_PRINCIPLED":
+                        nd.inputs["Base Color"].default_value = style["paint"]
+                        nd.inputs["Roughness"].default_value = 0.25
+    meta = {}
+    if "wheels" in style:
+        wc = wheel_centers(ob)
+        drop = set(faces_with(ob, ("Tire",)))
+        for c, r in wc.values():
+            for p in ob.data.polygons:
+                q = p.center
+                if math.hypot(q.x - c.x, q.z - c.z) < r + 0.01 and abs(q.y) > abs(c.y) - 0.16:
+                    drop.add(p.index)
+        delete_faces(ob, sorted(drop))
+        meta = {"wheels": style["wheels"], "finish": style.get("finish", ""),
+                "centers": [[c.x, c.z, -c.y] for c, _ in wc.values()],         # Godot (x, y, z)
+                "radius": sum(r for _, r in wc.values()) / max(len(wc), 1)}
+        print(f"  {name}: wheels off at {len(wc)} centers, r {meta['radius']:.3f}")
+    with open(os.path.join(OUT, name + ".json"), "w") as f:
+        json.dump(meta, f, indent=1)
+
+
 def render_check(ob, name):
     sc = bpy.context.scene
     sc.render.engine = "BLENDER_WORKBENCH"
@@ -463,6 +499,8 @@ for name in only:
     slim(ob)
     if name != "eg6":                              # (the EG6's lights are named by fit_dx)
         print(f"  {name} lights:", mark_lights(ob))
+    if name in STYLE:
+        restyle(ob, name, STYLE[name])
     if name == "eg6":
         meta = fit_dx(ob)
         pieces = split_dx_pieces(ob)

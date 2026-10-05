@@ -10,6 +10,7 @@ extends Node3D
 ## profile by keyword (same keywords as widgets/car_sprite.gd).
 
 const CarSprite := preload("res://widgets/car_sprite.gd")
+const DxModel := preload("res://widgets/dx_model.gd")     # (its wheel list: wheels.json)
 
 const TIRE_R := 0.3
 const ARCH_R := 0.37
@@ -68,6 +69,60 @@ var spec := {}
 const TAIL_GLOW := 1.5               # a model's taillights with the lights on (braking: 7, chase3d.gd)
 var taillight_mat: StandardMaterial3D   # a model's own lenses (prep_cars.py names them); null = code-built
 var blinker_mat: StandardMaterial3D     # its amber corners, if it has any (the hazards blink them)
+
+
+## A car's own wheel swap for the whole game (Spire: Zed's 370Z on chrome
+## Kansei Tandems): art/blender/prep_cars.py STYLE took the model's wheels
+## off and wrote where they were; the wheel model goes on at each center
+## (a right-side wheel, turned round for the left), sized to the tire, with
+## a tire around it when the model is rim-only.
+func mount_wheels(json_path: String) -> void:
+	if not FileAccess.file_exists(json_path):
+		return
+	var d = JSON.parse_string(FileAccess.get_file_as_string(json_path))
+	if not (d is Dictionary) or not d.has("wheels"):
+		return
+	var path := "res://models/wheels/%s.glb" % d["wheels"]
+	if not ResourceLoader.exists(path):
+		return
+	var info: Dictionary = DxModel.wheel_info().get(d["wheels"], {})
+	var has_tire := bool(info.get("tire", true))
+	var r := float(d["radius"])
+	# Rim-only models come 0.40 m across (a 15"): scale it to fill ~2/3 of the tire
+	var k := (r * 2.0) / 0.594 if has_tire else (r * 1.32) / 0.40
+	var chrome := mat(Color(0.9, 0.91, 0.93), 0.15, 0.45)
+	chrome.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var rubber := mat(TIRE, 0.9)
+	for c in d["centers"]:
+		var at := Vector3(c[0], c[1], c[2])
+		var w := Node3D.new()
+		w.position = at
+		add_child(w)
+		var wm: Node3D = (load(path) as PackedScene).instantiate()
+		wm.scale = Vector3.ONE * k
+		if at.z < 0.0:
+			wm.rotation.y = PI                     # modeled as a right-side wheel
+		w.add_child(wm)
+		if d.get("finish", "") == "chrome":
+			for mi in wm.find_children("*", "MeshInstance3D", true, false):
+				var mesh_i := mi as MeshInstance3D
+				for i in mesh_i.mesh.get_surface_count():
+					var sm := mesh_i.mesh.surface_get_material(i)
+					var n := sm.resource_name.to_lower() if sm != null else ""
+					if not ["tire", "bolt", "logo", "valve", "nut"].any(func(x: String): return n.contains(x)):
+						mesh_i.set_surface_override_material(i, chrome)
+		if not has_tire:
+			var tire := MeshInstance3D.new()
+			var tm := TorusMesh.new()
+			tm.inner_radius = r * 0.66
+			tm.outer_radius = r
+			tm.rings = 32
+			tm.ring_segments = 12
+			tire.mesh = tm
+			tire.material_override = rubber
+			tire.rotation.x = PI / 2.0
+			tire.scale = Vector3(1.0, 0.215 / (r * 0.34), 1.0)
+			w.add_child(tire)
 
 
 ## Light a model's own lenses (Spire: no boxes sitting on top): the faces
@@ -236,6 +291,7 @@ func build_car(car_name: String, lights_on := true) -> void:
 		var m: Node3D = (load(model) as PackedScene).instantiate()
 		add_child(m)
 		light_model(m, lights_on)
+		mount_wheels(model.get_basename() + ".json")
 		return
 	var w: float = p["width"]
 	var paint := mat(p["paint"], 0.32, 0.1)
