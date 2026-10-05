@@ -1,7 +1,6 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://screens/bodyshop.gd" id="1"]
-[ext_resource type="Script" path="res://widgets/lift_bay.gd" id="2"]
 
 [node name="BodyShop" type="Control"]
 layout_mode = 3
@@ -22,19 +21,9 @@ grow_vertical = 2
 theme_override_constants/separation = 12
 
 [node name="Bay" type="Control" parent="Frame"]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 420)
 layout_mode = 2
-
-[node name="Lift" type="SubViewportContainer" parent="Frame/Bay"]
-unique_name_in_owner = true
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-stretch = true
-script = ExtResource("2")
 
 [node name="Flip" type="Button" parent="Frame/Bay"]
 unique_name_in_owner = true

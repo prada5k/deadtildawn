@@ -1,7 +1,6 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://screens/car.gd" id="1"]
-[ext_resource type="Script" path="res://widgets/lift_bay.gd" id="2"]
 [ext_resource type="Script" path="res://widgets/dyno_chart.gd" id="3"]
 [ext_resource type="Script" path="res://widgets/part_art.gd" id="part_art"]
 
@@ -30,19 +29,9 @@ size_flags_horizontal = 3
 theme_override_constants/separation = 22
 
 [node name="Bay" type="Control" parent="Scroll/Column"]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 500)
 layout_mode = 2
-
-[node name="Lift" type="SubViewportContainer" parent="Scroll/Column/Bay"]
-unique_name_in_owner = true
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-stretch = true
-script = ExtResource("2")
 
 [node name="DragHint" type="Label" parent="Scroll/Column/Bay"]
 layout_mode = 1

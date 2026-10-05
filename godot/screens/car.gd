@@ -37,6 +37,7 @@ func _ready() -> void:
 	%CompareNo.pressed.connect(func(): compare_closed.emit())
 	%ToRoad.pressed.connect(func(): go.emit("road"))
 	%StripButton.pressed.connect(func(): strip_pressed.emit())
+	%Bay.gui_input.connect(func(e: InputEvent): UI.drag_orbit(self, e))   # walk round the car on the lift (the stage)
 
 
 ## info: common info + "parts_on" (installed part ids, for the 3D model) +
@@ -44,7 +45,6 @@ func _ready() -> void:
 ## "locked" (the build is set for tonight: no swaps) or ""
 ## parts: {"slots": {slot: name}, "options": {slot: [[id, name], ...]}, "installed": {slot: id}}
 func setup(info: Dictionary, stats: Dictionary, parts := {}) -> void:
-	%Lift.show_parts(info.get("parts_on", []))
 	%LiftNote.text = Voice.LIFT
 	%CarName.text = stats["name"]
 	var dyno = %Dyno

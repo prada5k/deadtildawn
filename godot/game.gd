@@ -386,10 +386,29 @@ func open_hub(packed: PackedScene, tab: String) -> Control:
 		screen = shell
 	shell.set_stats(int(state["cash"]), int(state["rep"]), min_bet())
 	shell.set_location(LOCATIONS[tab], tab)
+	# The garage behind every hub screen: the DX as it's built, the settings
+	var stage: Control = shell.stage()
+	stage.show_parts(car_look())
+	stage.show_parked_car(setting("parked_car"))
+	stage.set_light(light_level())
 	hub_content = packed.instantiate()
 	hub_content.go.connect(_go)
 	shell.set_content(hub_content)
 	return hub_content
+
+
+## The tube over the DX (home: Spire's brightness buttons), 0..4.
+func light_level() -> int:
+	return int(state.get("settings", {}).get("garage_light", 3))
+
+
+func set_light_level(level: int) -> void:
+	if not state.has("settings"):
+		state["settings"] = {}
+	state["settings"]["garage_light"] = clampi(level, 0, 4)
+	save_game()
+	if shell != null:
+		shell.stage().set_light(light_level())
 
 
 func _go(target: String) -> void:
@@ -476,7 +495,10 @@ func show_warehouse() -> void:
 	info["parts"] = car_look()
 	info["parked_car"] = setting("parked_car")
 	info["caption"] = "%s, wk %d. %s" % [Voice.HOME_PLACE, int(state["week"]), home_caption(installed_part_ids().size())]
-	open_hub(WarehouseScene, "warehouse").setup(info)
+	info["light"] = light_level()
+	var home: Control = open_hub(WarehouseScene, "warehouse")
+	home.setup(info)
+	home.light.connect(set_light_level)
 
 
 ## A setting's value (state["settings"], SETTINGS' default when unset). Sound
@@ -2028,7 +2050,7 @@ func game_shots(folder: String) -> void:
 	show_bodyshop()
 	hub_content.try_on("roof_spoiler")
 	await snap(folder, "1c_bodyshop")
-	hub_content.get_node("%Lift").set_yaw(-1.0)                # the back (the "see the back" button)
+	shell.stage().set_yaw(-1.0)                                 # the back (the "see the back" button)
 	await snap(folder, "1c_bodyshop_rear")
 	state.erase("look")
 	var trial: Dictionary = state["installed"].duplicate()     # the swap comparison

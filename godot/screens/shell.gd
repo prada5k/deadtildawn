@@ -24,9 +24,13 @@ const STICKER_OPEN := 1.15    # the open tab's sticker, bigger...
 const STICKER_LIFT := 8.0     # ...and lifted
 
 const GarageCam := preload("res://widgets/garage_cam.gd")
-const LOT_VEIL := Color(0.02, 0.02, 0.04, 0.55)   # the dimmed lot behind the other screens
+const Viewfinder := preload("res://widgets/viewfinder.gd")
+# Each tab's spot in the garage (garage_cam.gd SHOTS); the rest look down the aisle
+const SHOTS := {"warehouse": "home", "car": "car", "bodyshop": "bodyshop", "shop": "shop",
+	"calendar": "phone", "team": "team"}
 
-var lot: Control              # the night lot backdrop (night_lot)
+var lot: Control              # the stage (stage())
+const VF_ABOVE_NAV := 120.0
 var stickers := {}            # tab -> its sticker (empty: the drawers)
 var open_tab := ""
 var taps := 0
@@ -59,6 +63,7 @@ func set_player(player: String) -> void:
 	%Avatar.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	%DriverName.text = player.to_upper()
 	%Avatar.text = player.substr(0, 1).to_upper()
+	%Avatar.visible = false                  # (the camcorder look: just the name, by the REC)
 
 
 ## Hidden: tap the name tape CODE_TAPS times quickly for the codes screen.
@@ -155,24 +160,18 @@ func apply_stickers() -> void:
 		i += 1
 
 
-## The backdrop behind the screens that don't bring their own: the night
-## garage (widgets/garage_cam.gd) without Faba's car, under a dark veil.
-## Built once, kept.
-func night_lot() -> Control:
+## The stage (widgets/garage_cam.gd): the one garage behind every hub
+## screen, and the camcorder's viewfinder over it. Built once, never cut.
+func stage() -> Control:
 	if lot == null:
-		lot = Control.new()
-		lot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lot = GarageCam.new()
 		lot.set_anchors_preset(Control.PRESET_FULL_RECT)
 		%Backdrop.add_child(lot)
-		var cam: Control = GarageCam.new()
-		cam.set_anchors_preset(Control.PRESET_FULL_RECT)
-		lot.add_child(cam)
-		cam.show_car(false)
-		var veil := ColorRect.new()
-		veil.color = LOT_VEIL
-		veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		veil.set_anchors_preset(Control.PRESET_FULL_RECT)
-		lot.add_child(veil)
+		var vf: Control = Viewfinder.new()
+		vf.theme_type_variation = "Viewfinder"
+		vf.set_anchors_preset(Control.PRESET_FULL_RECT)
+		vf.offset_bottom = -VF_ABOVE_NAV                  # its date stamp sits above the nav stickers
+		%Backdrop.add_child(vf)
 	return lot
 
 
@@ -182,19 +181,9 @@ func set_content(screen: Control) -> void:
 		child.queue_free()
 	screen.set_anchors_preset(Control.PRESET_FULL_RECT)
 	%ContentSlot.add_child(screen)
-	# A screen with its own full-screen backdrop (home: the garage on tape)
-	# puts it behind everything, the top rail and the nav included; the others
-	# get the pegboard wall.
-	for child in %Backdrop.get_children():
-		if child != lot:
-			child.queue_free()
-	var backdrop: Control = screen.backdrop() if screen.has_method("backdrop") else null
-	if backdrop != null:
-		backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
-		%Backdrop.add_child(backdrop)
-	# Every other screen: the same night lot, dimmed, the menus over it (kanjo:
-	# no more pegboard)
-	night_lot().visible = backdrop == null
+	# The camcorder whips to this screen's spot in the garage (Spire: one
+	# camera, never a cut)
+	stage().whip_to(SHOTS.get(open_tab, "other"))
 	%Pegboard.visible = false
 	%ShopLight.visible = false
 	if animate:                              # slide up into place, fading in

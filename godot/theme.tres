@@ -282,49 +282,33 @@ corner_radius_bottom_right = 0
 corner_radius_bottom_left = 0
 anti_aliasing = true
 
-[sub_resource type="StyleBoxTexture" id="tape"]
+[sub_resource type="StyleBoxFlat" id="tape"]
 content_margin_left = 22.0
 content_margin_top = 10.0
 content_margin_right = 22.0
 content_margin_bottom = 12.0
-texture = ExtResource("t_v_label")
-texture_margin_left = 22.0
-texture_margin_top = 22.0
-texture_margin_right = 22.0
-texture_margin_bottom = 22.0
+bg_color = Color(0, 0, 0, 0)
 
-[sub_resource type="StyleBoxTexture" id="paper"]
+[sub_resource type="StyleBoxFlat" id="paper"]
 content_margin_left = 22.0
 content_margin_top = 22.0
 content_margin_right = 22.0
 content_margin_bottom = 22.0
-texture = ExtResource("t_v_panel")
-texture_margin_left = 24.0
-texture_margin_top = 24.0
-texture_margin_right = 24.0
-texture_margin_bottom = 24.0
+bg_color = Color(0.02, 0.02, 0.03, 0.45)
 
-[sub_resource type="StyleBoxTexture" id="polaroid"]
+[sub_resource type="StyleBoxFlat" id="polaroid"]
 content_margin_left = 22.0
 content_margin_top = 22.0
 content_margin_right = 22.0
 content_margin_bottom = 22.0
-texture = ExtResource("t_v_panel")
-texture_margin_left = 24.0
-texture_margin_top = 24.0
-texture_margin_right = 24.0
-texture_margin_bottom = 24.0
+bg_color = Color(0.02, 0.02, 0.03, 0.45)
 
-[sub_resource type="StyleBoxTexture" id="receipt"]
+[sub_resource type="StyleBoxFlat" id="receipt"]
 content_margin_left = 22.0
 content_margin_top = 22.0
 content_margin_right = 22.0
 content_margin_bottom = 22.0
-texture = ExtResource("t_v_panel")
-texture_margin_left = 24.0
-texture_margin_top = 24.0
-texture_margin_right = 24.0
-texture_margin_bottom = 24.0
+bg_color = Color(0.02, 0.02, 0.03, 0.45)
 
 [sub_resource type="StyleBoxTexture" id="drawer"]
 content_margin_left = 6.0
@@ -364,10 +348,7 @@ content_margin_left = 14.0
 content_margin_top = 3.0
 content_margin_right = 14.0
 content_margin_bottom = 5.0
-bg_color = Color(0.07, 0.07, 0.075, 1)
-border_width_top = 2
-border_width_bottom = 2
-border_color = Color(0.0, 0.0, 0.0, 1)
+bg_color = Color(0, 0, 0, 0)
 
 [sub_resource type="StyleBoxFlat" id="stamp"]
 content_margin_left = 8.0
@@ -390,146 +371,120 @@ bg_color = Color(0.4, 0.075, 0.09, 1)
 border_width_top = 4
 border_color = Color(0.25, 0.04, 0.05, 1)
 
-[sub_resource type="StyleBoxTexture" id="gaff"]
+[sub_resource type="StyleBoxFlat" id="gaff"]
 content_margin_left = 44.0
 content_margin_top = 18.0
 content_margin_right = 44.0
 content_margin_bottom = 22.0
-texture = ExtResource("t_v_orange")
-texture_margin_left = 22.0
-texture_margin_top = 22.0
-texture_margin_right = 22.0
-texture_margin_bottom = 22.0
+bg_color = Color(0, 0, 0, 0.25)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.95, 0.94, 0.91, 1)
 
-[sub_resource type="StyleBoxTexture" id="gaff_hover"]
+[sub_resource type="StyleBoxFlat" id="gaff_hover"]
 content_margin_left = 44.0
 content_margin_top = 18.0
 content_margin_right = 44.0
 content_margin_bottom = 22.0
-texture = ExtResource("t_v_orange")
-texture_margin_left = 22.0
-texture_margin_top = 22.0
-texture_margin_right = 22.0
-texture_margin_bottom = 22.0
-modulate_color = Color(1.08, 1.06, 1.04, 1)
+bg_color = Color(1, 1, 1, 0.14)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.95, 0.94, 0.91, 1)
 
-[sub_resource type="StyleBoxTexture" id="gaff_pressed"]
+[sub_resource type="StyleBoxFlat" id="gaff_pressed"]
 content_margin_left = 44.0
 content_margin_top = 21.0
 content_margin_right = 44.0
 content_margin_bottom = 19.0
-texture = ExtResource("t_v_orange")
-texture_margin_left = 22.0
-texture_margin_top = 22.0
-texture_margin_right = 22.0
-texture_margin_bottom = 22.0
-modulate_color = Color(0.82, 0.8, 0.78, 1)
+bg_color = Color(0.95, 0.94, 0.91, 0.9)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.95, 0.94, 0.91, 1)
 
-[sub_resource type="StyleBoxTexture" id="gaff_disabled"]
+[sub_resource type="StyleBoxFlat" id="gaff_disabled"]
 content_margin_left = 44.0
 content_margin_top = 18.0
 content_margin_right = 44.0
 content_margin_bottom = 22.0
-texture = ExtResource("t_v_orange")
-texture_margin_left = 22.0
-texture_margin_top = 22.0
-texture_margin_right = 22.0
-texture_margin_bottom = 22.0
-modulate_color = Color(0.5, 0.48, 0.48, 1)
+bg_color = Color(0, 0, 0, 0.2)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 1, 1, 0.3)
 
-[sub_resource type="StyleBoxTexture" id="tape_small"]
+[sub_resource type="StyleBoxFlat" id="tape_small"]
 content_margin_left = 18.0
 content_margin_top = 9.0
 content_margin_right = 18.0
 content_margin_bottom = 11.0
-texture = ExtResource("t_v_label_small")
-texture_margin_left = 22.0
-texture_margin_top = 22.0
-texture_margin_right = 22.0
-texture_margin_bottom = 22.0
+bg_color = Color(0, 0, 0, 0)
 
-[sub_resource type="StyleBoxTexture" id="tape_disabled"]
+[sub_resource type="StyleBoxFlat" id="tape_disabled"]
 content_margin_left = 18.0
 content_margin_top = 9.0
 content_margin_right = 18.0
 content_margin_bottom = 11.0
-texture = ExtResource("t_v_label_small")
-texture_margin_left = 22.0
-texture_margin_top = 22.0
-texture_margin_right = 22.0
-texture_margin_bottom = 22.0
-modulate_color = Color(0.6, 0.6, 0.6, 0.75)
+bg_color = Color(0, 0, 0, 0)
 
-[sub_resource type="StyleBoxTexture" id="whiteboard"]
+[sub_resource type="StyleBoxFlat" id="whiteboard"]
 content_margin_left = 34.0
 content_margin_top = 28.0
 content_margin_right = 34.0
 content_margin_bottom = 36.0
-texture = ExtResource("t_v_panel")
-texture_margin_left = 24.0
-texture_margin_top = 24.0
-texture_margin_right = 24.0
-texture_margin_bottom = 24.0
+bg_color = Color(0.035, 0.035, 0.05, 0.97)
+border_width_left = 10
+border_width_top = 26
+border_width_right = 10
+border_width_bottom = 26
+border_color = Color(0.09, 0.09, 0.11, 1)
+corner_radius_top_left = 38
+corner_radius_top_right = 38
+corner_radius_bottom_right = 38
+corner_radius_bottom_left = 38
+shadow_color = Color(0, 0, 0, 0.6)
+shadow_size = 12
 
 [sub_resource type="StyleBoxFlat" id="corkboard"]
 content_margin_left = 25.0
 content_margin_top = 29.0
 content_margin_right = 25.0
 content_margin_bottom = 27.0
-bg_color = Color(0.060, 0.060, 0.080, 0.72)
-border_width_left = 3
-border_width_top = 3
-border_width_right = 3
-border_width_bottom = 3
-border_color = Color(1, 1, 1, 0.85)
-corner_radius_top_left = 20
-corner_radius_top_right = 20
-corner_radius_bottom_right = 20
-corner_radius_bottom_left = 20
+bg_color = Color(0.02, 0.02, 0.03, 0.45)
 
-[sub_resource type="StyleBoxTexture" id="flyer_yellow"]
+[sub_resource type="StyleBoxFlat" id="flyer_yellow"]
 content_margin_left = 22.0
 content_margin_top = 22.0
 content_margin_right = 22.0
 content_margin_bottom = 22.0
-texture = ExtResource("t_v_panel_y")
-texture_margin_left = 24.0
-texture_margin_top = 24.0
-texture_margin_right = 24.0
-texture_margin_bottom = 24.0
+bg_color = Color(0.02, 0.02, 0.03, 0.45)
 
-[sub_resource type="StyleBoxTexture" id="flyer_pink"]
+[sub_resource type="StyleBoxFlat" id="flyer_pink"]
 content_margin_left = 22.0
 content_margin_top = 22.0
 content_margin_right = 22.0
 content_margin_bottom = 22.0
-texture = ExtResource("t_v_panel_p")
-texture_margin_left = 24.0
-texture_margin_top = 24.0
-texture_margin_right = 24.0
-texture_margin_bottom = 24.0
+bg_color = Color(0.02, 0.02, 0.03, 0.45)
 
-[sub_resource type="StyleBoxTexture" id="flyer_blue"]
+[sub_resource type="StyleBoxFlat" id="flyer_blue"]
 content_margin_left = 22.0
 content_margin_top = 22.0
 content_margin_right = 22.0
 content_margin_bottom = 22.0
-texture = ExtResource("t_v_panel_b")
-texture_margin_left = 24.0
-texture_margin_top = 24.0
-texture_margin_right = 24.0
-texture_margin_bottom = 24.0
+bg_color = Color(0.02, 0.02, 0.03, 0.45)
 
-[sub_resource type="StyleBoxTexture" id="cardboard"]
+[sub_resource type="StyleBoxFlat" id="cardboard"]
 content_margin_left = 26.0
 content_margin_top = 22.0
 content_margin_right = 26.0
 content_margin_bottom = 24.0
-texture = ExtResource("t_v_panel_c")
-texture_margin_left = 24.0
-texture_margin_top = 24.0
-texture_margin_right = 24.0
-texture_margin_bottom = 24.0
+bg_color = Color(0.02, 0.02, 0.03, 0.45)
 
 [sub_resource type="StyleBoxTexture" id="dotmatrix"]
 content_margin_left = 50.0
@@ -550,113 +505,98 @@ variation_opentype = {
 1380929092: 100
 }
 
-[sub_resource type="StyleBoxTexture" id="gaff_small"]
+[sub_resource type="StyleBoxFlat" id="gaff_small"]
 content_margin_left = 28.0
 content_margin_top = 12.0
 content_margin_right = 28.0
 content_margin_bottom = 14.0
-texture = ExtResource("t_v_orange_small")
-texture_margin_left = 22.0
-texture_margin_top = 22.0
-texture_margin_right = 22.0
-texture_margin_bottom = 22.0
+bg_color = Color(0, 0, 0, 0.25)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.95, 0.94, 0.91, 1)
 
-[sub_resource type="StyleBoxTexture" id="gaff_small_pressed"]
+[sub_resource type="StyleBoxFlat" id="gaff_small_pressed"]
 content_margin_left = 28.0
 content_margin_top = 14.0
 content_margin_right = 28.0
 content_margin_bottom = 12.0
-texture = ExtResource("t_v_orange_small")
-texture_margin_left = 22.0
-texture_margin_top = 22.0
-texture_margin_right = 22.0
-texture_margin_bottom = 22.0
-modulate_color = Color(0.82, 0.8, 0.78, 1)
+bg_color = Color(0.95, 0.94, 0.91, 0.9)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.95, 0.94, 0.91, 1)
 
-[sub_resource type="StyleBoxTexture" id="gaff_small_disabled"]
+[sub_resource type="StyleBoxFlat" id="gaff_small_disabled"]
 content_margin_left = 28.0
 content_margin_top = 12.0
 content_margin_right = 28.0
 content_margin_bottom = 14.0
-texture = ExtResource("t_v_orange_small")
-texture_margin_left = 22.0
-texture_margin_top = 22.0
-texture_margin_right = 22.0
-texture_margin_bottom = 22.0
-modulate_color = Color(0.5, 0.48, 0.48, 1)
+bg_color = Color(0, 0, 0, 0.2)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 1, 1, 0.3)
 
 [sub_resource type="StyleBoxFlat" id="bench"]
 content_margin_left = 27.0
 content_margin_top = 27.0
 content_margin_right = 27.0
 content_margin_bottom = 27.0
-bg_color = Color(0.060, 0.060, 0.080, 0.72)
+bg_color = Color(0.02, 0.02, 0.03, 0.45)
+
+[sub_resource type="StyleBoxFlat" id="gaff_red"]
+content_margin_left = 44.0
+content_margin_top = 18.0
+content_margin_right = 44.0
+content_margin_bottom = 22.0
+bg_color = Color(0.85, 0.12, 0.1, 0.35)
 border_width_left = 3
 border_width_top = 3
 border_width_right = 3
 border_width_bottom = 3
-border_color = Color(1, 1, 1, 0.85)
-corner_radius_top_left = 20
-corner_radius_top_right = 20
-corner_radius_bottom_right = 20
-corner_radius_bottom_left = 20
+border_color = Color(1.0, 0.36, 0.3, 1)
 
-[sub_resource type="StyleBoxTexture" id="gaff_red"]
+[sub_resource type="StyleBoxFlat" id="gaff_red_hover"]
 content_margin_left = 44.0
 content_margin_top = 18.0
 content_margin_right = 44.0
 content_margin_bottom = 22.0
-texture = ExtResource("t_v_red")
-texture_margin_left = 22.0
-texture_margin_top = 22.0
-texture_margin_right = 22.0
-texture_margin_bottom = 22.0
+bg_color = Color(0.95, 0.15, 0.12, 0.5)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(1.0, 0.36, 0.3, 1)
 
-[sub_resource type="StyleBoxTexture" id="gaff_red_hover"]
-content_margin_left = 44.0
-content_margin_top = 18.0
-content_margin_right = 44.0
-content_margin_bottom = 22.0
-texture = ExtResource("t_v_red")
-texture_margin_left = 22.0
-texture_margin_top = 22.0
-texture_margin_right = 22.0
-texture_margin_bottom = 22.0
-modulate_color = Color(1.1, 1.05, 1.05, 1)
-
-[sub_resource type="StyleBoxTexture" id="gaff_red_pressed"]
+[sub_resource type="StyleBoxFlat" id="gaff_red_pressed"]
 content_margin_left = 44.0
 content_margin_top = 21.0
 content_margin_right = 44.0
 content_margin_bottom = 19.0
-texture = ExtResource("t_v_red")
-texture_margin_left = 22.0
-texture_margin_top = 22.0
-texture_margin_right = 22.0
-texture_margin_bottom = 22.0
-modulate_color = Color(0.82, 0.8, 0.8, 1)
+bg_color = Color(0.95, 0.2, 0.15, 0.85)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(1.0, 0.36, 0.3, 1)
 
-[sub_resource type="StyleBoxTexture" id="speech"]
+[sub_resource type="StyleBoxFlat" id="speech"]
 content_margin_left = 24.0
 content_margin_top = 22.0
 content_margin_right = 24.0
 content_margin_bottom = 22.0
-texture = ExtResource("t_v_panel")
-texture_margin_left = 24.0
-texture_margin_top = 24.0
-texture_margin_right = 24.0
-texture_margin_bottom = 24.0
+bg_color = Color(0.02, 0.02, 0.03, 0.45)
 
-[sub_resource type="StyleBoxTexture" id="clipboard"]
+[sub_resource type="StyleBoxFlat" id="clipboard"]
 content_margin_left = 22.0
 content_margin_top = 38.0
 content_margin_right = 22.0
 content_margin_bottom = 22.0
-texture = ExtResource("t_v_panel")
-texture_margin_left = 24.0
-texture_margin_top = 24.0
-texture_margin_right = 24.0
-texture_margin_bottom = 24.0
+bg_color = Color(0.02, 0.02, 0.03, 0.45)
 
 [sub_resource type="StyleBoxFlat" id="stamp_big"]
 content_margin_left = 18.0
@@ -670,16 +610,12 @@ border_width_right = 7
 border_width_bottom = 7
 border_color = Color(0.84, 0.2, 0.2, 0.92)
 
-[sub_resource type="StyleBoxTexture" id="memory_photo"]
+[sub_resource type="StyleBoxFlat" id="memory_photo"]
 content_margin_left = 22.0
 content_margin_top = 22.0
 content_margin_right = 22.0
 content_margin_bottom = 22.0
-texture = ExtResource("t_v_panel")
-texture_margin_left = 24.0
-texture_margin_top = 24.0
-texture_margin_right = 24.0
-texture_margin_bottom = 24.0
+bg_color = Color(0.02, 0.02, 0.03, 0.45)
 
 [sub_resource type="StyleBoxFlat" id="phone"]
 content_margin_left = 22.0
@@ -801,10 +737,10 @@ BenchPanel/base_type = &"PanelContainer"
 BenchPanel/styles/panel = SubResource("bench")
 CardboardPanel/base_type = &"PanelContainer"
 InkLineEdit/base_type = &"LineEdit"
-InkLineEdit/colors/caret_color = Color(0.102, 0.078, 0.086, 1)
-InkLineEdit/colors/font_color = Color(0.102, 0.078, 0.086, 1)
-InkLineEdit/colors/font_placeholder_color = Color(0.102, 0.078, 0.086, 0.4)
-InkLineEdit/colors/font_selected_color = Color(0.102, 0.078, 0.086, 1)
+InkLineEdit/colors/caret_color = Color(0.95, 0.94, 0.91, 1)
+InkLineEdit/colors/font_color = Color(0.95, 0.94, 0.91, 1)
+InkLineEdit/colors/font_placeholder_color = Color(1, 1, 1, 0.4)
+InkLineEdit/colors/font_selected_color = Color(0.95, 0.94, 0.91, 1)
 InkLineEdit/colors/selection_color = Color(0.95, 0.5, 0.15, 0.35)
 InkLineEdit/font_sizes/font_size = 44
 InkLineEdit/fonts/font = ExtResource("5")
@@ -865,7 +801,10 @@ TextWhenLabel/colors/font_color = Color(0.6, 0.61, 0.66, 1)
 TextWhenLabel/font_sizes/font_size = 20
 TextWhenLabel/fonts/font = ExtResource("2")
 MarkerSmallLabel/base_type = &"Label"
-MarkerSmallLabel/colors/font_color = Color(0.133, 0.2, 0.31, 1)
+MarkerSmallLabel/constants/shadow_offset_y = 2
+MarkerSmallLabel/constants/shadow_offset_x = 2
+MarkerSmallLabel/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+MarkerSmallLabel/colors/font_color = Color(0.99, 0.86, 0.42, 1)
 MarkerSmallLabel/font_sizes/font_size = 17
 MarkerSmallLabel/fonts/font = ExtResource("5")
 MemoryPhotoLabel/base_type = &"Label"
@@ -878,14 +817,23 @@ MemoryPhotoLabel/fonts/font = ExtResource("3")
 MemoryPhotoPanel/base_type = &"PanelContainer"
 MemoryPhotoPanel/styles/panel = SubResource("memory_photo")
 InkMoneyBigLabel/base_type = &"Label"
-InkMoneyBigLabel/colors/font_color = Color(0.1, 0.46, 0.22, 1)
+InkMoneyBigLabel/constants/shadow_offset_y = 2
+InkMoneyBigLabel/constants/shadow_offset_x = 2
+InkMoneyBigLabel/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+InkMoneyBigLabel/colors/font_color = Color(0.38, 0.92, 0.46, 1)
 InkMoneyBigLabel/font_sizes/font_size = 38
 InkMoneyBigLabel/fonts/font = ExtResource("3")
 InkMoneyLabel/base_type = &"Label"
-InkMoneyLabel/colors/font_color = Color(0.1, 0.46, 0.22, 1)
+InkMoneyLabel/constants/shadow_offset_y = 2
+InkMoneyLabel/constants/shadow_offset_x = 2
+InkMoneyLabel/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+InkMoneyLabel/colors/font_color = Color(0.38, 0.92, 0.46, 1)
 InkMoneyLabel/font_sizes/font_size = 26
 InkMoneyLabel/fonts/font = ExtResource("2")
 InkRepLabel/base_type = &"Label"
+InkRepLabel/constants/shadow_offset_y = 2
+InkRepLabel/constants/shadow_offset_x = 2
+InkRepLabel/colors/font_shadow_color = Color(0, 0, 0, 0.85)
 InkRepLabel/colors/font_color = Color(0.82, 0.36, 0.1, 1)
 InkRepLabel/font_sizes/font_size = 24
 InkRepLabel/fonts/font = ExtResource("2")
@@ -913,28 +861,35 @@ WhiteboardOrangeLabel/fonts/font = ExtResource("5")
 ClipboardPanel/base_type = &"PanelContainer"
 ClipboardPanel/styles/panel = SubResource("clipboard")
 GaffRedButton/base_type = &"Button"
-GaffRedButton/colors/font_color = Color(0.99, 0.98, 0.96, 1)
-GaffRedButton/colors/font_disabled_color = Color(0.102, 0.078, 0.086, 0.45)
-GaffRedButton/colors/font_focus_color = Color(0.99, 0.98, 0.96, 1)
-GaffRedButton/colors/font_hover_color = Color(0.99, 0.98, 0.96, 1)
-GaffRedButton/colors/font_pressed_color = Color(0.99, 0.98, 0.96, 1)
+GaffRedButton/constants/shadow_offset_y = 2
+GaffRedButton/constants/shadow_offset_x = 2
+GaffRedButton/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+GaffRedButton/colors/font_hover_pressed_color = Color(0.95, 0.94, 0.91, 1)
+GaffRedButton/colors/font_color = Color(0.95, 0.94, 0.91, 1)
+GaffRedButton/colors/font_disabled_color = Color(1, 1, 1, 0.35)
+GaffRedButton/colors/font_focus_color = Color(0.95, 0.94, 0.91, 1)
+GaffRedButton/colors/font_hover_color = Color(0.95, 0.94, 0.91, 1)
+GaffRedButton/colors/font_pressed_color = Color(0.95, 0.94, 0.91, 1)
 GaffRedButton/constants/outline_size = 0
 GaffRedButton/font_sizes/font_size = 52
-GaffRedButton/fonts/font = ExtResource("5")
+GaffRedButton/fonts/font = ExtResource("7")
 GaffRedButton/styles/disabled = SubResource("gaff_disabled")
 GaffRedButton/styles/focus = SubResource("empty")
 GaffRedButton/styles/hover = SubResource("gaff_red_hover")
 GaffRedButton/styles/normal = SubResource("gaff_red")
 GaffRedButton/styles/pressed = SubResource("gaff_red_pressed")
 InkTrackMap/base_type = &"Control"
-InkTrackMap/colors/faster = Color(0.12, 0.33, 0.72, 1)
-InkTrackMap/colors/line = Color(0.102, 0.078, 0.086, 0.55)
-InkTrackMap/colors/marker = Color(0.102, 0.078, 0.086, 1)
+InkTrackMap/colors/faster = Color(0.45, 0.68, 1.0, 1)
+InkTrackMap/colors/line = Color(1, 1, 1, 0.55)
+InkTrackMap/colors/marker = Color(0.95, 0.94, 0.91, 1)
 InkTrackMap/colors/severity_mid = Color(0.85, 0.55, 0.05, 1)
-InkTrackMap/colors/slower = Color(0.7, 0.15, 0.17, 1)
+InkTrackMap/colors/slower = Color(1.0, 0.36, 0.3, 1)
 InkTrackMap/fonts/font = ExtResource("2")
 SpeechLabel/base_type = &"Label"
-SpeechLabel/colors/font_color = Color(0.102, 0.078, 0.086, 1)
+SpeechLabel/constants/shadow_offset_y = 2
+SpeechLabel/constants/shadow_offset_x = 2
+SpeechLabel/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+SpeechLabel/colors/font_color = Color(0.95, 0.94, 0.91, 1)
 SpeechLabel/font_sizes/font_size = 30
 SpeechLabel/fonts/font = ExtResource("2")
 SpeechPanel/base_type = &"PanelContainer"
@@ -945,33 +900,49 @@ VerdictLabel/font_sizes/font_size = 64
 VerdictLabel/fonts/font = SubResource("dymo_font")
 VerdictLabel/styles/normal = SubResource("stamp_big")
 FlyerTextLabel/base_type = &"Label"
-FlyerTextLabel/colors/font_color = Color(0.102, 0.078, 0.086, 1)
+FlyerTextLabel/constants/shadow_offset_y = 2
+FlyerTextLabel/constants/shadow_offset_x = 2
+FlyerTextLabel/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+FlyerTextLabel/colors/font_color = Color(0.95, 0.94, 0.91, 1)
 FlyerTextLabel/font_sizes/font_size = 20
 FlyerTextLabel/fonts/font = ExtResource("4")
 FlyerTitleLabel/base_type = &"Label"
-FlyerTitleLabel/colors/font_color = Color(0.102, 0.078, 0.086, 1)
+FlyerTitleLabel/constants/shadow_offset_y = 2
+FlyerTitleLabel/constants/shadow_offset_x = 2
+FlyerTitleLabel/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+FlyerTitleLabel/colors/font_color = Color(0.95, 0.94, 0.91, 1)
 FlyerTitleLabel/font_sizes/font_size = 28
 FlyerTitleLabel/fonts/font = ExtResource("3")
 GaffSmallButton/base_type = &"Button"
-GaffSmallButton/colors/font_color = Color(0.102, 0.078, 0.086, 1)
-GaffSmallButton/colors/font_disabled_color = Color(0.102, 0.078, 0.086, 0.45)
-GaffSmallButton/colors/font_focus_color = Color(0.102, 0.078, 0.086, 1)
-GaffSmallButton/colors/font_hover_color = Color(0.102, 0.078, 0.086, 1)
-GaffSmallButton/colors/font_pressed_color = Color(0.102, 0.078, 0.086, 1)
+GaffSmallButton/constants/shadow_offset_y = 2
+GaffSmallButton/constants/shadow_offset_x = 2
+GaffSmallButton/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+GaffSmallButton/colors/font_hover_pressed_color = Color(0.06, 0.05, 0.05, 1)
+GaffSmallButton/colors/font_color = Color(0.95, 0.94, 0.91, 1)
+GaffSmallButton/colors/font_disabled_color = Color(1, 1, 1, 0.35)
+GaffSmallButton/colors/font_focus_color = Color(0.95, 0.94, 0.91, 1)
+GaffSmallButton/colors/font_hover_color = Color(0.95, 0.94, 0.91, 1)
+GaffSmallButton/colors/font_pressed_color = Color(0.06, 0.05, 0.05, 1)
 GaffSmallButton/constants/outline_size = 0
 GaffSmallButton/font_sizes/font_size = 26
-GaffSmallButton/fonts/font = ExtResource("5")
+GaffSmallButton/fonts/font = ExtResource("7")
 GaffSmallButton/styles/disabled = SubResource("gaff_small_disabled")
 GaffSmallButton/styles/focus = SubResource("empty")
 GaffSmallButton/styles/hover = SubResource("gaff_small")
 GaffSmallButton/styles/normal = SubResource("gaff_small")
 GaffSmallButton/styles/pressed = SubResource("gaff_small_pressed")
 WhiteboardRedSmallLabel/base_type = &"Label"
-WhiteboardRedSmallLabel/colors/font_color = Color(0.78, 0.13, 0.15, 1)
+WhiteboardRedSmallLabel/constants/shadow_offset_y = 2
+WhiteboardRedSmallLabel/constants/shadow_offset_x = 2
+WhiteboardRedSmallLabel/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+WhiteboardRedSmallLabel/colors/font_color = Color(1.0, 0.36, 0.3, 1)
 WhiteboardRedSmallLabel/font_sizes/font_size = 21
 WhiteboardRedSmallLabel/fonts/font = ExtResource("5")
 WhiteboardSmallLabel/base_type = &"Label"
-WhiteboardSmallLabel/colors/font_color = Color(0.11, 0.11, 0.14, 1)
+WhiteboardSmallLabel/constants/shadow_offset_y = 2
+WhiteboardSmallLabel/constants/shadow_offset_x = 2
+WhiteboardSmallLabel/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+WhiteboardSmallLabel/colors/font_color = Color(0.95, 0.94, 0.91, 1)
 WhiteboardSmallLabel/font_sizes/font_size = 21
 WhiteboardSmallLabel/fonts/font = ExtResource("5")
 CardboardPanel/styles/panel = SubResource("cardboard")
@@ -996,32 +967,38 @@ FlyerBluePanel/styles/panel = SubResource("flyer_blue")
 FlyerPinkPanel/base_type = &"PanelContainer"
 FlyerPinkPanel/styles/panel = SubResource("flyer_pink")
 FlyerPriceLabel/base_type = &"Label"
-FlyerPriceLabel/colors/font_color = Color(0.1, 0.46, 0.22, 1)
+FlyerPriceLabel/constants/shadow_offset_y = 2
+FlyerPriceLabel/constants/shadow_offset_x = 2
+FlyerPriceLabel/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+FlyerPriceLabel/colors/font_color = Color(0.38, 0.92, 0.46, 1)
 FlyerPriceLabel/font_sizes/font_size = 46
 FlyerPriceLabel/fonts/font = ExtResource("3")
 FlyerYellowPanel/base_type = &"PanelContainer"
 FlyerYellowPanel/styles/panel = SubResource("flyer_yellow")
 GaffButton/base_type = &"Button"
-GaffButton/colors/font_color = Color(0.102, 0.078, 0.086, 1)
-GaffButton/colors/font_disabled_color = Color(0.102, 0.078, 0.086, 0.45)
-GaffButton/colors/font_focus_color = Color(0.102, 0.078, 0.086, 1)
-GaffButton/colors/font_hover_color = Color(0.102, 0.078, 0.086, 1)
-GaffButton/colors/font_hover_pressed_color = Color(0.102, 0.078, 0.086, 1)
-GaffButton/colors/font_pressed_color = Color(0.102, 0.078, 0.086, 1)
+GaffButton/constants/shadow_offset_y = 2
+GaffButton/constants/shadow_offset_x = 2
+GaffButton/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+GaffButton/colors/font_color = Color(0.95, 0.94, 0.91, 1)
+GaffButton/colors/font_disabled_color = Color(1, 1, 1, 0.35)
+GaffButton/colors/font_focus_color = Color(0.95, 0.94, 0.91, 1)
+GaffButton/colors/font_hover_color = Color(0.95, 0.94, 0.91, 1)
+GaffButton/colors/font_hover_pressed_color = Color(0.06, 0.05, 0.05, 1)
+GaffButton/colors/font_pressed_color = Color(0.06, 0.05, 0.05, 1)
 GaffButton/constants/outline_size = 0
 GaffButton/font_sizes/font_size = 40
-GaffButton/fonts/font = ExtResource("5")
+GaffButton/fonts/font = ExtResource("7")
 GaffButton/styles/disabled = SubResource("gaff_disabled")
 GaffButton/styles/focus = SubResource("empty")
 GaffButton/styles/hover = SubResource("gaff_hover")
 GaffButton/styles/normal = SubResource("gaff")
 GaffButton/styles/pressed = SubResource("gaff_pressed")
 InkDynoChart/base_type = &"Control"
-InkDynoChart/colors/grid = Color(0.102, 0.078, 0.086, 0.12)
-InkDynoChart/colors/power = Color(0.7, 0.15, 0.17, 1)
-InkDynoChart/colors/redline = Color(0.7, 0.15, 0.17, 0.1)
-InkDynoChart/colors/text = Color(0.42, 0.37, 0.32, 1)
-InkDynoChart/colors/torque = Color(0.13, 0.27, 0.55, 1)
+InkDynoChart/colors/grid = Color(1, 1, 1, 0.14)
+InkDynoChart/colors/power = Color(1.0, 0.36, 0.3, 1)
+InkDynoChart/colors/redline = Color(1.0, 0.36, 0.3, 0.12)
+InkDynoChart/colors/text = Color(0.72, 0.72, 0.74, 1)
+InkDynoChart/colors/torque = Color(0.45, 0.68, 1.0, 1)
 InkDynoChart/fonts/font = ExtResource("2")
 CrewSticker/base_type = &"Control"
 CrewSticker/colors/accent = Color(0.8, 0.1, 0.12, 1)
@@ -1041,12 +1018,12 @@ PartArt/colors/rubber = Color(0.16, 0.15, 0.16, 1)
 PartArt/colors/yellow = Color(0.96, 0.78, 0.18, 1)
 PartArt/fonts/font = ExtResource("2")
 PartPickButton/base_type = &"OptionButton"
-PartPickButton/colors/font_color = Color(0.102, 0.078, 0.086, 1)
-PartPickButton/colors/font_disabled_color = Color(0.102, 0.078, 0.086, 0.45)
-PartPickButton/colors/font_focus_color = Color(0.102, 0.078, 0.086, 1)
-PartPickButton/colors/font_hover_color = Color(0.102, 0.078, 0.086, 1)
-PartPickButton/colors/font_hover_pressed_color = Color(0.102, 0.078, 0.086, 1)
-PartPickButton/colors/font_pressed_color = Color(0.102, 0.078, 0.086, 1)
+PartPickButton/colors/font_color = Color(0.95, 0.94, 0.91, 1)
+PartPickButton/colors/font_disabled_color = Color(1, 1, 1, 0.35)
+PartPickButton/colors/font_focus_color = Color(0.95, 0.94, 0.91, 1)
+PartPickButton/colors/font_hover_color = Color(0.95, 0.94, 0.91, 1)
+PartPickButton/colors/font_hover_pressed_color = Color(0.95, 0.94, 0.91, 1)
+PartPickButton/colors/font_pressed_color = Color(0.95, 0.94, 0.91, 1)
 PartPickButton/constants/outline_size = 0
 PartPickButton/font_sizes/font_size = 20
 PartPickButton/fonts/font = ExtResource("5")
@@ -1056,35 +1033,51 @@ PartPickButton/styles/hover = SubResource("tape_small")
 PartPickButton/styles/normal = SubResource("tape_small")
 PartPickButton/styles/pressed = SubResource("tape_small")
 SmallTapeButton/base_type = &"Button"
-SmallTapeButton/colors/font_color = Color(0.102, 0.078, 0.086, 1)
-SmallTapeButton/colors/font_disabled_color = Color(0.102, 0.078, 0.086, 0.45)
-SmallTapeButton/colors/font_focus_color = Color(0.102, 0.078, 0.086, 1)
-SmallTapeButton/colors/font_hover_color = Color(0.102, 0.078, 0.086, 1)
-SmallTapeButton/colors/font_pressed_color = Color(0.102, 0.078, 0.086, 1)
+SmallTapeButton/constants/shadow_offset_y = 2
+SmallTapeButton/constants/shadow_offset_x = 2
+SmallTapeButton/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+SmallTapeButton/colors/font_hover_pressed_color = Color(0.99, 0.86, 0.42, 1)
+SmallTapeButton/colors/font_color = Color(0.95, 0.94, 0.91, 1)
+SmallTapeButton/colors/font_disabled_color = Color(1, 1, 1, 0.35)
+SmallTapeButton/colors/font_focus_color = Color(0.95, 0.94, 0.91, 1)
+SmallTapeButton/colors/font_hover_color = Color(0.99, 0.86, 0.42, 1)
+SmallTapeButton/colors/font_pressed_color = Color(0.99, 0.86, 0.42, 1)
 SmallTapeButton/constants/outline_size = 0
 SmallTapeButton/font_sizes/font_size = 22
-SmallTapeButton/fonts/font = ExtResource("5")
+SmallTapeButton/fonts/font = ExtResource("7")
 SmallTapeButton/styles/disabled = SubResource("tape_disabled")
 SmallTapeButton/styles/focus = SubResource("empty")
 SmallTapeButton/styles/hover = SubResource("tape_small")
 SmallTapeButton/styles/normal = SubResource("tape_small")
 SmallTapeButton/styles/pressed = SubResource("tape_small")
 WhiteboardGreenLabel/base_type = &"Label"
-WhiteboardGreenLabel/colors/font_color = Color(0.12, 0.5, 0.28, 1)
+WhiteboardGreenLabel/constants/shadow_offset_y = 2
+WhiteboardGreenLabel/constants/shadow_offset_x = 2
+WhiteboardGreenLabel/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+WhiteboardGreenLabel/colors/font_color = Color(0.38, 0.92, 0.46, 1)
 WhiteboardGreenLabel/font_sizes/font_size = 21
 WhiteboardGreenLabel/fonts/font = ExtResource("5")
 WhiteboardLabel/base_type = &"Label"
-WhiteboardLabel/colors/font_color = Color(0.11, 0.11, 0.14, 1)
+WhiteboardLabel/constants/shadow_offset_y = 2
+WhiteboardLabel/constants/shadow_offset_x = 2
+WhiteboardLabel/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+WhiteboardLabel/colors/font_color = Color(0.95, 0.94, 0.91, 1)
 WhiteboardLabel/font_sizes/font_size = 26
 WhiteboardLabel/fonts/font = ExtResource("5")
 WhiteboardPanel/base_type = &"PanelContainer"
 WhiteboardPanel/styles/panel = SubResource("whiteboard")
 WhiteboardRedLabel/base_type = &"Label"
-WhiteboardRedLabel/colors/font_color = Color(0.78, 0.13, 0.15, 1)
+WhiteboardRedLabel/constants/shadow_offset_y = 2
+WhiteboardRedLabel/constants/shadow_offset_x = 2
+WhiteboardRedLabel/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+WhiteboardRedLabel/colors/font_color = Color(1.0, 0.36, 0.3, 1)
 WhiteboardRedLabel/font_sizes/font_size = 26
 WhiteboardRedLabel/fonts/font = ExtResource("5")
 WhiteboardBlueLabel/base_type = &"Label"
-WhiteboardBlueLabel/colors/font_color = Color(0.12, 0.25, 0.6, 1)
+WhiteboardBlueLabel/constants/shadow_offset_y = 2
+WhiteboardBlueLabel/constants/shadow_offset_x = 2
+WhiteboardBlueLabel/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+WhiteboardBlueLabel/colors/font_color = Color(0.45, 0.68, 1.0, 1)
 WhiteboardBlueLabel/font_sizes/font_size = 21
 WhiteboardBlueLabel/fonts/font = ExtResource("5")
 AccentButton/base_type = &"Button"
@@ -1156,7 +1149,7 @@ DymoLabel/colors/font_shadow_color = Color(0.45, 0.45, 0.45, 0.7)
 DymoLabel/constants/shadow_offset_x = 0
 DymoLabel/constants/shadow_offset_y = 1
 DymoLabel/font_sizes/font_size = 26
-DymoLabel/fonts/font = SubResource("dymo_font")
+DymoLabel/fonts/font = ExtResource("7")
 DymoLabel/styles/normal = SubResource("dymo")
 EventDayPanel/base_type = &"PanelContainer"
 EventDayPanel/styles/panel = SubResource("event_day_panel")
@@ -1173,23 +1166,41 @@ HeadingLabel/constants/shadow_offset_y = 3
 HeadingLabel/font_sizes/font_size = 28
 HeadingLabel/fonts/font = ExtResource("3")
 InkHeadingLabel/base_type = &"Label"
-InkHeadingLabel/colors/font_color = Color(0.102, 0.078, 0.086, 1)
+InkHeadingLabel/constants/shadow_offset_y = 2
+InkHeadingLabel/constants/shadow_offset_x = 2
+InkHeadingLabel/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+InkHeadingLabel/colors/font_color = Color(0.95, 0.94, 0.91, 1)
 InkHeadingLabel/font_sizes/font_size = 38
 InkHeadingLabel/fonts/font = ExtResource("3")
 InkGoodLabel/base_type = &"InkLabel"
-InkGoodLabel/colors/font_color = Color(0.12, 0.5, 0.22, 1)
+InkGoodLabel/constants/shadow_offset_y = 2
+InkGoodLabel/constants/shadow_offset_x = 2
+InkGoodLabel/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+InkGoodLabel/colors/font_color = Color(0.42, 0.92, 0.46, 1)
 InkBadLabel/base_type = &"InkLabel"
-InkBadLabel/colors/font_color = Color(0.7, 0.15, 0.17, 1)
+InkBadLabel/constants/shadow_offset_y = 2
+InkBadLabel/constants/shadow_offset_x = 2
+InkBadLabel/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+InkBadLabel/colors/font_color = Color(1.0, 0.36, 0.3, 1)
 InkLabel/base_type = &"Label"
-InkLabel/colors/font_color = Color(0.102, 0.078, 0.086, 1)
+InkLabel/constants/shadow_offset_y = 2
+InkLabel/constants/shadow_offset_x = 2
+InkLabel/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+InkLabel/colors/font_color = Color(0.95, 0.94, 0.91, 1)
 InkLabel/font_sizes/font_size = 26
 InkMutedLabel/base_type = &"Label"
-InkMutedLabel/colors/font_color = Color(0.42, 0.37, 0.32, 1)
+InkMutedLabel/constants/shadow_offset_y = 2
+InkMutedLabel/constants/shadow_offset_x = 2
+InkMutedLabel/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+InkMutedLabel/colors/font_color = Color(0.72, 0.72, 0.74, 1)
 InkMutedLabel/font_sizes/font_size = 20
 InkMutedLabel/fonts/font = ExtResource("2")
 Label/colors/font_color = Color(0.976, 0.957, 0.961, 1)
 MarkerLabel/base_type = &"Label"
-MarkerLabel/colors/font_color = Color(0.133, 0.2, 0.31, 1)
+MarkerLabel/constants/shadow_offset_y = 2
+MarkerLabel/constants/shadow_offset_x = 2
+MarkerLabel/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+MarkerLabel/colors/font_color = Color(0.99, 0.86, 0.42, 1)
 MarkerLabel/font_sizes/font_size = 28
 MarkerLabel/fonts/font = ExtResource("5")
 MutedLabel/base_type = &"Label"
@@ -1213,7 +1224,7 @@ SelectedButton/styles/hover = SubResource("selected_normal")
 SelectedButton/styles/normal = SubResource("selected_normal")
 SelectedButton/styles/pressed = SubResource("selected_normal")
 StampLabel/base_type = &"Label"
-StampLabel/colors/font_color = Color(0.7, 0.15, 0.17, 0.9)
+StampLabel/colors/font_color = Color(1.0, 0.36, 0.3, 1)
 StampLabel/font_sizes/font_size = 22
 StampLabel/fonts/font = SubResource("dymo_font")
 StampLabel/styles/normal = SubResource("stamp")
@@ -1225,21 +1236,28 @@ StoryLabel/constants/shadow_offset_y = 2
 StoryLabel/font_sizes/font_size = 52
 StoryLabel/fonts/font = ExtResource("3")
 TapeButton/base_type = &"Button"
-TapeButton/colors/font_color = Color(0.102, 0.078, 0.086, 1)
-TapeButton/colors/font_focus_color = Color(0.102, 0.078, 0.086, 1)
-TapeButton/colors/font_hover_color = Color(0.102, 0.078, 0.086, 1)
-TapeButton/colors/font_pressed_color = Color(0.102, 0.078, 0.086, 1)
+TapeButton/constants/shadow_offset_y = 2
+TapeButton/constants/shadow_offset_x = 2
+TapeButton/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+TapeButton/colors/font_hover_pressed_color = Color(0.99, 0.86, 0.42, 1)
+TapeButton/colors/font_color = Color(0.95, 0.94, 0.91, 1)
+TapeButton/colors/font_focus_color = Color(0.95, 0.94, 0.91, 1)
+TapeButton/colors/font_hover_color = Color(0.99, 0.86, 0.42, 1)
+TapeButton/colors/font_pressed_color = Color(0.99, 0.86, 0.42, 1)
 TapeButton/constants/outline_size = 0
 TapeButton/font_sizes/font_size = 22
-TapeButton/fonts/font = ExtResource("5")
+TapeButton/fonts/font = ExtResource("7")
 TapeButton/styles/focus = SubResource("empty")
 TapeButton/styles/hover = SubResource("tape")
 TapeButton/styles/normal = SubResource("tape")
 TapeButton/styles/pressed = SubResource("tape")
 TapeLabel/base_type = &"Label"
-TapeLabel/colors/font_color = Color(0.102, 0.078, 0.086, 1)
+TapeLabel/constants/shadow_offset_y = 2
+TapeLabel/constants/shadow_offset_x = 2
+TapeLabel/colors/font_shadow_color = Color(0, 0, 0, 0.85)
+TapeLabel/colors/font_color = Color(0.95, 0.94, 0.91, 1)
 TapeLabel/font_sizes/font_size = 26
-TapeLabel/fonts/font = ExtResource("5")
+TapeLabel/fonts/font = ExtResource("7")
 TapeLabel/styles/normal = SubResource("tape")
 TitleLabel/base_type = &"Label"
 TitleLabel/colors/font_color = Color(0.976, 0.957, 0.961, 1)

@@ -26,6 +26,7 @@ func _ready() -> void:
 	lot.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(lot)
 	move_child(lot, 0)
+	lot.remove_from_group("stage")                # (just a backdrop here: the shell's stage is the one)
 	lot.show_car(false)
 	var veil := ColorRect.new()
 	veil.color = Color(0.02, 0.02, 0.04, 0.6)

@@ -1,7 +1,6 @@
 [gd_scene format=3 uid="uid://dgjoqqwn0qtpt"]
 
 [ext_resource type="Script" uid="uid://bgt4myfh4o6nq" path="res://screens/warehouse.gd" id="1"]
-[ext_resource type="Script" path="res://widgets/viewfinder.gd" id="2"]
 [ext_resource type="Script" path="res://widgets/crew_sticker.gd" id="crew"]
 
 [node name="Warehouse" type="Control"]
@@ -26,17 +25,6 @@ theme_override_constants/separation = 22
 custom_minimum_size = Vector2(0, 430)
 layout_mode = 2
 size_flags_vertical = 3
-
-[node name="Viewfinder" type="Control" parent="Column/PinnedPhoto"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-theme_type_variation = &"Viewfinder"
-script = ExtResource("2")
 
 [node name="Caption" type="Label" parent="Column/PinnedPhoto"]
 unique_name_in_owner = true
@@ -70,6 +58,39 @@ rotation = -0.05
 mouse_filter = 2
 theme_type_variation = &"CrewSticker"
 script = ExtResource("crew")
+
+[node name="LightRow" type="HBoxContainer" parent="Column"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="LightLabel" type="Label" parent="Column/LightRow"]
+layout_mode = 2
+theme_type_variation = &"OsdLabel"
+theme_override_font_sizes/font_size = 26
+text = "LIGHT"
+
+[node name="LightDown" type="Button" parent="Column/LightRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(52, 0)
+layout_mode = 2
+focus_mode = 0
+theme_type_variation = &"OsdButton"
+text = "-"
+
+[node name="LightLevel" type="Label" parent="Column/LightRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"OsdLabel"
+theme_override_font_sizes/font_size = 26
+text = "####."
+
+[node name="LightUp" type="Button" parent="Column/LightRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(52, 0)
+layout_mode = 2
+focus_mode = 0
+theme_type_variation = &"OsdButton"
+text = "+"
 
 [node name="WorkOrder" type="PanelContainer" parent="Column"]
 layout_mode = 2

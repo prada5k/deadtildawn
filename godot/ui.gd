@@ -16,6 +16,27 @@ const INK := Color(0.102, 0.078, 0.086)       # #1A1416, ink on paper
 const INK_BAD := Color(0.7, 0.15, 0.17)       # red ink
 
 
+## The garage behind the hub screens (widgets/garage_cam.gd, owned by the shell).
+static func stage(from: Node) -> Node:
+	return from.get_tree().get_first_node_in_group("stage")
+
+
+## A drag on a see-through area of a screen walks the stage's camera round
+## the car on the lift (CAR, body shop). Only sideways drags: vertical swipes
+## still scroll.
+static func drag_orbit(from: Control, event: InputEvent) -> void:
+	var rel := Vector2.ZERO
+	if event is InputEventScreenDrag:
+		rel = (event as InputEventScreenDrag).relative
+	elif event is InputEventMouseMotion and (event as InputEventMouseMotion).button_mask & MOUSE_BUTTON_MASK_LEFT:
+		rel = (event as InputEventMouseMotion).relative
+	if rel != Vector2.ZERO and absf(rel.x) > absf(rel.y):
+		var s := stage(from)
+		if s != null:
+			s.orbit(rel.x)
+		from.accept_event()
+
+
 static func label(parent: Node, text: String, variation := "", color = null) -> Label:
 	var l := Label.new()
 	l.text = text

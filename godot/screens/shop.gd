@@ -15,8 +15,8 @@ signal repair(uid: String)      # damaged in a crash: off the car until repaired
 
 const UI := preload("res://ui.gd")
 const PartArt := preload("res://widgets/part_art.gd")
-const KeiShop := preload("res://widgets/kei_shop.gd")
-const KEI_H := 470.0            # the kei truck's view (px)
+const KeiSet := preload("res://widgets/kei_set.gd")
+const KEI_H := 430.0            # the window onto the kei truck in the garage (px)
 const Voice := preload("res://voice.gd")
 const PIN := preload("res://textures/pin.png")
 const PIC_PX := 112            # a part's picture on the counter + the shelf (Spire: bigger)
@@ -91,24 +91,34 @@ func setup(info: Dictionary, catalog: Dictionary, inventory: Array, installed: D
 
 	# Pulls: boxes in a kei truck's bed (Spire), the picked one's card under it
 	tape_header(list, "pulls", 0.012)
-	var kei: SubViewportContainer = KeiShop.new()
-	kei.custom_minimum_size = Vector2(0, KEI_H)
-	list.add_child(kei)
+	# The truck is in the garage behind this screen (the stage): a see-through
+	# window over it; a tap there picks the box under your finger
+	var window := Control.new()
+	window.custom_minimum_size = Vector2(0, KEI_H)
+	window.mouse_filter = Control.MOUSE_FILTER_STOP
+	list.add_child(window)
 	var srcs := {}
 	for id in catalog["sources"]:
 		var s: Dictionary = catalog["sources"][id]
 		srcs[id] = {"price": s["price"], "rep_required": s["rep_required"], "locked": int(info["rep"]) < int(s["rep_required"])}
-	kei.setup(srcs)
+	var stage := UI.stage(self)
+	stage.setup_boxes(srcs)
 	var card_slot := VBoxContainer.new()
 	list.add_child(card_slot)
 	var show_card := func(id: String):
 		for c in card_slot.get_children():
 			c.queue_free()
 		if catalog["sources"].has(id):
-			flyer(card_slot, id, catalog["sources"][id], KeiShop.BOXES.keys().find(id), int(info["rep"]),
+			flyer(card_slot, id, catalog["sources"][id], KeiSet.BOXES.keys().find(id), int(info["rep"]),
 				spendable, int(pity.get(id, 0)))
-	kei.picked.connect(show_card)
-	show_card.call(kei.selected)
+	window.gui_input.connect(func(e: InputEvent):
+		var tap: bool = (e is InputEventMouseButton and e.pressed) or (e is InputEventScreenTouch and e.pressed)
+		if tap:
+			var id: String = stage.pick_box(window.global_position + e.position)
+			if id != "":
+				show_card.call(id)
+				window.accept_event())
+	show_card.call(stage.selected_box())
 
 	# The bench: pulled or looted boxes, not dynoed yet
 	var unopened := inventory.filter(func(inst): return not inst["revealed"])

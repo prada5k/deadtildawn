@@ -47,5 +47,7 @@ func _draw() -> void:
 	draw_string(font, Vector2(r.end.x - 20 - rw, top.y), right, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, line)
 	var d := Time.get_datetime_dict_from_system()
 	var months := ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
-	var stamp := "%s %02d %d  %02d:%02d:%02d" % [months[int(d["month"]) - 1], d["day"], d["year"], d["hour"], d["minute"], d["second"]]
-	draw_string(font, Vector2(r.position.x + 20, r.end.y - 20), stamp, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, line)
+	var stamp := "%s %02d  %02d:%02d:%02d" % [months[int(d["month"]) - 1], d["day"], d["hour"], d["minute"], d["second"]]
+	# The date up top by REC (the bottom of the screen is the menus' and the nav's)
+	draw_string(font, top + Vector2(24 + font.get_string_size("REC   ", HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x, 0), stamp,
+		HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs * 0.85), line)

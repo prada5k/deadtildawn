@@ -13,7 +13,8 @@ signal take_off(slot: String)
 const UI := preload("res://ui.gd")
 const BodyShop := preload("res://bodyshop.gd")
 const Voice := preload("res://voice.gd")
-const Lift := preload("res://widgets/lift_bay.gd")
+const REAR_YAW := -1.0      # the stage's orbit: 3/4 rear...
+const FRONT_YAW := 1.0      # ...3/4 front
 
 var info := {}
 var trying := ""             # the item on preview ("" = none)
@@ -21,10 +22,12 @@ var trying := ""             # the item on preview ("" = none)
 
 func _ready() -> void:
 	%Back.pressed.connect(func(): go.emit("car"))
-	%Lift.allow_rear()           # Spire: a way to see the back (drag all the way round, or the button)
+	# The car's in the garage behind this screen (the stage): drag the bay to
+	# walk round it; the button swings to the back (Spire)
+	%Bay.gui_input.connect(func(e: InputEvent): UI.drag_orbit(self, e))
 	%Flip.pressed.connect(func():
-		var to_back: bool = %Lift.yaw > 0.0
-		%Lift.swing_to(Lift.REAR_YAW if to_back else Lift.FRONT_YAW)
+		var to_back: bool = UI.stage(self).yaw > 0.0
+		UI.stage(self).swing_to(REAR_YAW if to_back else FRONT_YAW)
 		%Flip.text = "see the front" if to_back else "see the back")
 	%Buy.pressed.connect(func():
 		if trying != "":
@@ -34,8 +37,8 @@ func _ready() -> void:
 ## The car comes down to the floor (easier to see what you're putting on it):
 ## riding down on the way in, already down when the screen's only rebuilt
 ## after a buy / wear / take off (game.gd).
-func lower_lift(ride: bool) -> void:
-	%Lift.lower(not ride)
+func lower_lift(_ride: bool) -> void:
+	pass                         # the stage's body shop shot lowers it (garage_cam.gd whip_to)
 
 
 ## info: parts (installed part ids), owned ([ids]), worn ({slot: id}),
@@ -81,7 +84,7 @@ func show_car() -> void:
 	var worn: Dictionary = info["worn"].duplicate()
 	if trying != "":
 		worn[BodyShop.ITEMS[trying]["slot"]] = trying
-	%Lift.show_parts(info["parts"] + BodyShop.look_tags(worn))
+	UI.stage(self).show_parts(info["parts"] + BodyShop.look_tags(worn))
 	%TryBar.visible = trying != ""
 	if trying != "":
 		var item: Dictionary = BodyShop.ITEMS[trying]
