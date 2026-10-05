@@ -48,6 +48,9 @@ CARS = {
     "fd2": ("fd2.glb", 4.49, False),        # as the FA5 (same body, its 4.49 m)
     "celica6": ("celica6th.glb", 4.42, True),
     "evo3": ("evo3.glb", 4.31, False),
+    "gsx": ("gsx.glb", 4.49, True),       # Rook's Eclipse (2G)
+    "gti": ("gti.glb", 4.15, True),       # Paz's GTI (Mk4)
+    "ms3": ("ms3.glb", 4.50, True),       # Static's Mazdaspeed3
     "eg6": ("eg6.glb", 4.07, True),         # -> the DX (godot/models/dx.glb)
 }
 
@@ -347,13 +350,28 @@ def mark_lights(ob):
     length = hi.x - lo.x
     cols = face_colors(ob)
     counts = {"Taillight": 0, "Amber": 0, "Headlight": 0}
+    areas = {}                                     # the body paint (most area) is never a lens, red car or not
+    for p in ob.data.polygons:
+        areas[p.material_index] = areas.get(p.material_index, 0.0) + p.area
+    paint_i = max(areas, key=areas.get) if areas else -1
     named = set(k for k in kinds if k)
+    # A red car's paint looks like a lens: then lenses only by name (the game falls back to its own glow)
+    side = [cols[p.index] for p in ob.data.polygons if abs(p.normal.y) > 0.7 and 0.4 < p.center.z < 0.9]
+    if side:
+        sr = sum(c[0] for c in side) / len(side)
+        sg = sum(c[1] for c in side) / len(side)
+        sb = sum(c[2] for c in side) / len(side)
+        if sr > 1.6 * sg and sr > 1.6 * sb:
+            named.add("Taillight")
+            named.add("Amber")
     for p in ob.data.polygons:
         kind = kinds[p.material_index] if p.material_index < len(kinds) else None
         c = p.center
         r, g, b = cols[p.index]
         rear = c.x < lo.x + 0.13 * length
         front = c.x > hi.x - 0.13 * length
+        if kind is None and (p.material_index == paint_i or any(w in names[p.material_index].lower() for w in ("paint", "body"))):
+            continue                               # the body's paint is never a lens
         if kind is None and "Taillight" not in named and rear and p.normal.x < -0.3 \
                 and r > 0.25 and r > 1.8 * g and r > 1.8 * b:
             kind = "Taillight"
@@ -362,12 +380,28 @@ def mark_lights(ob):
         if kind == "Headlight" and rear:          # a "lights" material covering both ends: the back is the tail
             kind = "Taillight"
         if kind:
+            src_name = names[p.material_index] if p.material_index < len(names) else "?"
+            counts.setdefault("from", {}).setdefault(f"{kind}<-{src_name}", 0)
+            counts["from"][f"{kind}<-{src_name}"] += 1
             p.material_index = slot[kind]
             counts[kind] += 1
     # Rename the game materials to the names the game looks for
     for kind, i in slot.items():
         ob.data.materials[i].name = kind
     return counts
+
+
+MAX_TRIS = 30000                                   # two cars on a phone at once
+
+
+def slim(ob):
+    tris = sum(len(p.vertices) - 2 for p in ob.data.polygons)
+    if tris > MAX_TRIS:
+        bpy.context.view_layer.objects.active = ob
+        mod = ob.modifiers.new("lod", "DECIMATE")
+        mod.ratio = MAX_TRIS / tris
+        mod.delimit = {"UV", "SEAM", "MATERIAL"}       # don't tear the textures or merge lenses into paint
+        bpy.ops.object.modifier_apply(modifier="lod")
 
 
 def render_check(ob, name):
@@ -426,6 +460,7 @@ for name in only:
     ob = import_joined(os.path.join(SRC, src))
     ob.name = name
     normalize(ob, length, flip)
+    slim(ob)
     if name != "eg6":                              # (the EG6's lights are named by fit_dx)
         print(f"  {name} lights:", mark_lights(ob))
     if name == "eg6":

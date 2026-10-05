@@ -78,6 +78,7 @@ func light_model(m: Node, on: bool) -> void:
 	var amber := mat(Color(1.0, 0.55, 0.1), 0.3, 0.0, Color(1.0, 0.55, 0.1))
 	amber.emission_energy_multiplier = 0.0
 	var head := mat(Color(0.95, 0.95, 0.9), 0.15, 0.0, Color(1.0, 0.92, 0.72) if on else Color.BLACK)
+	var has_tails := false
 	for mi in m.find_children("*", "MeshInstance3D", true, false):
 		var mesh_i := mi as MeshInstance3D
 		for i in mesh_i.mesh.get_surface_count():
@@ -87,11 +88,14 @@ func light_model(m: Node, on: bool) -> void:
 			match sm.resource_name:
 				"Taillight":
 					mesh_i.set_surface_override_material(i, taillight_mat)
+					has_tails = true
 				"Amber":
 					mesh_i.set_surface_override_material(i, amber)
 					blinker_mat = amber
 				"Headlight":
 					mesh_i.set_surface_override_material(i, head)
+	if not has_tails:                                  # none found: the race view draws its own brake glow
+		taillight_mat = null
 
 
 static func profile_for(car_name: String) -> Dictionary:
@@ -197,6 +201,9 @@ const MODELS := {
 	"FA5": "fd2",            # the story's FA5 Civic Si sedan: the FD2's body (Spire). Brandon's R18 Civic: TODO
 	"Celica": "celica6",
 	"Lancer": "evo3",
+	"Eclipse": "gsx",
+	"GTI": "gti",
+	"Mazdaspeed": "ms3",
 	"Evo": "evo3",
 }
 const MODEL_DIR := "res://models/cars/"
