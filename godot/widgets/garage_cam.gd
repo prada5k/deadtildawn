@@ -28,7 +28,10 @@ const DRIFT_M := 0.35                        # a slow side step back and forth..
 const DRIFT_S := 16.0                        # ...over this long
 
 var car: Node3D
-var other: Node3D                # someone's car parked two stalls down (settings: hide it)
+var other: Node3D                # the other cars parked in the garage (settings: hide them)
+const PARKED := ["1995 Honda Accord LX", "1989 Toyota Corolla GT-S (AE86)", "1977 Nissan 280Z",
+	"2009 Nissan 370Z", "Toyota Celica", "Mitsubishi Lancer Evolution III", "1998 Mitsubishi Eclipse GS-T",
+	"2002 Volkswagen GTI 1.8T", "2006 Mazdaspeed 3", "2009 Honda Civic Si (FA5)"]
 var cam: Camera3D
 var flicker: OmniLight3D
 var flicker_tube: MeshInstance3D
@@ -165,11 +168,21 @@ func build_lot(vp: Node) -> void:
 	for z: float in [3.75, 8.75, -1.25]:
 		solid(vp, Vector3(1.1, 0.004, 0.8), Vector3(BACK_X - 2.4, 0.003, z + rng.randf_range(-0.2, 0.2)), Color(0.12, 0.11, 0.1))
 	# Someone else's car, two stalls down in the dark
-	other = CarModel.new()
-	other.build_car("1995 Honda Accord LX")
-	other.position = Vector3(7.0, 0, 8.75)
-	other.rotation.y = PI
+	# Other people's cars in the other stalls (Spire: random ones): a few of the
+	# model cars, a new mix every time you come home; some backed in, some nosed in
+	other = Node3D.new()
 	vp.add_child(other)
+	var pool := PARKED.duplicate()
+	pool.shuffle()
+	var stalls := [-1.25, 1.25, 6.25, 8.75]
+	stalls.shuffle()
+	for k in randi_range(2, 3):
+		var c: Node3D = CarModel.new()
+		c.build_car(pool[k], false)
+		var backed_in := randf() < 0.6
+		c.position = Vector3(7.0 if backed_in else 6.8, 0, stalls[k] + randf_range(-0.12, 0.12))
+		c.rotation.y = (PI if backed_in else 0.0) + randf_range(-0.05, 0.05)
+		other.add_child(c)
 
 
 ## The floor: 1 m tiles split into two triangles each, every triangle its own
