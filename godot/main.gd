@@ -1435,6 +1435,7 @@ func fire_events(delta: float) -> void:
 				crash_fx(car.position, car.rotation)
 			if pane == "":
 				Sound.play("crash")
+				Sound.buzz(140)
 		else:
 			crash_age += delta
 	if ghost != null and bool(ghost["dnf"]):

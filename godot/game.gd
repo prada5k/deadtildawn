@@ -93,7 +93,8 @@ var track_info := {}
 var catalog := {}          # bridge "parts" reply (slots + parts with exact effects)
 var shop_message := ""
 var pending_race := {}     # race reply + result, held while a loot pull resolves
-var jorge_tries := 0       # jorge mode: races re-run tonight so Faba wins
+var jorge_tries := 0
+var still_mode := false    # --gametest / --gameshots: no transitions or count-ups (they'd blur the stills)       # jorge mode: races re-run tonight so Faba wins
 var pull_paid := 0         # price of the pull in flight: refunded if the sim fails
 var bridge: Node
 var screen: Control        # current UI screen (the shell while in the hub)
@@ -120,6 +121,7 @@ func _ready() -> void:
 	for a in args:
 		if a == "--gametest" or a.begins_with("--gameshots="):
 			save_path = TEST_SAVE_PATH
+			still_mode = true
 	load_game()
 	if "--gametest" in args:
 		game_test()           # the test awaits replies itself: don't also run the game's handler
@@ -326,6 +328,7 @@ func open_hub(packed: PackedScene, tab: String) -> Control:
 	if shell == null:
 		clear_screen()
 		shell = ShellScene.instantiate()
+		shell.animate = not still_mode           # stills and tests: no slides, no counting
 		add_child(shell)
 		shell.go.connect(_go)
 		screen = shell

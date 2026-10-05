@@ -160,7 +160,9 @@ func stamp() -> void:
 	var tw := create_tween().set_parallel()
 	tw.tween_property(v, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tw.tween_property(v, "modulate:a", 1.0, 0.12)
-	get_tree().create_timer(0.17).timeout.connect(func(): Sound.play("stamp"))   # thunk as it lands
+	get_tree().create_timer(0.17).timeout.connect(func():           # thunk as it lands
+		Sound.play("stamp")
+		Sound.buzz(35))
 	# ...then the seal, pressed down hard a beat later
 	var h: Control = %Hanko
 	h.scale = Vector2(1.8, 1.8)

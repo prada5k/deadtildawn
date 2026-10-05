@@ -64,6 +64,12 @@ func loop(name: String, db := 0.0) -> void:
 		loops[name].play()
 
 
+## A buzz of the phone (no-op on a computer): a stamp, a crash, a box.
+func buzz(ms: int) -> void:
+	if OS.has_feature("mobile"):
+		Input.vibrate_handheld(ms)
+
+
 func stop(name: String) -> void:
 	if loops.has(name):
 		loops[name].stop()

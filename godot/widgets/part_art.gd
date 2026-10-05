@@ -32,6 +32,9 @@ const DEFAULTS := {
 	"paper": Color(0.93, 0.9, 0.82),
 }
 
+const IMAGE_DIR := "res://textures/parts/"   # <part id>.png here replaces the drawing (docs/PART_IMAGES.md)
+static var _images := {}         # part id -> Texture2D, or null (none): looked up once
+
 var _s := 1.0                    # px per unit of the 100-unit box
 var _o := Vector2.ZERO           # where the box starts
 var _lw := 2.0                   # ink line width (px)
@@ -108,6 +111,11 @@ func _draw() -> void:
 	if halo.a > 0.0:                                 # the rarity, glowing behind it
 		for k in 6:
 			draw_circle(p(50, 50), (48.0 - k * 6.0) * _s, Color(halo, halo.a * 0.2))
+	var img := image_for(part_id)
+	if img != null:                                  # the real (cartoonized) picture, fit and centered
+		var side := minf(size.x, size.y)
+		draw_texture_rect(img, Rect2((size - Vector2(side, side)) / 2.0, Vector2(side, side)), false)
+		return
 	match part_id:
 		"intake_short_ram":
 			tube([Vector2(10, 30), Vector2(46, 30), Vector2(58, 40), Vector2(60, 52)], 10, col("metal"))
@@ -189,6 +197,24 @@ func _draw() -> void:
 		_:
 			box(20, 26, 80, 80, Color(0.62, 0.48, 0.32))         # an unknown part: a box
 			text("?", Vector2(50, 54), 30, col("ink"))
+
+
+## The image for a part, if one's been made: imported (the editor / F5), or a
+## loose PNG (just dropped in, not imported yet). Looked up once per id.
+static func image_for(id: String) -> Texture2D:
+	if id == "":
+		return null
+	if not _images.has(id):
+		var path := IMAGE_DIR + id + ".png"
+		var tex: Texture2D = null
+		if ResourceLoader.exists(path):
+			tex = load(path) as Texture2D
+		elif FileAccess.file_exists(path):
+			var im := Image.load_from_file(ProjectSettings.globalize_path(path))
+			if im != null:
+				tex = ImageTexture.create_from_image(im)
+		_images[id] = tex
+	return _images[id]
 
 
 ## A conical pleated air filter, its open end at `top`.

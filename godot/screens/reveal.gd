@@ -59,6 +59,7 @@ func show_stage(stage: String) -> void:
 func open_box() -> void:
 	%OpenButton.disabled = true
 	Sound.play("box")
+	Sound.buzz(25)
 	var box: Control = %Box
 	box.pivot_offset = box.size / 2.0
 	var tw := create_tween()
