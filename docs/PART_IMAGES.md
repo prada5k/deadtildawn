@@ -14,7 +14,11 @@ few at a time.
 - **Background:** transparent (the rarity glow and the paper show through)
 - **Framing:** the part centered, filling ~80% of the square, a little room around it
 
-## Keeping 24 images in one style
+> **Oct 2026: the style is now LOW-POLY KANJO with real branding.** Use the
+> prompt in `docs/PROMPTS.md` (section 1, with brand ideas per part). The
+> older cartoon prompt below is kept for reference only.
+
+## Keeping 24 images in one style (old cartoon prompt)
 
 The trick with an AI image generator is to use the SAME prompt every time,
 changing only the part. Paste a real photo of the part along with:

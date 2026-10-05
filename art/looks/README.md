@@ -9,7 +9,7 @@ Drop source pictures here; Claude turns them into 3D models for the car.
 | `wheels/wheels_forged.png` | the forged 15s: white Buddy Club P1 | same |
 
 For the AI route, the picture should be a **realistic product photo**:
-3/4 view, plain white background, the whole part in frame, no text or
-logos, no cartoon outline (flat cartoon shading makes the AI build flat,
+3/4 view, plain white background, the whole part in frame (real
+branding is fine), no cartoon outline (flat cartoon shading makes the AI build flat,
 blobby shapes). For wheels: **straight on**, face toward the camera, and
 name the real wheel if it's one.

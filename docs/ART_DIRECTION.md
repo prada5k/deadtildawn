@@ -2,6 +2,32 @@
 
 Features and the gameplay loop stay as they are; this is the look.
 
+## UPDATE (Oct 2026): LOW-POLY KANJO, everything
+
+Spire: "low poly kanjo for the rest of the project, including revamping what
+we have already done." This overrides the photo-texture / garage-grit parts
+below where they clash; the garage workbench menus, the night broadcast and
+the kanjo layer (crew sticker, hanko, banner) stay, redrawn in the new style.
+
+- **3D:** low-poly, flat-shaded (visible facets), small flat-color materials or
+  tiny textures; chunky, readable silhouettes at phone size. Cars are Spire's
+  low-poly models (`art/models/`, prepped by `art/blender/prep_cars.py`);
+  props and scenery to match (no photo textures on 3D surfaces).
+- **Kanjo:** Osaka loop culture brought to a SoCal canyon crew: 90s Hondas,
+  Championship White, crew windshield banners, kanji / crew stickers, battle
+  tape, red hanko seals, sodium-orange and moon-blue night light.
+- **Real branding is IN** (Spire): real part and wheel brands on part
+  pictures and stickers (Spoon, Mugen, Toda, Skunk2, Hondata, Bride, Konig,
+  Buddy Club...). It's a game for Spire and friends, not a store release.
+- **2D (menus, icons, glows):** flat vector shapes with faceted shading (the
+  2D version of low poly), thick dark outlines, limited palette, light
+  halftone dots. One style prompt for everything: `docs/PROMPTS.md`.
+- **Revamp list (existing code-built art -> low poly):** scenery (rocks,
+  chaparral, oaks, pines, cliffs: faceted meshes instead of boxes/billboards),
+  the road edge props (posts, chevrons, Armco), spotters/flagger (low-poly
+  people), the turnout + PCH overlook + lift bay props, then the UI
+  textures (`docs/ART_REDO.md`) and part pictures (`docs/PART_IMAGES.md`).
+
 ## Vision
 
 A SoCal touge game: mountain passes, canyons, roads over the ocean. Kanjo Civic

@@ -45,7 +45,7 @@ CARS = {
     "240z": ("240z.glb", 4.14, True),
     "ae86": ("ae86.glb", 4.2, False),
     "accord94": ("94accord.glb", 4.68, False),
-    "fd2": ("fd2.glb", 4.54, False),
+    "fd2": ("fd2.glb", 4.49, False),        # as the FA5 (same body, its 4.49 m)
     "celica6": ("celica6th.glb", 4.42, True),
     "evo3": ("evo3.glb", 4.31, False),
     "eg6": ("eg6.glb", 4.07, True),         # -> the DX (godot/models/dx.glb)

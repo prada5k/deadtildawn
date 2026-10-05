@@ -40,7 +40,11 @@ Keep as they are: `paper.jpg`, `cork.jpg`, `cardboard.jpg`, `concrete.jpg`,
 `dotmatrix.png` (the dyno printout's paper; it's matched to the font),
 `handle.png`.
 
-## One style prompt for the set
+> **Oct 2026: low-poly kanjo.** The ready-to-paste prompts (with this table
+> built in, plus new kanjo pieces) are in `docs/PROMPTS.md` section 2. The
+> style line below is the old one.
+
+## One style prompt for the set (old)
 
 Start every request with the same line so the set matches (the halftone look):
 

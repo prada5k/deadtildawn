@@ -167,7 +167,7 @@ const MODELS := {
 	"370Z": "370z",
 	"AE86": "ae86",
 	"Accord": "accord94",
-	"2007 Honda Civic": "fd2",
+	"FA5": "fd2",            # the story's FA5 Civic Si sedan: the FD2's body (Spire). Brandon's R18 Civic: TODO
 	"Celica": "celica6",
 	"Lancer": "evo3",
 	"Evo": "evo3",

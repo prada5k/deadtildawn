@@ -15,7 +15,7 @@ breathe. Missing files use the code glow, so you can do them one at a time.
 - The glow centered, fading out to fully transparent well before the edges
   (it's drawn a bit bigger than the part and spins: no hard edges or corners)
 - Nothing in the middle that would fight the part drawn on top
-- One prompt for all four, changing only the color, so they're a set:
+- Low-poly kanjo (Oct 2026): use docs/PROMPTS.md section 4. The old halftone prompt:
 
 > Halftone print glow, a radial burst of dots, large dots in the center
 > shrinking to nothing at the edges, [COLOR], 1990s Japanese print style,

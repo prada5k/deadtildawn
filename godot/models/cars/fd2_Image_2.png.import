@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cnoyo2xxvotym"
-path="res://.godot/imported/fd2_Image_2.png-fba68fe06c00ff0ca99713e5559f5720.ctex"
+path.s3tc="res://.godot/imported/fd2_Image_2.png-fba68fe06c00ff0ca99713e5559f5720.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "77efb16f6852a68a0c839e93483b356a"
@@ -14,7 +15,7 @@ generator_parameters={
 [deps]
 
 source_file="res://models/cars/fd2_Image_2.png"
-dest_files=["res://.godot/imported/fd2_Image_2.png-fba68fe06c00ff0ca99713e5559f5720.ctex"]
+dest_files=["res://.godot/imported/fd2_Image_2.png-fba68fe06c00ff0ca99713e5559f5720.s3tc.ctex"]
 
 [params]
 
