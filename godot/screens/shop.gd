@@ -16,6 +16,8 @@ const UI := preload("res://ui.gd")
 const PartArt := preload("res://widgets/part_art.gd")
 const Voice := preload("res://voice.gd")
 const PIN := preload("res://textures/pin.png")
+const PIC_PX := 112            # a part's picture on the counter + the shelf (Spire: bigger)
+const BENCH_PIC_PX := 96       # an unopened box on the bench
 # Rarity as ink on paper (darker than the reveal's glow colors in game.gd)
 const RARITY_INK := {
 	"common": Color(0.36, 0.36, 0.4),
@@ -110,7 +112,7 @@ func setup(info: Dictionary, catalog: Dictionary, inventory: Array, installed: D
 			box.rotation = -0.008
 			list.add_child(box)
 			var row := UI.hbox(box, 10)
-			picture(row, "", 64)                         # unopened: still a box
+			picture(row, "", BENCH_PIC_PX)               # unopened: still a box
 			var col := UI.vbox(row, 0)
 			col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			wrap_label(col, part["name"], "FlyerTitleLabel")
@@ -131,7 +133,7 @@ func setup(info: Dictionary, catalog: Dictionary, inventory: Array, installed: D
 		UI.label(pad, "- - - - - - - - - - - - - - - - - - - - - - - - - - -", "InkMutedLabel") \
 			.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		var top := UI.hbox(pad, 10)
-		picture(top, part["id"], 56)
+		picture(top, part["id"], PIC_PX)
 		var n := UI.label(top, part["name"], "InkLabel")
 		n.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		UI.label(top, str(catalog["slots"][part["slot"]]).to_upper(), "InkMutedLabel")
@@ -154,7 +156,7 @@ func setup(info: Dictionary, catalog: Dictionary, inventory: Array, installed: D
 	for inst in spares:
 		var part := part_by_id(catalog, inst["part"])
 		var top := UI.hbox(shelf, 10)
-		picture(top, part["id"], 56)
+		picture(top, part["id"], PIC_PX)
 		var n := UI.label(top, "%s  (Q %d%%)" % [part["name"], int(round(float(inst["quality"]) * 100))],
 			"InkLabel")
 		n.size_flags_horizontal = Control.SIZE_EXPAND_FILL
