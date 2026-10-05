@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://screens/reveal.gd" id="1"]
 [ext_resource type="Texture2D" uid="uid://dfubsi38co685" path="res://textures/pegboard.png" id="2"]
 [ext_resource type="Texture2D" uid="uid://cylg33ri4iwl2" path="res://textures/tape.png" id="3"]
+[ext_resource type="Script" path="res://widgets/part_art.gd" id="part_art"]
 
 [node name="Reveal" type="Control"]
 layout_mode = 3
@@ -112,6 +113,14 @@ layout_mode = 2
 theme_type_variation = &"TitleLabel"
 text = "RARE"
 horizontal_alignment = 1
+
+[node name="PartPic" type="Control" parent="Column/Top/TopCol/Stage/Part"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 230)
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"PartArt"
+script = ExtResource("part_art")
 
 [node name="PartName" type="Label" parent="Column/Top/TopCol/Stage/Part"]
 unique_name_in_owner = true

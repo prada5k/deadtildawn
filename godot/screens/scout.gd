@@ -9,6 +9,7 @@ signal go(target: String)    # hub contract
 signal car_pressed
 signal lock_pressed
 signal skip_pressed
+signal howto_pressed          # HOW TO RACE (the tutorial)
 
 const UI := preload("res://ui.gd")
 const Voice := preload("res://voice.gd")
@@ -18,6 +19,7 @@ func _ready() -> void:
 	%WorkOnCar.pressed.connect(func(): car_pressed.emit())
 	%LockIn.pressed.connect(func(): lock_pressed.emit())
 	%SkipButton.pressed.connect(func(): skip_pressed.emit())
+	%HowTo.pressed.connect(func(): howto_pressed.emit())
 
 
 ## info: where, road_info, track (bridge "track" reply), stats (car_stats),

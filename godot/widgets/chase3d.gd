@@ -119,6 +119,9 @@ var dust: CPUParticles3D
 var dust_mat: StandardMaterial3D
 var gravel: CPUParticles3D       # dust off the shoulder when the car runs wide (or goes off)
 var bumps := FastNoiseLite.new()
+var _flame_until := 0.0          # a pop's flame burns until this real time...
+var _flame_len := 0.6            # ...this long (m)
+var cops := []                   # the cruiser behind the camera car: [red, blue] lights
 
 
 # ------------------------------------------------------------------ build
@@ -168,6 +171,14 @@ func build(v: Node) -> void:
 	people.append(make_person(v.flagger, v.lights["flagger"], true))
 	build_warnings(v.corners)
 	build_speed_fx()
+	for col: Color in [Color(1.0, 0.08, 0.05), Color(0.1, 0.25, 1.0)]:
+		var l := OmniLight3D.new()
+		l.light_color = col
+		l.omni_range = 34.0
+		l.light_energy = 0.0
+		l.visible = false
+		add_child(l)
+		cops.append(l)
 	fx = Node3D.new()
 	add_child(fx)
 	cam = Camera3D.new()
@@ -882,7 +893,60 @@ func build_car(v: Node) -> void:
 	fade.set_color(1, Color(0.45, 0.4, 0.33, 0.0))
 	gravel.color_ramp = fade
 	root.add_child(gravel)
+	# The exhaust tip (rear, right, under the bumper) and the flame it spits on
+	# a pop: a cone of fire pointing back, and an orange flash on the road
+	var tip_at := Vector3(-half - 0.02, 0.27 - 0.5, 0.42)
+	var tip := MeshInstance3D.new()
+	var pipe := CylinderMesh.new()
+	pipe.top_radius = 0.045
+	pipe.bottom_radius = 0.045
+	pipe.height = 0.16
+	tip.mesh = pipe
+	tip.material_override = mat(Color(0.5, 0.5, 0.52), 0.35)
+	tip.rotation.z = PI / 2.0
+	tip.position = tip_at
+	body.add_child(tip)
+	var fire := CylinderMesh.new()
+	fire.top_radius = 0.0                              # the tip of the flame...
+	fire.bottom_radius = 0.16                          # ...and its root, at the pipe
+	fire.height = 1.0
+	fire.radial_segments = 10
+	fire.cap_top = false
+	fire.cap_bottom = false
+	var burn := ShaderMaterial.new()
+	burn.shader = flame_shader()
+	var flame := MeshInstance3D.new()
+	flame.mesh = fire
+	flame.material_override = burn
+	flame.rotation.z = PI / 2.0                        # its point backward (-x)
+	flame.visible = false
+	body.add_child(flame)
+	# Seen from behind the flame points at the lens, end-on: what reads is the
+	# fireball, a soft glow that blooms
+	var ball_mat := StandardMaterial3D.new()
+	ball_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ball_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ball_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	ball_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	ball_mat.no_depth_test = false
+	ball_mat.albedo_texture = soft_dot()
+	ball_mat.albedo_color = Color(2.2, 1.1, 0.35)
+	var ball_q := QuadMesh.new()
+	ball_q.size = Vector2(0.9, 0.9)
+	var ball := MeshInstance3D.new()
+	ball.mesh = ball_q
+	ball.material_override = ball_mat
+	ball.visible = false
+	body.add_child(ball)
+	var flash := OmniLight3D.new()
+	flash.light_color = Color(1.0, 0.55, 0.15)
+	flash.omni_range = 7.0
+	flash.light_energy = 0.0
+	flash.visible = false
+	flash.position = tip_at + Vector3(-0.4, 0.1, 0)
+	body.add_child(flash)
 	car = {"root": root, "body": body, "head": head, "brake": brake, "tail": tail, "hazard": hz,
+		"flame": flame, "flame_mat": burn, "flash": flash, "tip_at": tip_at, "ball": ball,
 		"blinkers": corners, "half": half}
 
 
@@ -940,6 +1004,35 @@ func make_person(src: Node2D, beam: PointLight2D, is_flagger: bool) -> Dictionar
 	var lamp := spot(Color(1.0, 0.96, 0.85), 0.0, 32.0, 18.0)
 	return {"root": root, "lamp": lamp, "lens": fl, "lens_mat": flare_mat, "src": src, "beam": beam,
 		"flagger": is_flagger}
+
+
+## A pop (main.gd shift_events): the flame for a split second.
+func flame() -> void:
+	_flame_until = Time.get_ticks_msec() / 1000.0 + randf_range(0.07, 0.14)
+	_flame_len = randf_range(0.5, 1.1)
+
+
+## Exhaust fire: white-hot at the pipe, through yellow and orange to a red,
+## see-through tip, a touch of blue at the root, added on top of the night.
+static var _fire: Shader
+
+static func flame_shader() -> Shader:
+	if _fire == null:
+		_fire = Shader.new()
+		_fire.code = """
+shader_type spatial;
+render_mode unshaded, blend_add, cull_disabled, depth_draw_never, shadows_disabled;
+uniform float strength = 1.0;
+void fragment() {
+	float root = UV.y;                                   // 1 at the pipe, 0 at the tip
+	vec3 hot = mix(vec3(1.0, 0.25, 0.05), vec3(1.0, 0.75, 0.2), smoothstep(0.1, 0.6, root));
+	hot = mix(hot, vec3(1.0, 0.97, 0.85), smoothstep(0.7, 0.95, root));
+	hot = mix(hot, vec3(0.35, 0.5, 1.0), smoothstep(0.96, 1.0, root) * 0.6);
+	float edge = pow(abs(dot(NORMAL, VIEW)), 1.5);
+	ALBEDO = hot * strength * (0.4 + 1.6 * root) * edge * 2.2;
+}
+"""
+	return _fire
 
 
 ## A headlight beam lit up by the air: brightest at the lamp, fading out
@@ -1156,6 +1249,22 @@ func sync_car(v: Node) -> void:
 	var off_mid := Vector2(root.position.x, root.position.z) - road[i]
 	var wide := absf(off_mid.dot(right[i])) > ROAD_HALF_M - 0.75 and sv.y > 4.0
 	gravel.emitting = wide or (age >= 0.0 and age < 1.6)
+	# A pop's flame: a flickering cone out the back for a split second
+	var now := Time.get_ticks_msec() / 1000.0
+	var fl: MeshInstance3D = car["flame"]
+	var lit := now < _flame_until and age < 0.0
+	fl.visible = lit
+	car["flash"].visible = lit
+	car["ball"].visible = lit
+	if lit:
+		var k := clampf((_flame_until - now) / 0.12, 0.0, 1.0)      # dying out
+		var length := _flame_len * (0.6 + 0.4 * k) * randf_range(0.85, 1.15)
+		fl.scale = Vector3(1.0 + 0.3 * k, length, 1.0 + 0.3 * k)
+		fl.position = car["tip_at"] + Vector3(-length / 2.0 - 0.06, 0, 0)
+		car["flame_mat"].set_shader_parameter("strength", (0.7 + 0.5 * k) * randf_range(0.8, 1.2))
+		car["flash"].light_energy = 5.0 * k
+		car["ball"].position = car["tip_at"] + Vector3(-length * 0.45, 0.02, 0)
+		car["ball"].scale = Vector3.ONE * (0.6 + 0.9 * k) * randf_range(0.85, 1.15)
 	var braking: bool = node.braking
 	if who == "ghost" and v.ghost["samples"].has("brake"):
 		braking = v.ghost_at("brake", v.t) > 0.0 and not v.subject_out()
@@ -1265,6 +1374,15 @@ func sync_camcar(v: Node, delta: float, snap: bool) -> void:
 	dust.position = cam_pos + fwd * DUST_AHEAD_M + Vector3(0, -0.7, 0)
 	dust.basis = Basis.looking_at(fwd, Vector3.UP)
 	dust_mat.albedo_color.a = DUST_ALPHA * clampf(cv / 30.0, 0.0, 1.0)
+	# The cops: lights on behind them once it's over (red, blue, alternating)
+	var lit: bool = v.busted and v.t >= v.end_time
+	for k in 2:
+		var l: OmniLight3D = cops[k]
+		l.visible = lit
+		if lit:
+			var on := int(Time.get_ticks_msec() / 130) % 2 == k
+			l.light_energy = 5.0 if on else 0.4
+			l.position = cam_pos - fwd * 5.0 + side * (-0.7 if k == 0 else 0.7) + Vector3(0, -0.3, 0)
 
 
 ## How much of the filmed car is in the shot (selftest): 0 = none, 1 = its

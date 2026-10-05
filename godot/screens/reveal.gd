@@ -26,7 +26,7 @@ func _ready() -> void:
 	%KeepButton.pressed.connect(func(): leave_pressed.emit())
 
 
-## info: from, rarity, rarity_color, name, slot, quality_pct, effects ([str]), blurb
+## info: id, from, rarity, rarity_color, name, slot, quality_pct, effects ([str]), blurb
 func setup(info: Dictionary, stage: String) -> void:
 	data = info
 	%From.text = "FROM: %s" % str(info["from"]).to_upper()
@@ -34,6 +34,8 @@ func setup(info: Dictionary, stage: String) -> void:
 	%Rarity.text = str(info["rarity"]).to_upper()
 	%Rarity.add_theme_color_override("font_color", info["rarity_color"])
 	%PartName.text = info["name"]
+	%PartPic.part_id = info.get("id", "")
+	%PartPic.halo = info["rarity_color"]
 	%Slot.text = info["slot"]
 	show_stage(stage)
 	if stage == "dyno":

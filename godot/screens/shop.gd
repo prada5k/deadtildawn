@@ -13,6 +13,7 @@ signal reveal(uid: String)
 signal repair(uid: String)      # damaged in a crash: off the car until repaired
 
 const UI := preload("res://ui.gd")
+const PartArt := preload("res://widgets/part_art.gd")
 const Voice := preload("res://voice.gd")
 const PIN := preload("res://textures/pin.png")
 # Rarity as ink on paper (darker than the reveal's glow colors in game.gd)
@@ -109,6 +110,7 @@ func setup(info: Dictionary, catalog: Dictionary, inventory: Array, installed: D
 			box.rotation = -0.008
 			list.add_child(box)
 			var row := UI.hbox(box, 10)
+			picture(row, "", 64)                         # unopened: still a box
 			var col := UI.vbox(row, 0)
 			col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			wrap_label(col, part["name"], "FlyerTitleLabel")
@@ -129,6 +131,7 @@ func setup(info: Dictionary, catalog: Dictionary, inventory: Array, installed: D
 		UI.label(pad, "- - - - - - - - - - - - - - - - - - - - - - - - - - -", "InkMutedLabel") \
 			.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		var top := UI.hbox(pad, 10)
+		picture(top, part["id"], 56)
 		var n := UI.label(top, part["name"], "InkLabel")
 		n.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		UI.label(top, str(catalog["slots"][part["slot"]]).to_upper(), "InkMutedLabel")
@@ -151,6 +154,7 @@ func setup(info: Dictionary, catalog: Dictionary, inventory: Array, installed: D
 	for inst in spares:
 		var part := part_by_id(catalog, inst["part"])
 		var top := UI.hbox(shelf, 10)
+		picture(top, part["id"], 56)
 		var n := UI.label(top, "%s  (Q %d%%)" % [part["name"], int(round(float(inst["quality"]) * 100))],
 			"InkLabel")
 		n.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -161,6 +165,18 @@ func setup(info: Dictionary, catalog: Dictionary, inventory: Array, installed: D
 		var b := UI.button(shelf, "scrap it  %s" % UI.money(value), func(): sell.emit(inst["uid"]),
 			"SmallTapeButton")
 		b.size_flags_horizontal = Control.SIZE_SHRINK_END
+
+
+## A part's picture (widgets/part_art.gd), px square; "" = a plain box.
+func picture(parent: Node, id: String, px: float) -> Control:
+	var pic: Control = PartArt.new()
+	pic.theme_type_variation = "PartArt"
+	pic.custom_minimum_size = Vector2(px, px)
+	pic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pic.part_id = id
+	parent.add_child(pic)
+	return pic
 
 
 ## A paper-ish panel (variation) with a slight tilt.

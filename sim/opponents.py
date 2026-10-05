@@ -41,7 +41,11 @@ def condition_label(spec):
 
 
 def driver_read(spec):
-    """One line for the stat card: what you'd hear about this driver."""
+    """One line for the stat card: what you'd hear about this driver. An
+    authored "read" (Spire's friends: their own words) wins over the
+    generated one."""
+    if spec.get("read"):
+        return spec["read"]
     d = spec["driver"]
     skill, push = d["skill"], d["push"]
     level = "sharp" if skill >= 0.99 else ("solid" if skill >= 0.96 else

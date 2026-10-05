@@ -98,3 +98,16 @@ No model change: `sim/breakdown.py` only reads two runs' telemetry (PHYSICS_upda
 
 No model change: `sim/roadread.py` reads the pace notes and one theoretical-limit run (PHYSICS_updates_G 6.u). Hand calc: test track straight share 0.647 (tested). Power/grip thresholds (62% / 48% full throttle) set from the full-throttle shares of open roads 1-9 and the test track (41-70%). Found: a built car's full-throttle share on the same road is lower (66% -> 62.5%), because corner speed doesn't depend on power.
 - **Oct 2026 (Spire):** the power / grip / both verdict is gone (`kind` removed from `road_read`, `Voice.ROAD_KIND` and the Sharpie note deleted): the scout screen shows the numbers only and the player reads them.
+
+## Push levels vs matched street racers (Oct 2026, for the tutorial)
+
+No model change. A stock DX at each push, 300 races per cell, vs street racers tuned (like the game, `matchmaking.tune`) to 50% at the player's best push, on generated roads (seed 77) of each style:
+
+| Road | Safe | Normal | Hard | Flat out |
+|---|---|---|---|---|
+| Flowing (Lalo) | 0.44, 0% crash | 0.48, 0% | 0.52, 0.7% | 0.36, 13.7% |
+| Balanced (Jorge) | 0.43, 0% | 0.49, 0% | 0.42, 1.3% | 0.20, 20.3% |
+| Technical (Brandon) | 0.43, 0% | 0.51, 0% | 0.51, 1.3% | 0.24, 20.3% |
+
+Finding: NORMAL is the best default (best or tied everywhere, never crashes); HARD only pays on flowing roads; FLAT OUT never pays (its crash rate eats the speed). The tutorial says so (Voice.TUTORIAL page 4). Design question for Spire: should flat out ever be the right call (e.g. a bigger payout, or only when you're way down on power)?
+

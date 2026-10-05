@@ -232,6 +232,42 @@
       },
       "target_odds": 0.55,
       "condition": 0.9128
+    },
+    "jorge_accord": {
+      "name": "Jorge",
+      "car": "1995 Honda Accord LX",
+      "drivetrain": "FWD",
+      "weight_front": 0.62,
+      "effects": {
+        "torque_scale": 1.27,
+        "mass_kg": 230
+      },
+      "driver": {
+        "push": "normal",
+        "sigma": 0.034,
+        "skill": 0.985
+      },
+      "read": "Scrolling on reels half the time.",
+      "target_odds": 0.5,
+      "condition": 1.24
+    },
+    "brandon_civic": {
+      "name": "Brandon",
+      "car": "2007 Honda Civic DX",
+      "drivetrain": "FWD",
+      "weight_front": 0.61,
+      "effects": {
+        "torque_scale": 1.24,
+        "mass_kg": 90
+      },
+      "driver": {
+        "push": "hard",
+        "sigma": 0.033,
+        "skill": 0.97
+      },
+      "read": "Has an issue with fire hydrants and reversing.",
+      "target_odds": 0.5,
+      "condition": 0.9668
     }
   },
   "street": [
@@ -246,7 +282,9 @@
     "junebug_mr2",
     "static_ms3",
     "wren_prelude",
-    "cutter_camaro"
+    "cutter_camaro",
+    "jorge_accord",
+    "brandon_civic"
   ],
   "street_reference_track": {
     "style": "balanced",

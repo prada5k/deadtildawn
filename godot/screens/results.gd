@@ -26,12 +26,16 @@ func setup(result: Dictionary, info: Dictionary) -> void:
 	%Verdict.text = verdict
 	%FabaLine.text = (Voice.FABA_WON if won else (Voice.FABA_NO_CONTEST if result["no_contest"] else
 		(Voice.FABA_CRASHED if result["dnf"] else Voice.FABA_LOST)))
+	if result.has("cops"):
+		%FabaLine.text = Voice.FABA_COPS
 	var stiffed: bool = result.get("stiffed", false)  # jorge mode: he lost and won't pay
 	%TheySays.visible = stiffed
 	%TheyTag.text = str(result["rival"]).to_lower()
 	%TheyLine.text = Voice.JORGE_LINE
 	stamp()
-	if won and not stiffed and int(result["cash_change"]) > 0:
+	if result.has("cops"):
+		get_tree().create_timer(0.6).timeout.connect(func(): Sound.play("siren", -6.0))
+	elif won and not stiffed and int(result["cash_change"]) > 0:
 		get_tree().create_timer(0.45).timeout.connect(func(): Sound.play("cash"))
 
 	%Gap.visible = not result["dnf"] and not result["opponent_dnf"]
@@ -75,6 +79,20 @@ func setup(result: Dictionary, info: Dictionary) -> void:
 			UI.label(box, "Damaged: %s (off the car until it's repaired in $$$)" % n, "InkLabel")
 		if dmg["destroyed"].is_empty() and dmg["damaged"].is_empty():
 			UI.label(box, "The parts survived. This time.", "InkMutedLabel")
+
+	# The citation (the cops: speeding + reckless driving, a fine, no winnings)
+	var cops: Dictionary = result.get("cops", {})
+	%Ticket.visible = not cops.is_empty()
+	if not cops.is_empty():
+		var tl: VBoxContainer = %TicketLines
+		var title := UI.label(tl, Voice.COPS_TITLE, "StampLabel")
+		title.autowrap_mode = TextServer.AUTOWRAP_OFF
+		title.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		for charge in Voice.COPS_CHARGES:
+			UI.label(tl, charge, "InkLabel")
+		UI.stat_row(tl, "Fine", "-%s" % UI.money(cops["fine"]), "InkMutedLabel", "InkMoneyLabel")
+		if cops.get("seized", false):
+			UI.label(tl, Voice.COPS_SEIZED, "InkMutedLabel")
 
 	%Loot.visible = info["loot_text"] != ""
 	%LootLine.text = info["loot_text"]

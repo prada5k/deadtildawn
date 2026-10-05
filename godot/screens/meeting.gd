@@ -12,6 +12,7 @@ signal wager_changed(amount: int)
 signal send_pressed
 signal back_pressed
 signal skip_pressed
+signal howto_pressed          # HOW TO RACE (the tutorial)
 
 const UI := preload("res://ui.gd")
 const Voice := preload("res://voice.gd")
@@ -30,6 +31,7 @@ func _ready() -> void:
 	%SendIt.pressed.connect(func(): send_pressed.emit())
 	%BackButton.pressed.connect(func(): back_pressed.emit())
 	%SkipButton.pressed.connect(func(): skip_pressed.emit())
+	%HowTo.pressed.connect(func(): howto_pressed.emit())
 	%WagerSlider.value_changed.connect(set_wager)
 	%Map.mouse_filter = Control.MOUSE_FILTER_PASS    # drags still scroll the page
 	%Map.gui_input.connect(_on_map_input)

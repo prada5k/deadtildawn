@@ -8,6 +8,7 @@ signal go(target: String)    # "warehouse", "shop", "road"
 signal part_changed(slot: String, part_id: String)   # "" = back to stock
 signal part_previewed(slot: String, part_id: String) # picked one: compare before it goes on
 signal compare_closed                                # "never mind"
+signal strip_pressed                                 # every part off, back to stock (no compare)
 
 ## The comparison card: [label, stat key, format, higher is better?]. Less
 ## weight, a quicker 0-60 / quarter, a shorter stop are improvements.
@@ -24,6 +25,7 @@ const COMPARE := [
 ]
 
 const UI := preload("res://ui.gd")
+const PartArt := preload("res://widgets/part_art.gd")
 const Voice := preload("res://voice.gd")
 
 var locked := false            # the build is locked in for tonight
@@ -33,6 +35,7 @@ func _ready() -> void:
 	%ShopButton.pressed.connect(func(): go.emit("shop"))
 	%CompareNo.pressed.connect(func(): compare_closed.emit())
 	%ToRoad.pressed.connect(func(): go.emit("road"))
+	%StripButton.pressed.connect(func(): strip_pressed.emit())
 
 
 ## info: common info + "parts_on" (installed part ids, for the 3D model) +
@@ -65,6 +68,7 @@ func setup(info: Dictionary, stats: Dictionary, parts := {}) -> void:
 	%ToRoad.text = "back to tonight's road  >" if night == "scouting" else "back to tonight  >"
 	if locked:
 		%PartsNote.text = "LOCKED IN for tonight's race. Swaps after."
+	%StripButton.visible = not locked and not parts.get("installed", {}).is_empty()   # damaged ones too
 	if not parts.is_empty():
 		build_parts_list(parts)
 
@@ -75,6 +79,13 @@ func build_parts_list(parts: Dictionary) -> void:
 	var list: VBoxContainer = %PartsList
 	for slot in parts["slots"]:
 		var row := UI.hbox(list, 10)
+		var pic: Control = PartArt.new()                 # what's on it now (blank = stock)
+		pic.theme_type_variation = "PartArt"
+		pic.custom_minimum_size = Vector2(44, 44)
+		pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		pic.part_id = parts.get("pictures", {}).get(slot, "")
+		pic.modulate.a = 1.0 if pic.part_id != "" else 0.0   # stock: blank, but the names stay lined up
+		row.add_child(pic)
 		var name := UI.label(row, parts["slots"][slot], "InkLabel")
 		name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var pick := OptionButton.new()
@@ -101,6 +112,8 @@ func show_compare(c: Dictionary) -> void:
 	%Compare.visible = true
 	%CompareTitle.text = "SWAP: %s" % str(c["slot"]).to_upper()
 	%CompareSwap.text = "%s  >  %s" % [c["from"], c["to"]]
+	%ComparePic.part_id = c.get("part", "")
+	%ComparePic.halo = c.get("rarity_color", Color(0, 0, 0, 0))
 	var notes: Array = c["effects"].duplicate()
 	if c["damaged"]:
 		notes.append("DAMAGED: does nothing until it's repaired")

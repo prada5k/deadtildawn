@@ -75,6 +75,39 @@ const FABA_WON := "did you expect anything else"
 const FABA_LOST := "fuck that foo"
 const FABA_CRASHED := "brah fuckkkkk we might be cooked"
 const FABA_NO_CONTEST := "come on son"
+# HOW TO RACE (screens/tutorial.tscn; Spire: "jorge says it's too difficult").
+# [title, body, Faba's line]. DRAFTS by Claude -- Spire rewrites. The push
+# numbers are real: a stock DX at each push, 300 races vs street racers
+# matched to a coin flip, on a flowing, a balanced and a technical road
+# (Oct 2026). If the physics changes, rerun it and update page 4.
+const TUTORIAL := [
+	["A race night",
+		"1. Look at tonight's road.\n2. Build the DX for it.\n3. Lock the build in.\n4. Find out who you're racing.\n5. Pick how hard Faba pushes, and what you bet.\n6. Watch.\n\nYou never touch the wheel. The race is physics: the same math for every car. Your calls are the build, the push and the bet. That's the whole game.",
+		"you build it, i drive it. that's the deal"],
+	["Read the road",
+		"FULL THROTTLE is how much of the run Faba's foot is flat. High (60%+) means the motor decides it: intake, header, cams, tune, gearing.\n\nLow (under 50%), or hairpins, means the corners decide it: tires, weight, sway bar, springs.\n\nLess weight helps everywhere: faster in a straight line AND through the corners.",
+		"look at the road before you touch a wrench"],
+	["Build for it",
+		"Tap a slot on the build sheet. The swap card shows the DX now vs with that part: green is better, red is worse.\n\nWatch 0-60 and the quarter mile for power, skidpad for grip. A junk roll (low %) can be WORSE than stock, so don't bolt on everything you own.\n\n\"take it all off\" puts the car back to stock in one tap.",
+		"green good, red bad. even i get that"],
+	["How hard Faba pushes",
+		"From the sim (300 races each, vs racers matched to you):\n\nSAFE: wins ~43%. Never crashes.\nNORMAL: wins ~49-51%. Never crashes.\nHARD: wins 42-52%. Crashes about 1 in 100. Only worth it on fast, flowing roads.\nFLAT OUT: wins only 20-36%. Crashes 1 in 5.\n\nNORMAL is the call most nights. A crash costs the bet, 20 rep, $150 for the tow, and can break your parts.",
+		"flat out is how we end up in a tree. ask me how i know"],
+	["The bet",
+		"Even money: win what you bet, lose what you bet.\n\nStreet racers are matched to make it a coin flip, so bet small and often. Keep enough for the next minimum bet plus a cushion: drop under the minimum and you're BROKE.\n\nRivals AREN'T matched. When your card beats his (more power per tonne AND more skidpad), that's the night to bet big.",
+		"don't bet the rent"],
+	["After the race",
+		"WHERE IT WENT shows where the time went and why:\n\nCORNER SPEED lost: more grip (tires, less weight).\nACCELERATION or CORNER EXIT lost: more power, less weight.\nBRAKING lost: less weight, better tires.\nRAN WIDE: Faba pushed too hard. Back it off.\n\nFix the biggest one first. Lost by a few hundredths? That's luck. Lost by half a second? That's the build.",
+		"the sheet don't lie"],
+]
+
+# The cops (3% of races that finish): pulled over on the way down the hill.
+# A citation on the results screen. DRAFTS by Claude -- Spire rewrites.
+const COPS_TITLE := "CITATION"
+const COPS_CHARGES := ["SPEEDING  (CVC 22350)", "RECKLESS DRIVING  (CVC 23103)"]
+const COPS_SEIZED := "the winnings went in an evidence bag"
+const FABA_COPS := "CHP was sitting at the bottom of the hill bro"
+
 # Jorge mode (code "jorge", Spire): you win, he doesn't pay. What he says, and
 # the receipt's note
 const JORGE_LINE := "fuck you jorge"

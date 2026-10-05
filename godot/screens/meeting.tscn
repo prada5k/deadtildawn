@@ -299,6 +299,12 @@ layout_mode = 2
 theme_type_variation = &"SmallTapeButton"
 text = "skip  -50 rep"
 
+[node name="HowTo" type="Button" parent="Column/Actions/Row/Small"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SmallTapeButton"
+text = "how to race?"
+
 [node name="SendIt" type="Button" parent="Column/Actions/Row"]
 unique_name_in_owner = true
 layout_mode = 2

@@ -98,6 +98,7 @@ func build() -> void:
 	sounds["beep"] = wav(square(880.0, 0.14, 0.22))                     # the count: 3, 2, 1
 	sounds["go"] = wav(square(1760.0, 0.42, 0.22))
 	sounds["horn"] = wav(mix([square(350.0, 0.55, 0.16), square(440.0, 0.55, 0.16)]))   # the spotters, at the line
+	sounds["siren"] = wav(siren(2.6))                                  # the cops: a wail, then a yelp
 	sounds["honk_long"] = wav(mix([square(330.0, 1.6, 0.2), square(415.0, 1.6, 0.2)]))  # jorge mode: the sore loser
 	sounds["honk_angry"] = wav(mix([square(330.0, 0.16, 0.2), square(415.0, 0.16, 0.2),
 		delay(mix([square(330.0, 0.16, 0.2), square(415.0, 0.16, 0.2)]), 0.24),
@@ -147,6 +148,21 @@ func brass(f: float, dur: float, vibrato: float) -> PackedFloat32Array:
 			x += sin(TAU * ph * h) / h
 		var env := sin(PI * clampf(t / dur, 0.0, 1.0)) * (0.7 + 0.3 * minf(t * 8.0, 1.0))
 		out[i] = x * 0.22 * env
+	return out
+
+
+## A police siren: a slow wail up and down, then the fast yelp, with a
+## buzzy (clipped) tone like a real siren horn.
+func siren(dur: float) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	out.resize(int(dur * RATE))
+	var ph := 0.0
+	for i in out.size():
+		var t := float(i) / RATE
+		var sweep := 0.5 - 0.5 * cos(TAU * t / 1.3) if t < 1.3 else 0.5 - 0.5 * cos(TAU * t * 4.0)
+		ph += lerpf(650.0, 1450.0, sweep) / RATE
+		var env := minf(t * 20.0, 1.0) * minf((dur - t) * 6.0, 1.0)
+		out[i] = tanh(sin(TAU * ph) * 3.0) * 0.22 * env
 	return out
 
 

@@ -20,6 +20,11 @@ const BODY_SPRING := 7.0       # how fast the body settles (1/s): it rocks, it d
 
 # keyword in the car's name -> profile overrides (see DEFAULT for the fields)
 const PROFILES := {
+	# Spire's friends (before "Civic": that one is Faba's)
+	"2007 Honda Civic": {"length": 4.44, "width": 1.75, "cabin_front": 0.14, "cabin_rear": -0.32,
+		"paint": Color(0.16, 0.3, 0.55)},                     # Brandon: Atomic Blue
+	"Accord": {"length": 4.68, "width": 1.78, "cabin_front": 0.06, "cabin_rear": -0.34,
+		"paint": Color(0.38, 0.11, 0.13)},                    # Jorge: faded 90s burgundy
 	"Civic": {"paint": Color(0.78, 0.09, 0.11), "banner": true},
 	"280Z": {"length": 4.4, "width": 1.63, "cabin_front": -0.06, "cabin_rear": -0.4,
 		"nose": 0.18, "paint": Color(0.9, 0.45, 0.08), "stripes": Color(0.08, 0.08, 0.08)},

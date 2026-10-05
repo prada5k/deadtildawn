@@ -125,6 +125,15 @@ theme_type_variation = &"MutedLabel"
 text = "Lock it in and that's the build for tonight. Then you find out who's running."
 autowrap_mode = 3
 
+[node name="HowTo" type="Button" parent="Frame/Scroll/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+focus_mode = 0
+rotation = -0.01
+theme_type_variation = &"SmallTapeButton"
+text = "how to race?"
+
 [node name="Actions" type="HBoxContainer" parent="Frame"]
 layout_mode = 2
 theme_override_constants/separation = 10

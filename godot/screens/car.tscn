@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://screens/car.gd" id="1"]
 [ext_resource type="Script" path="res://widgets/lift_bay.gd" id="2"]
 [ext_resource type="Script" path="res://widgets/dyno_chart.gd" id="3"]
+[ext_resource type="Script" path="res://widgets/part_art.gd" id="part_art"]
 
 [node name="Car" type="Control"]
 layout_mode = 3
@@ -145,6 +146,14 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 4
 
+[node name="StripButton" type="Button" parent="Scroll/Column/BuildSheet/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+rotation = 0.015
+theme_type_variation = &"TapeButton"
+text = "take it all off"
+
 [node name="ShopButton" type="Button" parent="Scroll/Column/BuildSheet/Box"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -202,6 +211,14 @@ layout_mode = 2
 theme_type_variation = &"InkLabel"
 text = "stock  >  Cold air intake (Q 62%)"
 autowrap_mode = 3
+
+[node name="ComparePic" type="Control" parent="Compare/CompareSheet/CompareBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 150)
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"PartArt"
+script = ExtResource("part_art")
 
 [node name="CompareEffects" type="Label" parent="Compare/CompareSheet/CompareBox"]
 unique_name_in_owner = true

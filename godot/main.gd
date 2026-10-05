@@ -241,6 +241,8 @@ var chase: Node3D          # a pane's 3D world (widgets/chase3d.gd)
 var audio := {}            # full viewer: "car" / "ghost" -> CarAudio (each engine, live)
 var last_count := 99       # the count we last beeped (3, 2, 1, 0 = GO)
 var last_radio := -1       # the spotter whose call we last played
+var shifts := {}           # "car" / "ghost" -> downshifts: [{"t0", "t1", "pops": [t...]}] (build_shifts)
+var busted := false        # the cops (game.gd): red and blue in the chase at the end, a siren
 var sore_loser := false    # jorge mode (game.gd): after Faba wins, he leans on his horn...
 var next_honk := 0.0       # ...again at this real time (s)
 
@@ -382,6 +384,7 @@ func build_world() -> void:
 		nz.fractal_type = FastNoiseLite.FRACTAL_NONE   # ...and nothing finer (layered detail = a shimmy)
 		wander[who] = nz
 	build_lines()
+	build_shifts()
 	overlay = CanvasLayer.new()
 	overlay.layer = 1
 	overlay.follow_viewport_enabled = true      # moves with the camera like the world
@@ -935,6 +938,7 @@ func build_panes(layer: CanvasLayer) -> void:
 		v.replay_path = replay_path
 		v.embedded = embedded
 		v.faba_parts = faba_parts
+		v.busted = busted
 		v.pane = who
 		sv.add_child(v)
 		panes.append(v)
@@ -1376,6 +1380,8 @@ func _process(delta: float) -> void:
 		update_audio()
 	else:
 		update_intro(get_viewport_rect().size)  # hazards + the flagger's light
+		for k in shift_events(subject()).y:      # flames out the exhaust, with the pops you hear
+			chase.flame()
 		camcar_step(delta)
 		chase.sync(self, delta)
 	prev_t = t
@@ -1441,6 +1447,8 @@ func fire_events(delta: float) -> void:
 		var flash: ColorRect = hud["flash"]
 		flash.color.a = 0.7
 		create_tween().tween_property(flash, "color:a", 0.0, 0.5)
+		if busted:                                # ...and a cruiser right behind the camera car
+			get_tree().create_timer(0.8).timeout.connect(func(): Sound.play("siren", -3.0))
 		if sore_loser:                            # jorge mode: one long blast from the loser...
 			Sound.play("honk_long", -2.0)
 			next_honk = Time.get_ticks_msec() / 1000.0 + 2.6
@@ -1797,6 +1805,11 @@ func self_test() -> void:
 			print("          ghost pos=(%7.1f, %7.1f) m  crashed_tag=%s" % [
 				ghost_car.position.x / PX_PER_M, -ghost_car.position.y / PX_PER_M, ghost_tag.visible])
 	print("BANNER " + banner_result()["text"].replace("\n", " | "))
+	for who: String in shifts:                      # downshifts: a blip each, then the pops (+ flames)
+		var n_pops := 0
+		for sh: Dictionary in shifts[who]:
+			n_pops += sh["pops"].size()
+		print("SHIFTS %s: %d downshifts, %d pops" % [who, shifts[who].size(), n_pops])
 	# Each chase pane through the whole run at 60 fps: its camera car never on
 	# the bumper, never further than the max gap, and its car always in the shot
 	set_cam_mode(CamMode.CHASE)
@@ -2264,6 +2277,59 @@ func camcar_ride() -> Vector2:
 
 # ------------------------------------------------------------ sound
 
+## Every downshift in a car's run (sim: one gear at a time while braking; the
+## gear reads 0 for the 0.4 s the clutch is in): the gap (t0 -> t1) is when
+## the driver blips the throttle to match revs, and just after it, off the
+## gas, the exhaust pops (2-5 bangs). The pop times come from a seed per
+## shift, so the full viewer's sound and each pane's flames agree.
+func build_shifts() -> void:
+	shifts["car"] = find_downshifts(samples, "car")
+	if ghost != null and ghost["samples"].has("gear"):
+		shifts["ghost"] = find_downshifts(ghost["samples"], "ghost")
+
+
+func find_downshifts(smp: Dictionary, who: String) -> Array:
+	var out := []
+	var ts: Array = smp["t"]
+	var gs: Array = smp["gear"]
+	var last := 0
+	var gap_t := -1.0
+	var rng := RandomNumberGenerator.new()
+	for i in gs.size():
+		var g := int(gs[i])
+		if g == 0:                                   # clutch in: the shift is happening
+			if gap_t < 0.0:
+				gap_t = float(ts[i])
+			continue
+		if last > 0 and g < last:
+			rng.seed = hash("%s/%d" % [who, i])      # the same pops in the picture and the sound
+			var pops := []
+			var tp := float(ts[i]) + rng.randf_range(0.04, 0.14)
+			for k in rng.randi_range(2, 5):
+				pops.append(tp)
+				tp += rng.randf_range(0.07, 0.24)
+			out.append({"t0": gap_t if gap_t >= 0.0 else float(ts[i]), "t1": float(ts[i]), "pops": pops})
+		last = g
+		gap_t = -1.0
+	return out
+
+
+## What happens to one car this frame: Vector2i(blips, pops) whose time falls
+## in (prev_t, t]. Nothing on a jump (restart, a still).
+func shift_events(who: String) -> Vector2i:
+	if not playing or t <= prev_t or t - prev_t > 1.0 or not shifts.has(who):
+		return Vector2i.ZERO
+	var blips := 0
+	var pops := 0
+	for sh: Dictionary in shifts[who]:
+		if float(sh["t0"]) > prev_t and float(sh["t0"]) <= t:
+			blips += 1
+		for pt: float in sh["pops"]:
+			if pt > prev_t and pt <= t:
+				pops += 1
+	return Vector2i(blips, pops)
+
+
 ## Each car's engine, synthesized live (widgets/car_audio.gd), in the full
 ## viewer only. The broadcast's other noises fire from their moments: the
 ## count (update_intro), the spotters' radio (update_radio), a crash and the
@@ -2298,6 +2364,11 @@ func update_audio() -> void:
 		a.gain = 1.0 if playing else 0.0                # a paused tape is silent
 		a.alive = 1.0
 		a.squeal = 0.0
+		var ev := shift_events(who)             # downshifts: the blip, then the pops
+		if ev.x > 0:
+			a.blip()
+		for k in ev.y:
+			a.pop()
 		if countdown > 0.0:
 			a.speed = 0.0
 			if elapsed < ROLL_S:                         # rolling up to the line

@@ -65,6 +65,15 @@ def test_every_opponent_builds(base, data):
         assert driver_read(spec).endswith("."), oid
 
 
+def test_friends_have_their_own_read(data):
+    # Spire's friends: the stat card says it in his words, not the generated read
+    assert driver_read(data["opponents"]["jorge_accord"]) == "Scrolling on reels half the time."
+    assert driver_read(data["opponents"]["brandon_civic"]) == "Has an issue with fire hydrants and reversing."
+    assert {"jorge_accord", "brandon_civic"} <= set(data["street"])
+    # ...and without one it's generated from the driver's numbers
+    assert driver_read(dict(data["opponents"]["lalo_crx"], read="")).startswith(("Sharp", "Solid", "Average", "Sloppy"))
+
+
 def test_street_list_points_at_real_opponents(data):
     assert data["street"] and set(data["street"]) <= set(data["opponents"])
 

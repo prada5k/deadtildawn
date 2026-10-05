@@ -31,6 +31,7 @@ const TeamScene := preload("res://screens/team.tscn")
 const MeetingScene := preload("res://screens/meeting.tscn")
 const ResultsScene := preload("res://screens/results.tscn")
 const CodesScene := preload("res://screens/codes.tscn")
+const TutorialScene := preload("res://screens/tutorial.tscn")
 const BrokeScene := preload("res://screens/broke.tscn")
 const ScoutScene := preload("res://screens/scout.tscn")
 const ShellScene := preload("res://screens/shell.tscn")
@@ -43,6 +44,7 @@ const LOCATIONS := {
 	"team": "THE BOARD",
 	"codes": "THE BACK ROOM",
 	"road": "TONIGHT'S ROAD",
+	"tutorial": "HOW TO RACE",
 }
 
 const SAVE_PATH := "user://save.json"
@@ -57,6 +59,8 @@ const REP_OPEN_WIN := 4             # beating a street racer on an open road
 const REP_RIVAL_WIN := 15            # beating the rival: the night that moves you up
 const SKIP_REP_COST := 50            # chicken-out fee
 const LOOT_CHANCE := 0.05            # chance a win also drops an unopened part ("loot" pull)
+const COPS_CHANCE := 0.03            # a race that finishes gets pulled over on the way out (Spire)...
+const COPS_FINE_MINS := 3            # ...a fine of this many of tonight's minimum bets, no winnings
 const JORGE_CONDITION := 0.7         # jorge mode: his engine at this share of its torque...
 const JORGE_TRIES := 15              # ...and a race Faba doesn't win is run again (new seeds) up to this often
 const JORGE_LOOT_Q := 0.0            # ...and every win drops a part rolled at 0% (Spire)
@@ -476,6 +480,7 @@ func show_car() -> void:
 	var car: Control = open_hub(CarScene, "car")
 	car.part_changed.connect(install_part)
 	car.part_previewed.connect(preview_part)
+	car.strip_pressed.connect(strip_car)
 	car.compare_closed.connect(func():
 		compare = {}
 		show_car())
@@ -485,7 +490,8 @@ func show_car() -> void:
 	info["night"] = ("locked" if build_locked() else
 		("scouting" if not night.is_empty() and night.get("event") == event_key(next_event()) else ""))
 	car.setup(info, car_stats,
-		{"slots": catalog["slots"], "options": options, "installed": state["installed"]})
+		{"slots": catalog["slots"], "options": options, "installed": state["installed"],
+		"pictures": installed_pictures()})
 	if not compare.is_empty():
 		var inst := instance(compare["uid"])
 		var old := instance(state["installed"].get(compare["slot"], ""))
@@ -493,7 +499,19 @@ func show_car() -> void:
 			"slot": catalog["slots"].get(compare["slot"], compare["slot"]),
 			"from": part_label(old), "to": part_label(inst),
 			"effects": inst.get("effects_text", []), "damaged": inst.get("damaged", false),
-			"now": car_stats, "with": compare["stats"], "slot_id": compare["slot"], "uid": compare["uid"]})
+			"now": car_stats, "with": compare["stats"], "slot_id": compare["slot"], "uid": compare["uid"],
+			"part": inst.get("part", ""), "rarity_color": RARITY_COLORS.get(part_by_id(inst.get("part", "")).get("rarity", ""),
+				Color(0, 0, 0, 0))})
+
+
+## Slot -> the part id on it (the build sheet draws each one's picture).
+func installed_pictures() -> Dictionary:
+	var out := {}
+	for slot in state["installed"]:
+		var inst := instance(state["installed"][slot])
+		if not inst.is_empty():
+			out[slot] = inst["part"]
+	return out
 
 
 ## "Cold air intake (Q 62%)", or "stock" for an empty slot.
@@ -683,7 +701,7 @@ func show_reveal(inst: Dictionary, stage := "box") -> void:
 	if stage == "dyno" or inst["revealed"]:
 		reveal_now.call()
 	var src_name: String = catalog["sources"].get(inst["source"], {}).get("name", "Loot drop") 		if inst["source"] != "shop" else "Parts counter"
-	r.setup({"from": src_name, "rarity": p["rarity"], "rarity_color": RARITY_COLORS[p["rarity"]],
+	r.setup({"id": p["id"], "from": src_name, "rarity": p["rarity"], "rarity_color": RARITY_COLORS[p["rarity"]],
 		"name": p["name"], "slot": str(catalog["slots"][p["slot"]]), "quality_pct": quality_pct(inst),
 		"effects": inst["effects_text"], "blurb": p["blurb"]}, stage)
 
@@ -721,6 +739,24 @@ func sell_instance(uid: String) -> void:
 	save_game()
 	shop_message = "Sold %s for %s." % [p["name"], UI.money(value)]
 	show_shop()
+
+
+## Every part off the car at once (Spire: no compare card): they all go back
+## to the spares, the DX is stock. Not while the build's locked in.
+func strip_car() -> void:
+	strip_all()
+	show_car()
+
+
+## Returns false (nothing changes) while the build's locked in.
+func strip_all() -> bool:
+	if build_locked():
+		return false
+	state["installed"] = {}
+	car_stats = {}
+	compare = {}
+	save_game()
+	return true
 
 
 ## Swap what's in a slot ("" = back to stock). The car changed, so its stats
@@ -939,12 +975,18 @@ func show_briefing() -> void:
 
 ## Step 1: tonight's road and the DX as it sits (screens/scout.tscn).
 func show_scout() -> void:
+	if not state.get("tutorial_seen", false) and not test_running:
+		state["tutorial_seen"] = true                # the first race night: how it works, once
+		save_game()
+		show_tutorial(show_scout)
+		return
 	var ev := next_event()
 	var night: Dictionary = state["night"]
 	var s: Control = open_hub(ScoutScene, "road")
 	s.car_pressed.connect(show_car)
 	s.lock_pressed.connect(lock_build)
 	s.skip_pressed.connect(skip_night)
+	s.howto_pressed.connect(show_tutorial.bind(show_scout))
 	s.setup({
 		"where": "%s // %s" % [when(ev["week"], ev["day"]).to_lower().replace(",", ""),
 			ev["title"].to_lower()],
@@ -1005,6 +1047,7 @@ func show_meeting() -> void:
 	m.send_pressed.connect(send_it)
 	m.back_pressed.connect(show_warehouse)
 	m.skip_pressed.connect(skip_night)
+	m.howto_pressed.connect(show_tutorial.bind(show_meeting))
 	var cash := int(state["cash"])
 	choice["wager"] = clampi(int(choice["wager"]), min_bet(), mini(cash, max_bet()))
 	m.setup({
@@ -1100,6 +1143,13 @@ func apply_result(r: Dictionary) -> Dictionary:
 	var stiffed: bool = won and not no_contest and state.get("jorge", false)   # jorge mode: he won't pay
 	if stiffed:
 		cash_change = 0
+	# The cops (COPS_CHANCE, or the "heat" code): speeding + reckless driving.
+	# A win pays nothing (the cash is evidence); a loss still costs the wager.
+	# Not after a crash: the tow ticket is enough.
+	var busted: bool = not r["dnf"] and not no_contest and (state.get("heat", false) or randf() < COPS_CHANCE)
+	state.erase("heat")
+	if busted and won:
+		cash_change = 0
 	var rival_night: bool = night.get("id", "") != "street"
 	var rep_change: int = ((REP_RIVAL_WIN if rival_night else REP_OPEN_WIN) if won
 		else (REP_CRASH if r["dnf"] else REP_LOSS))
@@ -1116,6 +1166,11 @@ func apply_result(r: Dictionary) -> Dictionary:
 		"top_bet": mini(int(state["cash"]), max_bet()), "min_bet": min_bet(),   # before this night counts
 		"breakdown": r.get("breakdown", {}), "stiffed": stiffed}
 	state["cash"] = int(state["cash"]) + cash_change
+	if busted:                           # the fine, but never below $0
+		var fine := mini(COPS_FINE_MINS * int(result["min_bet"]), maxi(int(state["cash"]), 0))
+		state["cash"] = int(state["cash"]) - fine
+		result["cops"] = {"fine": fine, "seized": won and not stiffed and wager > 0}
+		stat_add("tickets", 1)
 	state["rep"] = maxi(int(state["rep"]) + rep_change, 0)
 	if r["dnf"]:
 		result["damage"] = crash_damage()
@@ -1137,6 +1192,7 @@ func show_race(replay_path: String, result: Dictionary) -> void:
 	viewer = Viewer.new()
 	viewer.replay_path = replay_path        # the opponent rides along as the replay's ghost
 	viewer.embedded = true
+	viewer.busted = result.has("cops")                # the cops: lights and a siren at the end
 	viewer.sore_loser = result.get("stiffed", false)   # jorge mode: he leans on his horn after
 	# The DX as it raced (the result saved the build before any crash damage)
 	var raced: Array = result.get("parts", [])
@@ -1243,6 +1299,7 @@ const CODES := {
 	"startover": "wipes the save and starts the story over (asks first)",
 	"jorge": "jorge mode on / off: Faba wins every race, the other guy won't pay up, throws you a 0% part instead, and leans on his horn",
 	"mute": "sound off / on",
+	"heat": "the next race that finishes gets pulled over (the cops event)",
 }
 const CHEAT_CASH := 10000
 const CHEAT_REP := 100
@@ -1255,6 +1312,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	var in_intro := screen != null and screen.scene_file_path == IntroScene.resource_path
 	if viewer == null and not in_intro:          # never mid-race or mid-story
 		show_codes()
+
+
+## HOW TO RACE (voice.gd TUTORIAL), then back to `after`.
+func show_tutorial(after: Callable) -> void:
+	var tut: Control = open_hub(TutorialScene, "tutorial")
+	tut.done.connect(after)
+	tut.setup(Voice.TUTORIAL)
 
 
 func show_codes(message := "", confirm := "") -> void:
@@ -1333,6 +1397,9 @@ func enter_code(raw: String) -> void:
 		"jorge":
 			state["jorge"] = not state.get("jorge", false)
 			msg = "Jorge mode is %s." % ("ON. Win and see what happens" if state["jorge"] else "off")
+		"heat":
+			state["heat"] = true
+			msg = "Somebody called it in. The next race gets pulled over."
 		"mute":
 			state["mute"] = not state.get("mute", false)
 			Sound.muted = state["mute"]
@@ -1582,6 +1649,22 @@ func game_test() -> void:
 		jorge_wins += 1 if (await bridge.replied)[1]["won"] else 0
 	check(jorge_wins >= 4, "jorge mode: Faba beat the down-on-power Zed %d of 5 (expect 4+; re-runs catch the rest)" % jorge_wins)
 	state["jorge"] = false
+	# The cops ("heat" forces it): a win pays nothing, and the fine is 3 of
+	# tonight's minimum bets. Hand calc: the calendar's past rival nights here,
+	# min bet $500 -> fine $1500, from $5000 -> $3500
+	state["night"] = street_card
+	state["cash"] = 5000
+	state["heat"] = true
+	var cited := apply_result(won_race)
+	var fine := COPS_FINE_MINS * int(cited["min_bet"])
+	check(cited.has("cops") and int(cited["cash_change"]) == 0 and int(state["cash"]) == 5000 - fine
+		and not state.has("heat"), "cops: pulled over after a win, no winnings, fine $%d, cash %d (expect %d)" % [
+		fine, state["cash"], 5000 - fine])
+	state["cash"] = 100                         # ...and a fine never takes cash below $0
+	state["heat"] = true
+	state["night"] = street_card
+	apply_result(won_race)
+	check(int(state["cash"]) == 0, "cops: the fine stops at $0 (cash %d)" % state["cash"])
 	# A damaged part stays in its slot but is off the car until repaired.
 	# Hand calc: rsb_19 is $320, repair 30% = $96, from $500 over tonight's minimum bet.
 	var c := add_instance("rsb_19", 0.5, true, "shop")
@@ -1654,10 +1737,14 @@ func game_test() -> void:
 	state["night"] = road_card
 	state["night"]["event"] = event_key(tonight)
 	check(not build_locked(), "the build is open while scouting")
+	var strip_me := add_instance("rsb_19", 0.5, true, "shop")
+	state["installed"] = {"rear_sway": strip_me["uid"]}
+	check(strip_all() and state["installed"].is_empty() and instance(strip_me["uid"]).size() > 0,
+		"take it all off: the car's stock, the part's back in the spares")
 	lock_build()
 	var lock_part := add_instance("rsb_24", 0.5, true, "shop")
 	install_part("rear_sway", lock_part["uid"], false)
-	check(build_locked() and state["installed"].is_empty() and state["night"]["parts"] == [],
+	check(build_locked() and state["installed"].is_empty() and state["night"]["parts"] == [] and not strip_all(),
 		"locked in: a part can't go on until the night's over")
 	state["night"] = {}
 
@@ -1788,6 +1875,11 @@ func game_shots(folder: String) -> void:
 	car_stats = (await bridge.replied)[1]
 	bridge.request("road_read", ["road_read", "--track", state["night"]["track"]])
 	road_read = (await bridge.replied)[1]
+	show_tutorial(func(): pass)                              # HOW TO RACE: page 1 and the push page
+	await snap(folder, "2a_tutorial")
+	hub_content.turn(3)
+	await snap(folder, "2a_tutorial_push")
+	state["tutorial_seen"] = true
 	show_scout()
 	await snap(folder, "2a_road")
 	hub_content.get_node("%Scroll").scroll_vertical = 500
