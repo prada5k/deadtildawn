@@ -48,6 +48,15 @@ func _ready() -> void:
 	%DriverName.gui_input.connect(_on_name_tape)
 
 
+## The player's own name on the top rail (Spire: the user's name, not the
+## driver's), its first letter as the avatar. Not swapped (names.gd).
+func set_player(player: String) -> void:
+	%DriverName.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	%Avatar.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	%DriverName.text = player.to_upper()
+	%Avatar.text = player.substr(0, 1).to_upper()
+
+
 ## Hidden: tap the name tape CODE_TAPS times quickly for the codes screen.
 func _on_name_tape(event: InputEvent) -> void:
 	var tapped: bool = ((event is InputEventMouseButton and event.pressed)

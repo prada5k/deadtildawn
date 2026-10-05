@@ -3,6 +3,12 @@ extends RefCounted
 ## (docs/ART_DIRECTION.md, Voice): the builder's notes, then Faba's lines.
 ## Edit lines here, not in the screens.
 
+# WHO'S WHO (a new save, before the story): the three names. DRAFT (Claude).
+const NAME_ASK_PLAYER := "your name. the one on the tape"
+const NAME_ASK_DRIVER := "who drives? (the one who got you back on your feet)"
+const NAME_ASK_RIVAL := "and who's the rival? the one you're gonna beat"
+const NAME_DEFAULTS := {"player": "you", "driver": "Faba", "rival": "Zed"}
+
 # Home caption (the camcorder's title over the garage footage):
 # "<HOME_PLACE>, wk N. <line>". game.gd home_caption() picks the first line
 # that fits, top to bottom.

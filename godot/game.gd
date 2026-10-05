@@ -36,6 +36,9 @@ const BodyShopScene := preload("res://screens/bodyshop.tscn")
 const BodyShop := preload("res://bodyshop.gd")
 const BrokeScene := preload("res://screens/broke.tscn")
 const SettingsScene := preload("res://screens/settings.tscn")
+const NamesScene := preload("res://screens/names.tscn")
+const NameSwap := preload("res://names.gd")
+var name_swap := NameSwap.new()          # the driver's / rival's names, swapped into every text
 ## The settings screen's rows: key -> [label, default]. Stored in state["settings"]
 ## (an optional key: older saves just get the defaults).
 const SETTINGS := {
@@ -122,6 +125,8 @@ var after_catalog := "shop"          # where to go once the parts catalog arrive
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(UI.BG)
+	name_swap.locale = TranslationServer.get_locale()
+	TranslationServer.add_translation(name_swap)
 	bridge = Bridge.new()
 	add_child(bridge)
 	add_grit()
@@ -144,9 +149,42 @@ func _ready() -> void:
 		show_message("CAN'T START THE SIM", problem)
 		return
 	if not state.get("intro_seen", false):
-		show_intro()
+		show_names_then_intro()
 	else:
 		show_warehouse()
+
+
+func _exit_tree() -> void:
+	TranslationServer.remove_translation(name_swap)   # (left registered, Godot crashes on quit)
+
+
+## A new save asks who's who first (screens/names.tscn), then the story.
+func show_names_then_intro() -> void:
+	if state.has("names") or still_mode:
+		show_intro()
+		return
+	clear_screen()
+	var n: Control = NamesScene.instantiate()
+	n.done.connect(func(player: String, driver: String, rival: String):
+		state["names"] = {"player": player, "driver": driver, "rival": rival}
+		apply_names()
+		save_game()
+		show_intro())
+	add_child(n)
+	screen = n
+
+
+## The player's three names: the swap every on-screen text goes through
+## (names.gd), and the player's own name on the top rail.
+func apply_names() -> void:
+	var n: Dictionary = state.get("names", {})
+	name_swap.set_names(n.get("driver", ""), n.get("rival", ""))
+	if shell != null:
+		shell.set_player(player_name())
+
+
+func player_name() -> String:
+	return str(state.get("names", {}).get("player", Voice.NAME_DEFAULTS["player"]))
 
 
 func new_state() -> Dictionary:
@@ -165,6 +203,7 @@ func load_game() -> void:
 		return
 	state = migrate(data)
 	Sound.muted = state.get("mute", false)     # code "mute" (an optional key: older saves just don't have it)
+	apply_names()                              # "names" is optional too: older saves keep Faba and Zed
 
 
 ## Upgrade an older save instead of throwing it away. Each step takes a save
@@ -224,12 +263,16 @@ func save_game() -> void:
 ## going straight to the warehouse (BROKE's START OVER).
 func reset_game(story := false) -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(save_path))
+	var names: Dictionary = state.get("names", {})
 	state = new_state()
+	if not story and not names.is_empty():   # BROKE's start over keeps who's who; a story restart asks again
+		state["names"] = names
+	apply_names()
 	save_game()
 	car_stats = {}
 	track_info = {}
 	if story:
-		show_intro()
+		show_names_then_intro()
 	else:
 		show_warehouse()
 
@@ -339,6 +382,7 @@ func open_hub(packed: PackedScene, tab: String) -> Control:
 		shell.animate = not still_mode           # stills and tests: no slides, no counting
 		add_child(shell)
 		shell.go.connect(_go)
+		shell.set_player(player_name())
 		screen = shell
 	shell.set_stats(int(state["cash"]), int(state["rep"]), min_bet())
 	shell.set_location(LOCATIONS[tab], tab)
@@ -1911,6 +1955,14 @@ func game_test() -> void:
 	enter_code("godroll")
 	check(state.get("godroll", false), "code godroll: the next pull is forced to 100% (bridge --quality, tests/test_bridge.py)")
 	check(int(state["stats"]["cheats"]) == cheats0 + 5, "codes are counted (%d)" % state["stats"]["cheats"])
+	# Names (who's who): every text swaps the driver and the rival, whole words, case kept
+	state["names"] = {"player": "spire", "driver": "Kai", "rival": "Rico"}
+	apply_names()
+	var swapped := String(TranslationServer.translate("FABA beat Zed, faba realized"))
+	check(swapped == "KAI beat Rico, kai realized" and player_name() == "spire",
+		"names: \"%s\" (expect \"KAI beat Rico, kai realized\"), the player's own name kept" % swapped)
+	state.erase("names")
+	apply_names()
 	# Settings: the parked car defaults on; a flip turns it off and is saved in state
 	state.erase("settings")
 	var parked_default := setting("parked_car")
