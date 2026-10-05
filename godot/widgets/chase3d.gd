@@ -818,9 +818,13 @@ func build_car(v: Node) -> void:
 	body.add_child(head)
 	var brake := glow_mat(BRAKE_RED, 0.0)
 	var brake_rest := 0.0                             # the taillights' glow when not braking
-	var lenses: Variant = body.get_child(0).get("taillight_mat") if who == "car" else null
+	# A real model (the DX's or an opponent's): its own lenses light up and
+	# blink, no lamp boxes on top (Spire)
+	var model: Node = body.get_child(0)
+	var lenses: Variant = model.get("taillight_mat")
+	var amber: Variant = model.get("blinker_mat")
 	if lenses != null:
-		brake = lenses                                  # a real model: its own lenses light up, no lamp boxes
+		brake = lenses
 		brake_rest = brake.emission_energy_multiplier
 		tails = []
 	for tpos: Vector3 in tails:
@@ -841,7 +845,7 @@ func build_car(v: Node) -> void:
 	root.add_child(hz)
 	var blink := glow_mat(HAZARD, 4.0)
 	var corners := []
-	for x: float in [half - 0.1, -half + 0.1]:
+	for x: float in ([] if lenses != null else [half - 0.1, -half + 0.1]):
 		for z: float in [-width / 2.0 + 0.1, width / 2.0 - 0.1]:
 			var b := MeshInstance3D.new()
 			b.mesh = box(Vector3(0.1, 0.07, 0.14))
@@ -954,7 +958,7 @@ func build_car(v: Node) -> void:
 	body.add_child(flash)
 	car = {"root": root, "body": body, "head": head, "brake": brake, "brake_rest": brake_rest, "tail": tail, "hazard": hz,
 		"flame": flame, "flame_mat": burn, "flash": flash, "tip_at": tip_at, "ball": ball,
-		"blinkers": corners, "half": half}
+		"blinkers": corners, "amber": amber, "half": half}
 
 
 ## A person by the road (spotter / flagger) with a flashlight: dark clothes,
@@ -1275,10 +1279,14 @@ func sync_car(v: Node) -> void:
 	var braking: bool = node.braking
 	if who == "ghost" and v.ghost["samples"].has("brake"):
 		braking = v.ghost_at("brake", v.t) > 0.0 and not v.subject_out()
-	car["brake"].emission_energy_multiplier = 7.0 if braking else float(car["brake_rest"])
-	car["tail"].light_energy = 0.7 if braking else 0.12
 	var hz_key := who + "_hazard"
 	var hz_e: float = v.lights[hz_key].energy if v.lights.has(hz_key) else 0.0
+	# The hazards blink the model's amber lenses; a model without amber ones blinks its taillights
+	var blink_tails: bool = car["amber"] == null and car["blinkers"].is_empty()
+	car["brake"].emission_energy_multiplier = 7.0 if braking else float(car["brake_rest"]) + (hz_e * 5.0 if blink_tails else 0.0)
+	if car["amber"] != null:
+		car["amber"].emission_energy_multiplier = hz_e * 4.0
+	car["tail"].light_energy = 0.7 if braking else 0.12
 	car["hazard"].visible = hz_e > 0.01
 	car["hazard"].light_energy = hz_e * 2.0
 	for bl: MeshInstance3D in car["blinkers"]:

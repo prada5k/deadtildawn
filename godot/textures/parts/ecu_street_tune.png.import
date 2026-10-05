@@ -2,24 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dfjn14om536xr"
-path.s3tc="res://.godot/imported/evo3_Image_2.png-831a9bfac4894a4f02fa5284491a29b3.s3tc.ctex"
+uid="uid://bsiyi5ixxdkep"
+path="res://.godot/imported/ecu_street_tune.png-78b017da9dceffb0046b107db6d19d75.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
-"vram_texture": true
-}
-generator_parameters={
-"md5": "e6bc8e27f032e9684137e61c61a5a6d7"
+"vram_texture": false
 }
 
 [deps]
 
-source_file="res://models/cars/evo3_Image_2.png"
-dest_files=["res://.godot/imported/evo3_Image_2.png-831a9bfac4894a4f02fa5284491a29b3.s3tc.ctex"]
+source_file="res://textures/parts/ecu_street_tune.png"
+dest_files=["res://.godot/imported/ecu_street_tune.png-78b017da9dceffb0046b107db6d19d75.ctex"]
 
 [params]
 
-compress/mode=2
+compress/mode=0
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -27,7 +23,7 @@ compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=true
+mipmaps/generate=false
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""
@@ -41,4 +37,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=0
+detect_3d/compress_to=1

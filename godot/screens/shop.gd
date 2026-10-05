@@ -9,6 +9,7 @@ signal go(target: String)       # "car"
 signal pull(source: String)
 signal buy(part_id: String)     # commons only
 signal sell(uid: String)
+signal sell_all()                 # every spare on the shelf for scrap (Spire)
 signal reveal(uid: String)
 signal repair(uid: String)      # damaged in a crash: off the car until repaired
 
@@ -153,6 +154,20 @@ func setup(info: Dictionary, catalog: Dictionary, inventory: Array, installed: D
 	var shelf := UI.vbox(paper(list, "PaperPanel", 0.004), 6)
 	if spares.is_empty():
 		UI.label(shelf, "Nothing on the shelf.", "InkMutedLabel")
+	elif spares.size() > 1:
+		# Everything on the shelf at once (Spire). Two taps: the first one asks.
+		var total := 0
+		for inst in spares:
+			var pt := part_by_id(catalog, inst["part"])
+			total += int(round(float(pt["price"]) * SCRAP_RATE * (0.5 + float(inst["quality"]))))
+		var all := UI.button(shelf, "scrap them all (%d)  %s" % [spares.size(), UI.money(total)], func(): pass, "TapeButton")
+		all.size_flags_horizontal = Control.SIZE_SHRINK_END
+		all.pressed.connect(func():
+			if all.has_meta("armed"):
+				sell_all.emit()
+			else:
+				all.set_meta("armed", true)
+				all.text = "sure? tap again to scrap %d parts" % spares.size())
 	for inst in spares:
 		var part := part_by_id(catalog, inst["part"])
 		var top := UI.hbox(shelf, 10)

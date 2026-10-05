@@ -65,6 +65,33 @@ const PROFILES := {
 }
 
 var spec := {}
+const TAIL_GLOW := 1.5               # a model's taillights with the lights on (braking: 7, chase3d.gd)
+var taillight_mat: StandardMaterial3D   # a model's own lenses (prep_cars.py names them); null = code-built
+var blinker_mat: StandardMaterial3D     # its amber corners, if it has any (the hazards blink them)
+
+
+## Light a model's own lenses (Spire: no boxes sitting on top): the faces
+## prep_cars.py named Taillight / Amber / Headlight get glowing materials.
+func light_model(m: Node, on: bool) -> void:
+	taillight_mat = mat(Color(0.6, 0.05, 0.05), 0.3, 0.0, Color(0.9, 0.05, 0.03))
+	taillight_mat.emission_energy_multiplier = TAIL_GLOW if on else 0.0
+	var amber := mat(Color(1.0, 0.55, 0.1), 0.3, 0.0, Color(1.0, 0.55, 0.1))
+	amber.emission_energy_multiplier = 0.0
+	var head := mat(Color(0.95, 0.95, 0.9), 0.15, 0.0, Color(1.0, 0.92, 0.72) if on else Color.BLACK)
+	for mi in m.find_children("*", "MeshInstance3D", true, false):
+		var mesh_i := mi as MeshInstance3D
+		for i in mesh_i.mesh.get_surface_count():
+			var sm := mesh_i.mesh.surface_get_material(i)
+			if sm == null:
+				continue
+			match sm.resource_name:
+				"Taillight":
+					mesh_i.set_surface_override_material(i, taillight_mat)
+				"Amber":
+					mesh_i.set_surface_override_material(i, amber)
+					blinker_mat = amber
+				"Headlight":
+					mesh_i.set_surface_override_material(i, head)
 
 
 static func profile_for(car_name: String) -> Dictionary:
@@ -196,8 +223,12 @@ func build_car(car_name: String, lights_on := true) -> void:
 	var p := profile_for(car_name)
 	spec = p
 	var model := model_path(car_name)
+	taillight_mat = null
+	blinker_mat = null
 	if model != "":
-		add_child((load(model) as PackedScene).instantiate())
+		var m: Node3D = (load(model) as PackedScene).instantiate()
+		add_child(m)
+		light_model(m, lights_on)
 		return
 	var w: float = p["width"]
 	var paint := mat(p["paint"], 0.32, 0.1)

@@ -220,6 +220,116 @@ def fit_dx(ob):
     return meta
 
 
+# ---------------------------------------------------------------- the lights
+# The game lights each model's OWN lenses (Spire: no glow boxes sitting on top):
+# faces get one of three materials it knows, "Taillight" (glow + brake),
+# "Amber" (the hazards blink), "Headlight". Found by the material's name when
+# the model has sensible names, else by color and place: red faces at the tail
+# facing back, orange ones at the corners.
+LIGHT_NAMES = {
+    "Taillight": ("taillight", "tail_light", "brake_light", "lights_back", "red__paint"),
+    "Amber": ("blinker", "indicator", "amber"),
+    "Headlight": ("headlight", "lights_front"),
+}
+LIGHT_NAMES_EXACT = {"light": "Headlight"}       # 370z: "Light" = its headlights
+
+
+def light_by_name(name):
+    n = name.lower().split(".")[0]
+    if n in LIGHT_NAMES_EXACT:
+        return LIGHT_NAMES_EXACT[n]
+    for kind, keys in LIGHT_NAMES.items():
+        if any(k in n for k in keys):
+            return kind
+    return None
+
+
+def face_colors(ob):
+    """Each face's color: its material's base color x its texture at the face's UV center."""
+    import numpy as np
+    me = ob.data
+    nf = len(me.polygons)
+    base = []
+    imgs = []
+    for m in me.materials:
+        c, img = (1, 1, 1), None
+        if m and m.use_nodes:
+            for nd in m.node_tree.nodes:
+                if nd.type == "BSDF_PRINCIPLED":
+                    c = tuple(nd.inputs["Base Color"].default_value[:3])
+                if nd.type == "TEX_IMAGE" and nd.image is not None and img is None:
+                    img = nd.image
+        base.append(c)
+        imgs.append(img)
+    mat = np.empty(nf, dtype=np.int32)
+    me.polygons.foreach_get("material_index", mat)
+    cols = np.array([base[i] if i < len(base) else (1, 1, 1) for i in mat], dtype=np.float32)
+    if me.uv_layers.active is not None:
+        uv = np.empty(len(me.loops) * 2, dtype=np.float32)
+        me.uv_layers.active.data.foreach_get("uv", uv)
+        uv = uv.reshape(-1, 2)
+        start = np.empty(nf, dtype=np.int32)
+        total = np.empty(nf, dtype=np.int32)
+        me.polygons.foreach_get("loop_start", start)
+        me.polygons.foreach_get("loop_total", total)
+        center = np.array([uv[s:s + t].mean(axis=0) for s, t in zip(start, total)])
+        for mi, img in enumerate(imgs):
+            if img is None or img.size[0] == 0:
+                continue
+            w, h = img.size
+            px = np.empty(w * h * 4, dtype=np.float32)
+            img.pixels.foreach_get(px)
+            px = px.reshape(h, w, 4)
+            sel = mat == mi
+            x = np.clip((center[sel, 0] % 1.0) * (w - 1), 0, w - 1).astype(np.int32)
+            y = np.clip((center[sel, 1] % 1.0) * (h - 1), 0, h - 1).astype(np.int32)
+            cols[sel] = cols[sel] * px[y, x, :3]
+    return cols
+
+
+def mark_lights(ob):
+    """Give the light faces the game's light materials. Returns {kind: faces}."""
+    for s in ob.material_slots:                    # free the names the game uses (Blender would .001 ours)
+        if s.material and s.material.name.split(".")[0] in ("Taillight", "Amber", "Headlight"):
+            s.material.name = "src_" + s.material.name
+    names = [s.material.name.removeprefix("src_") if s.material else "" for s in ob.material_slots]
+    kinds = [light_by_name(n) for n in names]
+    slot = {}
+    for kind in ("Taillight", "Amber", "Headlight"):
+        like = next((ob.material_slots[i].material for i, k in enumerate(kinds) if k == kind), None)
+        if like is None:
+            like = ob.material_slots[0].material
+        m = bpy.data.materials.get(kind + "_game") or like.copy()
+        m.name = kind + "_game"
+        ob.data.materials.append(m)
+        slot[kind] = len(ob.data.materials) - 1
+    lo, hi = bounds(ob)
+    length = hi.x - lo.x
+    cols = face_colors(ob)
+    counts = {"Taillight": 0, "Amber": 0, "Headlight": 0}
+    named = set(k for k in kinds if k)
+    for p in ob.data.polygons:
+        kind = kinds[p.material_index] if p.material_index < len(kinds) else None
+        c = p.center
+        r, g, b = cols[p.index]
+        rear = c.x < lo.x + 0.13 * length
+        front = c.x > hi.x - 0.13 * length
+        if kind is None and "Taillight" not in named and rear and p.normal.x < -0.3 \
+                and r > 0.25 and r > 1.8 * g and r > 1.8 * b:
+            kind = "Taillight"
+        elif kind is None and "Amber" not in named and (rear or front) and r > 0.55 and 0.22 < g < 0.75 * r and b < 0.35 * r:
+            kind = "Amber"
+        if kind == "Headlight" and rear:          # a "lights" material covering both ends: the back is the tail
+            kind = "Taillight"
+        if kind:
+            p.material_index = slot[kind]
+            counts[kind] += 1
+    # Rename the game materials to the names the game looks for
+    for kind, i in slot.items():
+        ob.data.materials[i].name = kind
+    return counts
+
+
 def render_check(ob, name):
     sc = bpy.context.scene
     sc.render.engine = "BLENDER_WORKBENCH"
@@ -237,6 +347,28 @@ def render_check(ob, name):
     bpy.data.objects.remove(cam)
 
 
+def lights_check(ob, name):
+    """Rear and front 3/4 renders with the lights painted loud (taillights green,
+    blinkers cyan, headlights magenta), so a wrong pick is easy to see. After
+    the export: the colors don't ship."""
+    loud = {"Taillight": (0, 1, 0, 1), "Amber": (0, 1, 1, 1), "Headlight": (1, 0, 1, 1)}
+    for s in ob.material_slots:
+        if s.material and s.material.name in loud:
+            s.material.diffuse_color = loud[s.material.name]
+    sc = bpy.context.scene
+    sc.display.shading.color_type = "MATERIAL"
+    cam = bpy.data.objects.new("Cam", bpy.data.cameras.new("Cam"))
+    sc.collection.objects.link(cam)
+    sc.camera = cam
+    for tag, pos in (("rear", Vector((-6.0, -3.5, 1.6))), ("front", Vector((6.0, -3.5, 1.6)))):
+        cam.location = pos
+        cam.rotation_euler = (Vector((0, 0, 0.6)) - pos).to_track_quat("-Z", "Y").to_euler()
+        sc.render.filepath = os.path.join(CHECK, f"{name}_lights_{tag}.png")
+        bpy.ops.render.render(write_still=True)
+    bpy.data.objects.remove(cam)
+    sc.display.shading.color_type = "TEXTURE"
+
+
 def export(ob, path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     bpy.ops.object.select_all(action="DESELECT")
@@ -252,6 +384,8 @@ for name in only:
     ob = import_joined(os.path.join(SRC, src))
     ob.name = name
     normalize(ob, length, flip)
+    if name != "eg6":                              # (the EG6's lights are named by fit_dx)
+        print(f"  {name} lights:", mark_lights(ob))
     if name == "eg6":
         meta = fit_dx(ob)
         export(ob, os.path.join(REPO, "godot", "models", "dx.glb"))
@@ -260,6 +394,7 @@ for name in only:
     else:
         export(ob, os.path.join(OUT, name + ".glb"))
     render_check(ob, name)
+    lights_check(ob, name)
     tris = sum(len(p.vertices) - 2 for p in ob.data.polygons)
     lo, hi = bounds(ob)
     print(f"PREP {name}: {tris} tris, {hi.x - lo.x:.2f} x {hi.y - lo.y:.2f} x {hi.z:.2f} m")

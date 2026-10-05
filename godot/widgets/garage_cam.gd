@@ -28,6 +28,7 @@ const DRIFT_M := 0.35                        # a slow side step back and forth..
 const DRIFT_S := 16.0                        # ...over this long
 
 var car: Node3D
+var other: Node3D                # someone's car parked two stalls down (settings: hide it)
 var cam: Camera3D
 var flicker: OmniLight3D
 var flicker_tube: MeshInstance3D
@@ -164,7 +165,7 @@ func build_lot(vp: Node) -> void:
 	for z: float in [3.75, 8.75, -1.25]:
 		solid(vp, Vector3(1.1, 0.004, 0.8), Vector3(BACK_X - 2.4, 0.003, z + rng.randf_range(-0.2, 0.2)), Color(0.12, 0.11, 0.1))
 	# Someone else's car, two stalls down in the dark
-	var other := CarModel.new()
+	other = CarModel.new()
 	other.build_car("1995 Honda Accord LX")
 	other.position = Vector3(7.0, 0, 8.75)
 	other.rotation.y = PI
@@ -295,6 +296,12 @@ func tube_mesh(vp: Node, at: Vector3, color: Color, glow: float) -> MeshInstance
 	m.position = at
 	vp.add_child(m)
 	return m
+
+
+## The other car in the garage, on or off (the settings screen).
+func show_parked_car(on: bool) -> void:
+	if other != null:
+		other.visible = on
 
 
 func show_parts(ids: Array) -> void:

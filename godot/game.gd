@@ -35,6 +35,13 @@ const TutorialScene := preload("res://screens/tutorial.tscn")
 const BodyShopScene := preload("res://screens/bodyshop.tscn")
 const BodyShop := preload("res://bodyshop.gd")
 const BrokeScene := preload("res://screens/broke.tscn")
+const SettingsScene := preload("res://screens/settings.tscn")
+## The settings screen's rows: key -> [label, default]. Stored in state["settings"]
+## (an optional key: older saves just get the defaults).
+const SETTINGS := {
+	"parked_car": ["the other car parked in the garage (home)", true],
+	"sound": ["sound", true],
+}
 const ScoutScene := preload("res://screens/scout.tscn")
 const ShellScene := preload("res://screens/shell.tscn")
 const GritShader := preload("res://widgets/grit.gdshader")
@@ -48,6 +55,7 @@ const LOCATIONS := {
 	"road": "TONIGHT'S ROAD",
 	"tutorial": "HOW TO RACE",
 	"bodyshop": "BAY 2 // BODY SHOP",
+	"settings": "SETTINGS",
 }
 
 const SAVE_PATH := "user://save.json"
@@ -358,6 +366,8 @@ func _go(target: String) -> void:
 			show_briefing()
 		"codes":
 			show_codes()
+		"settings":
+			show_settings()
 		"bodyshop":
 			show_bodyshop()
 		"fullbuild":                         # the code was waiting on the catalog
@@ -420,8 +430,35 @@ func show_warehouse() -> void:
 	info["losses"] = record.y
 	info["min_buy_in_text"] = UI.money(min_bet())
 	info["parts"] = car_look()
+	info["parked_car"] = setting("parked_car")
 	info["caption"] = "%s, wk %d. %s" % [Voice.HOME_PLACE, int(state["week"]), home_caption(installed_part_ids().size())]
 	open_hub(WarehouseScene, "warehouse").setup(info)
+
+
+## A setting's value (state["settings"], SETTINGS' default when unset). Sound
+## is the same switch as the "mute" code.
+func setting(key: String) -> bool:
+	if key == "sound":
+		return not state.get("mute", false)
+	return bool(state.get("settings", {}).get(key, SETTINGS[key][1]))
+
+
+func show_settings() -> void:
+	var s: Control = open_hub(SettingsScene, "settings")
+	var rows := []
+	for key in SETTINGS:
+		rows.append({"key": key, "label": SETTINGS[key][0], "on": setting(key)})
+	s.setup(rows)
+	s.toggle.connect(func(key: String):
+		if key == "sound":
+			state["mute"] = setting("sound")
+			Sound.muted = state["mute"]
+		else:
+			if not state.has("settings"):
+				state["settings"] = {}
+			state["settings"][key] = not setting(key)
+		save_game()
+		show_settings())
 
 
 ## The builder's note on the home Polaroid (voice.gd): what happened last
@@ -600,6 +637,7 @@ func show_shop() -> void:
 	shop.buy.connect(buy_part)
 	shop.pull.connect(do_pull)
 	shop.sell.connect(sell_instance)
+	shop.sell_all.connect(sell_all_spares)
 	shop.repair.connect(repair_instance)
 	shop.reveal.connect(func(uid): show_reveal(instance(uid), "dyno"))
 	shop.setup(common_info(), catalog, state["inventory"], state["installed"],
@@ -792,6 +830,27 @@ func sell_instance(uid: String) -> void:
 	state["inventory"].erase(inst)
 	save_game()
 	shop_message = "Sold %s for %s." % [p["name"], UI.money(value)]
+	show_shop()
+
+
+## Scrap every spare on the shelf at once (Spire): revealed, not on the car,
+## not damaged (the shelf's own rule). Returns what it paid.
+func scrap_all_spares() -> int:
+	var paid := 0
+	var n := 0
+	for inst in state["inventory"].duplicate():
+		if inst["revealed"] and not inst.get("damaged", false) and not inst["uid"] in state["installed"].values():
+			paid += scrap_value(inst)
+			state["inventory"].erase(inst)
+			n += 1
+	state["cash"] = int(state["cash"]) + paid
+	stat_add("scrapped", n)
+	save_game()
+	return paid
+
+
+func sell_all_spares() -> void:
+	shop_message = "Scrapped the whole shelf for %s." % UI.money(scrap_all_spares())
 	show_shop()
 
 
@@ -1773,6 +1832,22 @@ func game_test() -> void:
 	scrap_to_survive(scrap_me["uid"])
 	check(int(state["cash"]) == 80 and state["installed"].is_empty() and instance(scrap_me["uid"]).is_empty(),
 		"broke: scrapped the sway bar off the car for $%d (expect 80)" % state["cash"])
+	# Scrap them all: two spares at $80 each = $160; the one on the car stays
+	# (on a shelf of its own: the other tests' parts are put back after)
+	var saved_inventory: Array = state["inventory"]
+	var saved_installed: Dictionary = state["installed"]
+	state["inventory"] = []
+	var keep := add_instance("rsb_19", 0.5, true, "shop")
+	state["installed"] = {"rear_sway": keep["uid"]}
+	add_instance("rsb_19", 0.5, true, "shop")
+	add_instance("rsb_19", 0.5, true, "shop")
+	state["cash"] = 0
+	var inv_before: int = state["inventory"].size()
+	scrap_all_spares()
+	check(int(state["cash"]) == 160 and instance(keep["uid"]).size() > 0 and state["inventory"].size() == inv_before - 2,
+		"scrap them all: two spares for $%d (expect 160), the one on the car kept" % state["cash"])
+	state["inventory"] = saved_inventory
+	state["installed"] = saved_installed
 	state["cash"] = 500
 
 	# Parts comparison: the what-if build is sent to the sim, the car itself doesn't change
@@ -1834,8 +1909,21 @@ func game_test() -> void:
 	enter_code("godroll")
 	check(state.get("godroll", false), "code godroll: the next pull is forced to 100% (bridge --quality, tests/test_bridge.py)")
 	check(int(state["stats"]["cheats"]) == cheats0 + 5, "codes are counted (%d)" % state["stats"]["cheats"])
+	# Settings: the parked car defaults on; a flip turns it off and is saved in state
+	state.erase("settings")
+	var parked_default := setting("parked_car")
+	state["settings"] = {"parked_car": false}
+	check(parked_default and not setting("parked_car") and setting("sound") == not state.get("mute", false),
+		"settings: parked car on by default, off once flipped; sound = the mute code")
+	state.erase("settings")
 	print("GAMETEST OK" if test_failures == 0 else "GAMETEST FAILED: %d checks" % test_failures)
 	get_tree().quit(0 if test_failures == 0 else 1)
+
+
+## The stills skip through the intro; it may have ended on its own already.
+func intro_next() -> void:
+	if screen != null and screen.has_method("next_slide"):
+		screen.next_slide()
 
 
 ## Stills of every screen for review (needs a display, not --headless):
@@ -1847,16 +1935,16 @@ func game_shots(folder: String) -> void:
 	await get_tree().create_timer(0.5).timeout
 	await snap(folder, "0a_intro")
 	for i in 4:                                   # to "one corner too hot": the tape glitching
-		screen.next_slide()
+		intro_next()
 	await get_tree().create_timer(0.8).timeout
 	await snap(folder, "0b_intro_crash")
 	for i in 3:                                   # past the tape: Faba's texts
-		screen.next_slide()
+		intro_next()
 	await get_tree().create_timer(2.5).timeout
 	await snap(folder, "0c_intro_texts")
-	screen.next_slide()
+	intro_next()
 	await get_tree().create_timer(2.0).timeout
-	screen.next_slide()
+	intro_next()
 	await get_tree().create_timer(8.0).timeout
 	await snap(folder, "0d_intro_texts_late")
 	bridge.request("car_stats", ["car_stats"])

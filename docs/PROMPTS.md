@@ -112,6 +112,27 @@ tire rack, an engine hoist.
 
 ---
 
+## 5. Nav bar stickers (the 5 tabs)
+
+The bottom bar turns into stickers sitting over the screen once all five
+exist (until then the drawers stay). Save as `godot/textures/nav/<name>.png`:
+`shop.png` (parts $$$), `car.png`, `home.png`, `cal.png`, `team.png`.
+Square, 512 x 512, transparent background. Same chat for all five.
+
+> [STYLE LINE]
+> A die-cut kanjo crew sticker for a mobile game's tab button: [ICON + WORD].
+> Big, rounded, chunky shape with a THICK white vinyl border all the way
+> around and a soft drop shadow, bold and readable at small size, a little
+> tilted, like a sticker slapped on a car's rear window. Transparent
+> background around the sticker. Square, 512 x 512.
+
+ICON + WORD ideas: shop = "a stack of cash and a wrench, the word PARTS";
+car = "a 90s Civic hatch side view, the word CAR"; home = "a parking garage
+ticket stub, the word HOME"; cal = "a race-night flyer with a date circled,
+the word NIGHTS"; team = "two crew members' fists bumping, the word CREW".
+
+---
+
 ## 4. Rarity glows (`godot/textures/glow/README.md` has sizes and colors)
 
 > [STYLE LINE]

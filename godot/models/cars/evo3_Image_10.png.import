@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://beltvyvdtmphn"
-path="res://.godot/imported/evo3_Image_10.png-f1e95d074660d14d31b58170e33a0265.ctex"
+path.s3tc="res://.godot/imported/evo3_Image_10.png-f1e95d074660d14d31b58170e33a0265.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "0388556cd442820cfd0fed541bfcaf43"
@@ -14,7 +15,7 @@ generator_parameters={
 [deps]
 
 source_file="res://models/cars/evo3_Image_10.png"
-dest_files=["res://.godot/imported/evo3_Image_10.png-f1e95d074660d14d31b58170e33a0265.ctex"]
+dest_files=["res://.godot/imported/evo3_Image_10.png-f1e95d074660d14d31b58170e33a0265.s3tc.ctex"]
 
 [params]
 

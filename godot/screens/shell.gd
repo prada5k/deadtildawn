@@ -16,6 +16,15 @@ const SLIDE_PX := 26.0        # a new screen slides up into place from this far 
 const SLIDE_S := 0.16         # ...this fast, fading in
 const COUNT_S := 0.7          # cash and rep count to their new value over this long
 
+const PartArt := preload("res://widgets/part_art.gd")
+const STICKER_DIR := "res://textures/nav/"       # the nav's sticker pictures (Spire, via ChatGPT)
+const STICKER_FILE := {"shop": "shop", "car": "car", "warehouse": "home", "calendar": "cal", "team": "team"}
+const STICKER_PX := 100.0     # a sticker's size (just over the drawer's height: overhangs a little)
+const STICKER_OPEN := 1.15    # the open tab's sticker, bigger...
+const STICKER_LIFT := 8.0     # ...and lifted
+
+var stickers := {}            # tab -> its sticker (empty: the drawers)
+var open_tab := ""
 var taps := 0
 var last_tap_ms := 0
 var animate := true           # off for the automated stills and tests (game.gd still_mode)
@@ -32,6 +41,8 @@ var counter: Tween
 func _ready() -> void:
 	for target in nav:
 		nav[target].pressed.connect(func(): go.emit(target))
+	%SettingsButton.pressed.connect(func(): go.emit("settings"))
+	apply_stickers()
 	# %ExtraNavButton is the TEAM drawer (the Polaroid board)
 	%DriverName.mouse_filter = Control.MOUSE_FILTER_STOP
 	%DriverName.gui_input.connect(_on_name_tape)
@@ -84,8 +95,51 @@ func show_stats(cash: int, rep: int) -> void:
 
 func set_location(text: String, tab: String) -> void:
 	%LocationLabel.text = text
+	open_tab = tab
 	for target in nav:
-		nav[target].theme_type_variation = "DrawerOpenButton" if target == tab else "DrawerButton"
+		if stickers.is_empty():
+			nav[target].theme_type_variation = "DrawerOpenButton" if target == tab else "DrawerButton"
+		else:                                    # the open tab's sticker: bigger, lifted, straight
+			var s: Control = stickers[target]
+			s.scale = Vector2.ONE * (STICKER_OPEN if target == tab else 1.0)
+			s.rotation = 0.0 if target == tab else s.get_meta("tilt")
+			s.position.y = s.get_meta("y") - (STICKER_LIFT if target == tab else 0.0)
+
+
+## The nav as kanjo stickers (Spire): when every tab has its picture in
+## STICKER_DIR (<tab>.png: shop, car, home, cal, team), the tool chest goes
+## see-through and each drawer becomes a die-cut sticker sitting over the
+## screen. Missing pictures: the drawers stay.
+func apply_stickers() -> void:
+	var files := {}
+	for target in nav:
+		var tex := PartArt.load_image(STICKER_DIR + STICKER_FILE[target] + ".png", "nav:" + target)
+		if tex == null:
+			return
+		files[target] = tex
+	%BottomNavBar.theme_type_variation = "StickerNavBar"
+	var i := 0
+	for target in nav:
+		var b: Button = nav[target]
+		b.theme_type_variation = "StickerNavButton"
+		b.get_node("Face").visible = false
+		var s := TextureRect.new()
+		s.texture = files[target]
+		s.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		s.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		s.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		s.size = Vector2(STICKER_PX, STICKER_PX)
+		s.pivot_offset = s.size / 2.0
+		b.add_child(s)
+		s.set_meta("y", 0.0)
+		b.resized.connect(func():                # centered, its bottom on the button's: overhangs upward
+			s.set_meta("y", b.size.y - STICKER_PX)
+			s.position = Vector2((b.size.x - STICKER_PX) / 2.0,
+				s.get_meta("y") - (STICKER_LIFT if target == open_tab else 0.0)))
+		s.set_meta("tilt", [-0.08, 0.05, -0.03, 0.07, -0.05][i % 5])
+		s.rotation = s.get_meta("tilt")
+		stickers[target] = s
+		i += 1
 
 
 ## Replace the content slot's screen with a new one (the old one is freed).

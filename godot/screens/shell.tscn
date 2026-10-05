@@ -101,6 +101,15 @@ theme_type_variation = &"TapeLabel"
 theme_override_font_sizes/font_size = 30
 text = "FABA"
 
+[node name="SettingsButton" type="Button" parent="Column/TopRail/RailRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+rotation = -0.04
+focus_mode = 0
+theme_type_variation = &"SmallTapeButton"
+text = "settings"
+
 [node name="RailSpacer" type="Control" parent="Column/TopRail/RailRow"]
 layout_mode = 2
 size_flags_horizontal = 3
@@ -164,6 +173,7 @@ unique_name_in_owner = true
 layout_mode = 2
 
 [node name="BottomNavBar" type="PanelContainer" parent="Column"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"ToolChestPanel"
 

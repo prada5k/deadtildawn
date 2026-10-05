@@ -79,6 +79,7 @@ const FENDER := [                            # front right fender (the primer on
 
 const TAIL_GLOW := 1.5           # the taillights with the lights on (braking: the race view takes them to 7)
 var taillight_mat: StandardMaterial3D   # a real model's taillight lenses (null for the script-built shell)
+var blinker_mat: StandardMaterial3D     # and its amber corners
 var parts: Array = []        # what build() was given: part ids + "look:<id>" entries
 var lights_on := true        # headlights/taillights glowing (off on the lift)
 var rough := true            # Faba's DX: faded clearcoat, primer fender, missing hubcap
@@ -177,6 +178,7 @@ func build(installed: Array = []) -> void:
 	parts = installed
 	looks = {}
 	taillight_mat = null
+	blinker_mat = null
 	for p in installed:
 		var s := str(p)
 		if s.begins_with("look:") and BodyShop.ITEMS.has(s.substr(5)):
@@ -253,11 +255,13 @@ func build_shell_model(paint: Material, faded: Material, hood: Material, fender:
 	# braking: chase3d.gd uses taillight_mat instead of adding lamp boxes)
 	taillight_mat = mat(Color(0.6, 0.05, 0.05), 0.3, 0.0, Color(0.9, 0.05, 0.03))
 	taillight_mat.emission_energy_multiplier = TAIL_GLOW if lights_on else 0.0
+	blinker_mat = mat(AMBER, 0.3, 0.0, AMBER)               # off until the hazards blink it (chase3d.gd)
+	blinker_mat.emission_energy_multiplier = 0.0
 	swap_materials(shell, {
 		"Paint": paint, "Roof": faded, "Hood": hood, "Fender": fender, "Glass": glass,
 		"Headlight": mat(Color(0.72, 0.78, 0.84), 0.15, 0.2, Color(1.0, 0.92, 0.72) if lights_on else Color.BLACK),   # glassy blue-gray lens
 		"Taillight": taillight_mat,
-		"Amber": mat(AMBER, 0.3, 0.0, AMBER * 0.6 if lights_on else Color.BLACK),
+		"Amber": blinker_mat,
 	})
 
 

@@ -28,6 +28,7 @@ func _ready() -> void:
 func setup(info: Dictionary) -> void:
 	var parts: Array = info.get("parts", [])
 	garage.show_parts(parts)
+	garage.show_parked_car(info.get("parked_car", true))
 	%Caption.text = info["caption"]          # the builder's note (game.gd home_caption, voice.gd)
 	%WorkOrderNo.text = "WORK ORDER #%03d" % info["order_no"]
 	%When.text = info["when"]
