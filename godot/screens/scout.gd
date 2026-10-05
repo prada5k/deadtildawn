@@ -21,7 +21,8 @@ func _ready() -> void:
 
 
 ## info: where, road_info, track (bridge "track" reply), stats (car_stats),
-## read (bridge "road_read": what the road rewards, for this build),
+## read (bridge "road_read": the road's numbers for this build; no verdict,
+## the player reads them, Spire),
 ## parts_on (count), can_skip, skip_cost
 func setup(info: Dictionary) -> void:
 	%Where.text = info["where"]
@@ -30,7 +31,6 @@ func setup(info: Dictionary) -> void:
 	%Map.labels = false                         # colors + the key, no corner names (Spire)
 	%Map.queue_redraw()
 	var read: Dictionary = info["read"]
-	%ReadNote.text = Voice.ROAD_KIND.get(read["kind"], "")
 	var tight: Variant = read["tightest"]
 	for row in [
 		["Straights", "%d%% of the road" % roundi(float(read["straight_share"]) * 100)],

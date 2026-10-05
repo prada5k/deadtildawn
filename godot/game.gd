@@ -1117,6 +1117,11 @@ func show_race(replay_path: String, result: Dictionary) -> void:
 	viewer = Viewer.new()
 	viewer.replay_path = replay_path        # the opponent rides along as the replay's ghost
 	viewer.embedded = true
+	# The DX as it raced (the result saved the build before any crash damage)
+	var raced: Array = result.get("parts", [])
+	if raced.size() == 2:
+		for entry: String in str(raced[1]).split(","):
+			viewer.faba_parts.append(entry.get_slice("@", 0))
 	last_replay = replay_path
 	viewer.finished_viewing.connect(show_results.bind(result))
 	add_child(viewer)

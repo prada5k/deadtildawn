@@ -55,6 +55,18 @@ The menu screens are built in code so they stay small and testable, but their **
 - **Run the headless tests after changes:** `godot --headless --path godot -- --gametest`. The editor won't always tell you a script broke until you reach that screen.
 - **Read errors in the Output and Debugger panels** (bottom of the editor). The first error is usually the real one; the rest are fallout.
 
-## 5. Reference
+## 5. Pattern: one model, two views (the replay's 3D chase)
+
+The replay's Chase view is 3D, but nothing in 3D decides anything. `main.gd` works out where every car is (the sim's distance along the road, plus the line across it, the body's roll, the camera car's speed) in its 2D world, exactly as the top-down Overview uses it. `widgets/chase3d.gd` only **copies** that state into a 3D world every frame (`sync()`): a 2D point (x, y) in pixels becomes a 3D point (x, 0, y) in meters on the ground, and a 2D rotation r becomes a 3D yaw of -r. One model, two views: the views can't disagree, because only one of them computes.
+
+Things worth knowing from it:
+- **A `SubViewport` is a separate screen inside the screen.** Each split-screen half is one. `own_world_3d = true` gives each its own 3D world (its own lights, car and camera), shown through a `SubViewportContainer`.
+- **A `Node3D` can live under a `Node2D`.** Visibility and transforms only pass between nodes of the same kind, so hiding the 2D world (`visible = false`) doesn't hide the 3D one under it.
+- **Lights in 3D cost per object they touch** (especially in the Compatibility renderer). That's why the road is built in 60 m chunks and the plants are one `MultiMesh` per stretch of road: a headlight only redraws what's near it.
+- **Build meshes in code with `SurfaceTool`:** add triangles vertex by vertex, then `commit()` an `ArrayMesh`.
+
+**Exercise 8: be the camera operator (20 min).** Open `widgets/chase3d.gd` and find the `# The camera` constants. Predict what each does, then try it: `CAM_H_M` 2.0 -> 4.0 (a pole cam), `PAN_RATE` 5 -> 1.5 (a sleepy operator), `FRAME_W_M` 9.5 -> 5 (zoomed in tight). Open `main.tscn` and press F6 to watch. Then run `godot --headless --path godot res://main.tscn -- --selftest`: the `CAMCAR` line says whether the car stayed in the shot. Put the numbers back when you're done (or keep the ones you like better).
+
+## 6. Reference
 
 The official docs are excellent: https://docs.godotengine.org. Most useful pages for now: "Your first 2D game" (the whole node/scene/signal workflow), "Size and anchors," "Using Containers," and "Introduction to GUI skinning" (themes and type variations).

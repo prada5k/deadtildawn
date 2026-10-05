@@ -9,16 +9,18 @@ extends Node2D
 ## and the dash (gauges, gear, pedals) at the bottom. Touch or mouse works;
 ## keys too: 1-2 cameras, C cycle, Space pause, R restart, Up/Down speed.
 ##
-## Cameras: Chase (default: the car always points up, the world turns around
-## it) and Overview (the whole road). With an opponent, Chase is SPLIT SCREEN:
-## him on the left, Faba on the right, each pane a copy of this viewer in
-## "pane" mode (its own world, a chase camera on its car, the clock driven
-## from here). Crashes cut tight onto the wreck; a single chase (no opponent)
-## cuts to the finish line at the end.
+## Cameras: Chase (default) and Overview (the whole road, top-down 2D).
+## Chase is 3D (widgets/chase3d.gd), filmed from a CAMERA CAR driving the road
+## behind the car (camcar_*). With an opponent it's SPLIT SCREEN: him on the
+## left, Faba on the right; without one, one pane fills the view. Each pane is
+## a copy of this viewer in "pane" mode: it runs the same 2D world (hidden)
+## to place its car and its camera car, and draws them in its own 3D world,
+## its clock driven from here.
 ##
 ## Head-to-head replays carry the opponent as a "ghost" (pose samples on its own
-## time base), drawn translucent. A crashed car stops at its crash apex; the
-## replay ends when Faba finishes or crashes.
+## time base). A crashed car's run ends at its crash apex; from there it slides
+## on off the road (crash_slide(), visual). The replay ends when the winner
+## crosses, or at Faba's crash.
 ##
 ## Night: the world (scenery, road, tire marks) sits under a moonlit
 ## CanvasModulate and is lit by each car's headlights (PointLight2D). Cars,
@@ -51,6 +53,8 @@ const RACING_FONT := preload("res://fonts/RacingSansOne-Regular.ttf")
 const VT_FONT := preload("res://fonts/VT323-Regular.ttf")            # camcorder OSD
 const BODY_FONT := preload("res://fonts/BarlowCondensed-Bold.ttf")
 const SceneryScript := preload("res://widgets/scenery.gd")
+const Chase3D := preload("res://widgets/chase3d.gd")
+const SpeedBlur := preload("res://widgets/speed_blur.gdshader")
 const VhsShader := preload("res://widgets/vhs.gdshader")
 const Voice := preload("res://voice.gd")
 const SPEEDS := [0.25, 0.5, 1.0, 2.0, 4.0, 8.0]
@@ -58,9 +62,7 @@ const LABEL_SCREEN_SCALE := 0.5  # world labels (CRASHED tag): 36 px font drawn 
 const MARKER_RADIUS_PX := 9.0    # car marker ring, constant size on screen
 const TOP_BAR_PX := 196.0        # info bar height (screen px)
 const BOTTOM_PX := 420.0         # camera buttons + dash height (screen px)
-const CHASE_VIEW_M := 80.0       # meters across the screen in chase mode
-const CHASE_LOOKAHEAD_M := 22.0  # chase camera looks ahead so the car sits low on screen
-const PANE_VIEW_M := 46.0        # split screen: meters across one (half-width) pane
+const CHASE_VIEW_M := 80.0       # meters across the screen (2D, while switching to the 3D chase)
 const PANE_GAP_PX := 4.0         # the seam between the panes
 const OPP_DASH_ALPHA := 0.72     # his mini gauges: smaller and see-through (Spire)
 
@@ -83,20 +85,46 @@ const NEED_TIGHT_M := 20.0       # a corner this tight or tighter needs the whol
 const NEED_NONE_M := 160.0       # ...one this open needs none
 
 const SLIP_RAD_PER_G := 0.09     # nose turned into the corner: ~5 deg per g of a = v^2 / r
+const SWAY_MAX_DEG_S := 15.0     # selftest: the nose may turn back and forth this fast (rms)...
+const WOBBLE_MAX_PX := 1.0       # ...and wobble across the shot this much (px/frame^2 rms)
+const LINE_PAD_M := 80          # the smoothed tables start this far before the line (the roll-up, the camera car)
+const LINE_EASE_M := 24.0        # a line change is blended over ~this far (an S-bend: no step across the road)
+const BEND_EASE_M := 16.0        # a corner's curve eases in over ~this far (like a real road's transition)
 const RUN_WIDE_M := 1.6          # a mistake: out toward the edge after the apex
 const LANE_LIMIT_M := 3.1        # car's center: never off the asphalt (half the road is 4 m)
 const WIDE_LIMIT_M := 3.7        # ...except running wide: wheels on the edge line
 const G := 9.81
-# The camera: a buzz with speed, a kick to the outside in corners
-const SPEED_SHAKE_PX := 1.0      # screen px of buzz at V_SHAKE_REF...
-const V_SHAKE_REF := 40.0        # ...144 km/h (it grows with v^2)
-const TURN_SHAKE_PX := 1.3       # more buzz per g of cornering
-const SWAY_M_PER_G := 2.2        # the camera swings this far to the outside per g
-const ZOOM_SLOW := 0.88          # chase view width x this when slow (tight in the hairpins)...
-const ZOOM_FAST := 1.22          # ...and x this flat out (sees further down the road)
-const ZOOM_FAST_V := 45.0        # m/s (162 km/h): fully pulled back
-const CAM_AIM_AHEAD_M := 18.0    # chase cam rides the ROAD: aims along it, averaged this far ahead...
-const CAM_AIM_BEHIND_M := 4.0    # ...and this far behind (it starts turning before the corner)
+const V_SHAKE_REF := 40.0        # m/s (144 km/h): "fast", for the wander
+
+# The CAMERA CAR (Spire, after the Topfoil Evo touge videos): the chase view is
+# filmed from a second car driving the road behind the subject (in 3D,
+# widgets/chase3d.gd: low, behind, only its HID headlights showing). A good
+# driver in a matched car, but it can't quite keep up: it plans its braking
+# early and corners a little slower, so the gap OPENS in the tight stuff and
+# it reels the subject back in on the straights (more power). Its heading
+# follows the road a beat late. Visual only: the race is the sim's.
+# Tuned on real replays for a camera at road height (scratchpad prototype,
+# then the selftest's CAMCAR line): the gap averages ~13-16 m, opens to ~20-24 m
+# through the tight stuff, and the line of sight to the subject never leaves
+# the road, even in a 15 m hairpin (in a hairpin the chord between two cars
+# 26 m apart along it cuts inside the road's edge: so 24 m at most).
+const CAMCAR_GAP_M := 11.0       # where it wants to sit behind the subject (two car lengths)...
+const CAMCAR_MIN_GAP_M := 5.0    # ...never closer...
+const CAMCAR_MAX_GAP_M := 24.0   # ...never further (he's a speck, and round a hairpin the hill's in the way)
+const CAMCAR_STOP_M := 12.0      # ...and it stops this far short of a wreck...
+const CAMCAR_BRAKE_HARD := 9.0   # ...standing on it (m/s^2) when the car ahead goes off
+const CRASH_DECEL := 9.0         # m/s^2: a car going off sheds speed fast (dirt, brush, the hit)...
+const OFF_ROAD_M := 3.5          # ...and ends up this far out past its line, over the edge
+const CAMCAR_K_GAP := 0.6        # 1/s: extra speed per meter of gap error (how hard it chases)
+const CAMCAR_GRIP_SHARE := 0.94  # corners at this share of the subject's own best cornering g...
+const CAMCAR_GRIP_MIN := 0.65    # ...but never less (a run of fast sweepers, or a crash in the
+                                 # first corner, never shows the subject's grip limit)
+const CAMCAR_PLAN := 5.0         # m/s^2: how hard it PLANS to brake for a corner (early, gentle)
+const CAMCAR_BRAKE := 7.0        # m/s^2: its hardest stop
+const CAMCAR_ACCEL_MIN := 4.0    # m/s^2: its power, at least this...
+const CAMCAR_ACCEL_SHARE := 1.05 # ...or this x the subject's best pull (a built car is still caught)
+const CAMCAR_STEER := 3.5        # 1/s: its heading follows the road a beat late
+const CAMCAR_LINE_SHARE := 0.85  # drives nearly the subject's line (a chase car follows his line)
 
 # Spotters (Spire: a 3 a.m. run on public roads): a guy with a radio and a
 # flashlight before each blind corner, waving the light when a car comes.
@@ -135,7 +163,6 @@ const COUNT_STEP_S := 0.8        # then the flagger counts 3, 2, 1
 const COUNTDOWN_S := ROLL_S + 3 * COUNT_STEP_S
 const FINISH_SLOW_M := 45.0      # slow-mo once the leader is this close to the line
 const SLOW_MO := 0.3
-const FINISH_VIEW_M := 70.0      # finish-line camera
 const GAP_BAR_RANGE_S := 1.0     # gap bar: full deflection at 1 s
 const MARK_COLOR := Color(0.02, 0.02, 0.02, 0.55)
 const CAPTION_YELLOW := Color(1.0, 0.86, 0.18)
@@ -156,6 +183,7 @@ const CAM_NAMES := ["Overview", "Chase"]
 # Set these before adding the viewer to the tree (game.gd does); defaults = standalone
 var replay_path := REPLAY_PATH
 var embedded := false       # inside the game: Continue button, broadcast cameras
+var faba_parts: Array = []  # part ids on the DX for this race (the 3D chase shows its hood, wheels, springs)
 
 var replay: Dictionary = {}
 var samples: Dictionary = {}
@@ -193,8 +221,6 @@ var ghost_tag: Label      # "CRASHED" over a ghost that went off
 var location := "canyon"  # replay "location" (older replays: canyon)
 var road_pts := PackedVector2Array()
 var end_time := 0.0       # replay ends: Faba's finish/crash, or the ghost's finish if later
-var finish_cut := false   # the finish-line camera has taken over (single chase)
-var crash_cut := false    # the crash camera has taken over
 var pane := ""            # "" = the full viewer; "them" / "faba" = one half of the
                           # split screen: the world only, following that car, its
                           # clock driven by the full viewer (set before adding)
@@ -202,19 +228,31 @@ var panes := []           # full viewer: the two pane viewers [them, faba]
 var pane_boxes := []      # ...their SubViewportContainers
 var pane_tags := []       # ...and a name + speed tag on each
 var wander := {}          # "car" / "ghost" -> FastNoiseLite: each driver's own wander
-var buzz := FastNoiseLite.new()   # camera shake (smooth noise, not white jitter)
+var lines := {}           # "car" / "ghost" -> the smoothed racing line (build_lines)
+var bend := PackedFloat32Array()   # the road's smoothed curvature (build_lines)
 var spotters := []        # [{"s": distance along the road, "node": Node2D, "beam": PointLight2D, "aim": rad}]
+var camcar := {"s": -CAMCAR_GAP_M, "v": 0.0, "yaw": 0.0, "t": 0.0}   # the camera car (chase view)
+var camcar_grip := 0.76   # g: set at load from the subject's own cornering (CAMCAR_GRIP_SHARE)
+var camcar_accel := CAMCAR_ACCEL_MIN
 var flagger: Node2D
+var land: Node2D           # the 2D scenery (the 3D chase reuses its coastline / drop-off)
+var chase: Node3D          # a pane's 3D world (widgets/chase3d.gd)
 
 
 # ------------------------------------------------------------------ setup
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(NIGHT_SKY)
-	if pane != "":                 # one half of the split screen: the world only
+	if pane != "":                 # a chase pane: the 2D world runs (hidden), the 3D one shows
 		if load_replay(replay_path) == "":
 			build_world()
 			set_cam_mode(CamMode.CHASE)
+			visible = false
+			overlay.visible = false
+			chase = Chase3D.new()
+			add_child(chase)
+			chase.build(self)
+			chase.sync(self, 0.0, true)
 		return
 	var args := OS.get_cmdline_user_args()
 	for a in args:
@@ -333,10 +371,10 @@ func build_world() -> void:
 	for who in ["car", "ghost"]:
 		var nz := FastNoiseLite.new()
 		nz.seed = 11 if who == "car" else 23
-		nz.frequency = 0.02                     # per meter of road: a drift every ~50 m
+		nz.frequency = 0.02                     # per meter of road: a drift every ~50 m...
+		nz.fractal_type = FastNoiseLite.FRACTAL_NONE   # ...and nothing finer (layered detail = a shimmy)
 		wander[who] = nz
-	buzz.seed = 5
-	buzz.frequency = 1.0
+	build_lines()
 	overlay = CanvasLayer.new()
 	overlay.layer = 1
 	overlay.follow_viewport_enabled = true      # moves with the camera like the world
@@ -405,7 +443,7 @@ func build_night() -> void:
 	dark.color = MOONLIGHT
 	add_child(dark)
 
-	var land: Node2D = SceneryScript.new()
+	land = SceneryScript.new()
 	land.points = road_pts
 	land.corners = corners
 	land.px_per_m = PX_PER_M
@@ -510,6 +548,8 @@ func build_car() -> void:
 		lights[who + "_hazard"] = hz
 	build_flagger(cone)
 	build_spotters(cone)
+	measure_subject()
+	camcar_reset()
 
 
 ## The flagger: stands in the road just past the start line between the cars'
@@ -588,6 +628,10 @@ func update_spotters() -> void:
 ## The road's centerline at distance s (world px; points are 1 m apart).
 func road_point(s: float) -> Vector2:
 	var n := road_pts.size()
+	if s < 0.0:                                  # behind the start line: straight back
+		return road_pts[0] + (road_pts[0] - road_pts[1]).normalized() * -s * PX_PER_M
+	if s > n - 1:                                # past the finish: straight on
+		return road_pts[n - 1] + (road_pts[n - 1] - road_pts[n - 2]).normalized() * (s - (n - 1)) * PX_PER_M
 	var i := clampi(int(floor(s)), 0, n - 2)
 	return road_pts[i].lerp(road_pts[i + 1], clampf(s - i, 0.0, 1.0))
 
@@ -858,30 +902,36 @@ func draw_viewfinder(finder: Control) -> void:
 		finder.draw_line(corner, corner + Vector2(0, inward.y * VIEWFINDER_ARM), col, 3.0)
 
 
-## Split screen (Chase with an opponent): two panes side by side, him on the
-## left and Faba on the right, each a viewer in "pane" mode with its own copy
-## of the world and a chase camera on its car. Name + speed tag at the bottom.
+## The chase panes: with an opponent, two side by side (him on the left,
+## Faba on the right), else one for Faba. Each is a viewer in "pane" mode in
+## its own viewport with its own 3D world (chase3d.gd): its car and the camera
+## car behind it. Name + speed tag at the bottom of each half.
 func build_panes(layer: CanvasLayer) -> void:
-	if ghost == null:
-		return
-	for who in ["them", "faba"]:
+	for who in ["them", "faba"] if ghost != null else ["faba"]:
 		var box := SubViewportContainer.new()
 		box.stretch = true
 		box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		box.visible = false
+		var blur := ShaderMaterial.new()          # speed blur (chase3d.gd sets how much)
+		blur.shader = SpeedBlur
+		box.material = blur
 		layer.add_child(box)
 		var sv := SubViewport.new()
+		sv.own_world_3d = true                    # each half its own road, car, lights
+		sv.msaa_3d = Viewport.MSAA_4X
 		box.add_child(sv)
 		var v: Node2D = get_script().new()
 		v.replay_path = replay_path
 		v.embedded = embedded
+		v.faba_parts = faba_parts
 		v.pane = who
 		sv.add_child(v)
 		panes.append(v)
 		pane_boxes.append(box)
 		pane_tags.append(osd_label(layer, Vector2.ZERO, 32,
 			GHOST_MARKER_COLOR if who == "them" else MARKER_COLOR))
-	build_opp_dash(layer)
+	if ghost != null:
+		build_opp_dash(layer)
 
 
 ## His dash, small and see-through, in his half: tach, speedo, gear, pedals.
@@ -927,22 +977,30 @@ func ghost_at(key: String, tt: float) -> float:
 	return lerpf(float(arr[i]), float(arr[i + 1]), f)
 
 
-## Lay out the panes in the view area and update their tags.
+## Lay out the panes in the view area and update their tags (a single pane
+## needs no tag: the dash under it is Faba's).
 func update_panes(vp: Vector2) -> void:
 	var split := is_split()
 	var area := view_area()
-	var half := (area.size.x - PANE_GAP_PX) / 2.0
-	for i in pane_boxes.size():
+	var n := pane_boxes.size()
+	var w := (area.size.x - PANE_GAP_PX * (n - 1)) / maxf(n, 1)
+	for i in n:
 		var box: SubViewportContainer = pane_boxes[i]
 		box.visible = split
-		box.position = Vector2(i * (half + PANE_GAP_PX), area.position.y)
-		box.size = Vector2(half, area.size.y)
+		box.position = Vector2(i * (w + PANE_GAP_PX), area.position.y)
+		box.size = Vector2(w, area.size.y)
+		if panes[i].chase != null:
+			box.material.set_shader_parameter("amount", panes[i].chase.blur)
+			box.material.set_shader_parameter("focus", panes[i].chase.flow)
 		var tag: Label = pane_tags[i]
-		tag.visible = split
-		var kmh := ghost_speed_at(t) * 3.6 if i == 0 else value_at("v") * 3.6
-		tag.text = "%s  %d KM/H" % [ghost_name() if i == 0 else "FABA", roundi(kmh)]
+		var them: bool = panes[i].pane == "them"
+		tag.visible = split and n > 1
+		var kmh := ghost_speed_at(t) * 3.6 if them else value_at("v") * 3.6
+		if panes[i].subject_out():
+			kmh = 0.0                                # in the trees
+		tag.text = "%s  %d KM/H" % [ghost_name() if them else "FABA", roundi(kmh)]
 		tag.reset_size()
-		tag.position = Vector2(box.position.x + 14 if i == 0 else vp.x - tag.size.x - 14,
+		tag.position = Vector2(box.position.x + 14 if them else vp.x - tag.size.x - 14,
 			area.end.y - tag.size.y - 10)
 	if hud.has("opp") and not pane_tags.is_empty():
 		var o: Dictionary = hud["opp"]
@@ -1297,11 +1355,13 @@ func _process(delta: float) -> void:
 	lay_tire_marks()
 	update_camera(delta, false)
 	shake = maxf(shake - delta * 1.6, 0.0)
-	camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * 16.0 * shake * shake + camera_buzz()
+	camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * 16.0 * shake * shake
 	if pane == "":
 		update_hud()
 	else:
 		update_intro(get_viewport_rect().size)  # hazards + the flagger's light
+		camcar_step(delta)
+		chase.sync(self, delta)
 	prev_t = t
 
 
@@ -1320,9 +1380,13 @@ func sync_panes() -> void:
 ## Jump playback to tt (stills, tests): move the cars, snap every camera.
 func jump_to(tt: float) -> void:
 	t = tt
-	finish_cut = false
 	update_car()
+	camcar_reset()
 	update_camera(0.0, true)
+	if chase != null:
+		update_intro(get_viewport_rect().size)
+		update_spotters()
+		chase.sync(self, 0.0, true)
 	for p in panes:
 		p.countdown = countdown
 		p.jump_to(tt)
@@ -1476,8 +1540,12 @@ func update_car() -> void:
 	car.position = to_world(value_at("x") + sin(h) * across, value_at("y") - cos(h) * across)
 	car.rotation = -h + line.y                        # flip: Godot rotates clockwise
 	car.position -= Vector2.from_angle(car.rotation) * roll_back_px()   # intro: rolling up
-	if crash_age >= 0.0:                              # spun into the trees
-		car.rotation += 0.9 * clampf(crash_age / 0.5, 0.0, 1.0)
+	if crash_age >= 0.0:                              # off the road, spinning into the trees
+		var slid := crash_slide(crash_age, float(samples["v"][-1]))
+		var at := value_at("s")
+		car.position = slid_position(at, slid, across)
+		car.rotation = road_dir(at + slid.x - 1.0, at + slid.x + 1.0).angle() + line.y \
+			+ 0.9 * clampf(crash_age / 0.5, 0.0, 1.0)
 	var braking := value_at("brake") > 0.0
 	car.braking = braking
 	car.load_g = loads(value_at("s"), value_at("v"), faba_accel())
@@ -1527,8 +1595,13 @@ func update_ghost() -> void:
 	if lights.has("ghost_hazard"):
 		lights["ghost_hazard"].position = ghost_car.position
 	var ghost_out := bool(ghost["dnf"]) and t >= float(ghost["lap_time"])
-	if ghost_out:
-		ghost_car.rotation += 0.9 * clampf((t - float(ghost["lap_time"])) / 0.5, 0.0, 1.0)
+	if ghost_out:                                     # off the road, spinning into the trees
+		var age := t - float(ghost["lap_time"])
+		var slid := crash_slide(age, ghost_crash_v())
+		var at := ghost_s_at(t)
+		ghost_car.position = slid_position(at, slid, across)
+		ghost_car.rotation = road_dir(at + slid.x - 1.0, at + slid.x + 1.0).angle() + line.y \
+			+ 0.9 * clampf(age / 0.5, 0.0, 1.0)
 	ghost_tag.visible = ghost_out
 	var hl: PointLight2D = lights["ghost"]
 	hl.position = ghost_car.position + Vector2.from_angle(ghost_car.rotation) * 2.6 * PX_PER_M
@@ -1539,7 +1612,6 @@ func update_ghost() -> void:
 
 func set_cam_mode(mode: int) -> void:
 	cam_mode = mode
-	crash_cut = false
 	update_camera(0.0, true)
 
 
@@ -1568,52 +1640,20 @@ func update_camera(delta: float, snap: bool) -> void:
 	var target_rot := 0.0
 	var cut := snap
 
-	var length := float(replay["track"]["length"])
+	var follow := 6.0                              # 1/s: how tightly the camera tracks its target
 	if pane == "" and embedded and countdown > 0.0:
 		# Intro: tight on the line, the cars rolling up and the flagger
 		target_pos = flagger.position.lerp(car.position, 0.5)
 		target_zoom = minf(area.size.x, area.size.y) / (40.0 * PX_PER_M)
-	elif pane == "" and cam_mode == CamMode.CHASE and not dnf and (finish_slow() or (t >= lap_time and t <= end_time)):
-		# Single chase (no opponent): one cut to the finish line, then hold
-		if not finish_cut:
-			finish_cut = true
-			cut = true
-		var centerline: Array = replay["track"]["centerline"]
-		var fin: Array = centerline[centerline.size() - 1]
-		target_pos = to_world(fin[0], fin[1])
-		target_zoom = minf(area.size.x, area.size.y) / (FINISH_VIEW_M * PX_PER_M)
-	elif cam_mode == CamMode.CHASE and focus_out and length > 0.0:
-		# Crash cam: cut tight onto the wreck
-		if not crash_cut:
-			crash_cut = true
-			cut = true
-		target_zoom = minf(area.size.x, area.size.y) / (45.0 * PX_PER_M)
 	elif cam_mode == CamMode.OVERVIEW:
 		var margin := 120.0 * PX_PER_M                # room for labels outside the road
 		target_zoom = minf(area.size.x / (track_size.x + margin), area.size.y / (track_size.y + margin))
 		target_pos = track_center
 	else:
-		# Chase (Spire): the camera rides the ROAD, not the car. It sits over the
-		# middle of the road and points along it (averaged a little ahead, so it
-		# starts turning before the corner), trailing on a spring. The car moves
-		# in the frame: across the lanes on its line, nose into the corner,
-		# ahead of the camera when it accelerates and back under braking.
-		# A pane is half as wide, so it shows fewer meters across.
-		var fs := ghost_s_at(t) if pane == "them" else value_at("s")
-		var fv := ghost_speed_at(t) if pane == "them" else value_at("v")
-		# Pulls back with speed, tightens up when slow (the zoom eases on the follow)
-		var view_m := (PANE_VIEW_M if pane != "" else CHASE_VIEW_M) * lerpf(ZOOM_SLOW, ZOOM_FAST,
-			clampf(fv / ZOOM_FAST_V, 0.0, 1.0))
-		target_zoom = area.size.x / (view_m * PX_PER_M)
-		var along := road_dir(fs - CAM_AIM_BEHIND_M, fs + CAM_AIM_AHEAD_M)
-		target_rot = along.angle() + PI / 2.0
-		# Over the middle of the road where the car is (the intro roll-up: behind the line)
-		var back := roll_back_px() if fs <= 0.5 else 0.0
-		target_pos = road_point(fs) - along * back + along * CHASE_LOOKAHEAD_M * PX_PER_M
-		# Thrown to the outside in a corner, like a body in the car (smoothed by the follow)
-		var ride := focus_ride()
-		var right_of_road := Vector2(-along.y, along.x)
-		target_pos += right_of_road * -ride.y * SWAY_M_PER_G * ride.x * PX_PER_M
+		# Chase is the 3D panes (chase3d.gd); this 2D camera only matters for
+		# the moment the panes take over: on the car, pointing up the road
+		target_zoom = area.size.x / (CHASE_VIEW_M * PX_PER_M) * (1.4 if focus_out else 1.0)
+		target_rot = focus.rotation + PI / 2.0
 
 	# The view area isn't centered vertically (top bar vs bottom panel): shift
 	# the camera so target_pos lands in the middle of the view area
@@ -1625,13 +1665,13 @@ func update_camera(delta: float, snap: bool) -> void:
 	else:
 		var k := 1.0 - exp(-delta * 6.0)             # smooth, frame-rate independent
 		camera.zoom = camera.zoom.lerp(Vector2.ONE * target_zoom, k)
-		camera.rotation = lerp_angle(camera.rotation, target_rot, 1.0 - exp(-delta * 8.0))
+		camera.rotation = lerp_angle(camera.rotation, target_rot, 1.0 - exp(-delta * maxf(follow, 8.0)))
 	var world_offset := (screen_offset / camera.zoom.x).rotated(camera.rotation)
 	var final_pos := target_pos + world_offset
 	if cut:
 		camera.position = final_pos
 	else:
-		camera.position = camera.position.lerp(final_pos, 1.0 - exp(-delta * 6.0))
+		camera.position = camera.position.lerp(final_pos, 1.0 - exp(-delta * follow))
 	rescale_overlays()
 
 
@@ -1690,10 +1730,11 @@ func restart() -> void:
 	playing = true
 	countdown = COUNTDOWN_S
 	crash_age = -1.0
-	finish_cut = false
+	camcar_reset()
+	if chase != null:
+		chase.reset()
 	if flagger:
 		flagger.visible = true
-	crash_cut = false
 	mark_lines = [null, null]
 	for child in marks.get_children():
 		child.queue_free()
@@ -1728,6 +1769,84 @@ func self_test() -> void:
 			print("          ghost pos=(%7.1f, %7.1f) m  crashed_tag=%s" % [
 				ghost_car.position.x / PX_PER_M, -ghost_car.position.y / PX_PER_M, ghost_tag.visible])
 	print("BANNER " + banner_result()["text"].replace("\n", " | "))
+	# Each chase pane through the whole run at 60 fps: its camera car never on
+	# the bumper, never further than the max gap, and its car always in the shot
+	set_cam_mode(CamMode.CHASE)
+	update_hud()
+	var n := pane_boxes.size()                       # as on the phone (720 x 1280), whatever the window
+	for box: SubViewportContainer in pane_boxes:
+		box.size = Vector2((720.0 - PANE_GAP_PX * (n - 1)) / n, 1280.0 - TOP_BAR_PX - BOTTOM_PX)
+	var failed := ""
+	for p in panes:
+		p.countdown = 0.0
+		p.jump_to(0.0)
+		var gaps := []
+		var fovs := []
+		var framed := 0                              # frames with the car's middle in the shot...
+		var whole := 0                               # ...and all of it
+		var lost := false
+		var noses := []                              # deg: the car's nose vs the road, per frame
+		var screen_x := []                           # px: where it sits across the shot
+		var after := 0                               # frames after a crash (the replay clock's stopped):
+		while p.t < p.end_time or (p.subject_out() and after < 240):   # the slide, pulling up behind
+			if p.t < p.end_time:
+				p.t = minf(p.t + 1.0 / 60.0, p.end_time)
+			else:
+				after += 1
+			p.fire_events(1.0 / 60.0)
+			p.prev_t = p.t
+			p.update_car()
+			p.update_spotters()
+			p.camcar_step(1.0 / 60.0)
+			p.chase.sync(p, 1.0 / 60.0)
+			var gap: float = p.subject_sv().x - float(p.camcar["s"])
+			gaps.append(gap)
+			fovs.append(p.chase.fov)
+			lost = lost or gap < CAMCAR_MIN_GAP_M - 0.01 or gap > CAMCAR_MAX_GAP_M + 0.01
+			var seen: int = p.chase.subject_in_frame()
+			framed += 1 if seen > 0 else 0
+			whole += 1 if seen == 2 else 0
+			if not p.subject_out():                  # how much the car swings (Spire: "side to side")
+				var node: Node2D = p.ghost_car if p.pane == "them" else p.car
+				var s: float = p.subject_sv().x
+				var nose := wrapf(node.rotation - p.road_dir(s - 1.0, s + 1.0).angle(), -PI, PI)
+				noses.append(rad_to_deg(nose))
+				var sx: float = p.chase.cam.unproject_position(p.chase.car["root"].position + Vector3(0, 0.7, 0)).x
+				screen_x.append(sx)
+		var mean := 0.0
+		for g in gaps:
+			mean += g
+		var shot := 100.0 * framed / maxf(gaps.size(), 1)
+		print("CAMCAR %s (%s px): grip %.2f g, accel %.1f m/s^2, gap min %.1f / mean %.1f / max %.1f m, in the shot %.1f%% (whole car %.1f%%), fov %d-%d%s" % [
+			p.pane, str(p.get_viewport().get_visible_rect().size), p.camcar_grip, p.camcar_accel, gaps.min(), mean / gaps.size(), gaps.max(), shot,
+			100.0 * whole / maxf(gaps.size(), 1), roundi(fovs.min()), roundi(fovs.max()), "  LOST HIM" if lost else ""])
+		# Swing: the nose vs the road (rms), how fast it turns back and forth
+		# (rms deg/s), and the car's wobble across the shot (rms of the frame-
+		# to-frame change in its screen speed: a smooth pan scores ~0)
+		var nose_rms := 0.0
+		var rate_rms := 0.0
+		var wobble := 0.0
+		for i in noses.size():
+			nose_rms += pow(noses[i], 2.0)
+			if i > 0:
+				rate_rms += pow((noses[i] - noses[i - 1]) * 60.0, 2.0)
+			if i > 1:
+				wobble += pow(screen_x[i] - 2.0 * screen_x[i - 1] + screen_x[i - 2], 2.0)
+		var nn := maxf(noses.size(), 1)
+		print("SWAY %s: nose vs road %.1f deg rms, nose turning %.0f deg/s rms, wobble on screen %.2f px/frame^2 rms" % [
+			p.pane, sqrt(nose_rms / nn), sqrt(rate_rms / nn), sqrt(wobble / nn)])
+		# Before the smoothed lines (Oct 2026) a tight road measured 83-118 deg/s
+		# and a wobble of 3.5-5.7: Spire's "swinging side to side". Now ~5 / ~0.15.
+		if sqrt(rate_rms / nn) > SWAY_MAX_DEG_S or sqrt(wobble / nn) > WOBBLE_MAX_PX:
+			failed = "the car swings side to side"
+		if lost:
+			failed = "the camera car left its gap limits"
+		elif shot < 100.0 or whole < 0.98 * gaps.size():
+			failed = "the car left the shot"
+	if failed != "":
+		print("SELFTEST FAILED: " + failed)
+		get_tree().quit(1)
+		return
 	print("SELFTEST OK")
 	get_tree().quit()
 
@@ -1742,9 +1861,10 @@ func take_screenshots(folder: String) -> void:
 		for c in driver["corners"]:
 			if c["mistake"]:
 				moments["mistake_" + str(c["text"]).replace(" ", "_")] = time_at_s(float(c["s_end"]))
+	if not spotters.is_empty():                 # coming up on a spotter, his light waving
+		moments["spotter"] = time_at_s(float(spotters[0]["s"]) - 30.0)
 	for moment in moments:
-		t = minf(float(moments[moment]), end_time)
-		update_car()
+		jump_to(minf(float(moments[moment]), end_time))
 		for mode in [CamMode.OVERVIEW, CamMode.CHASE]:
 			set_cam_mode(mode)
 			update_hud()
@@ -1836,15 +1956,12 @@ func driving_line(s: float, v: float, who: String) -> Vector2:
 	var nz: FastNoiseLite = wander[who]
 	var skill := line_skill(who)
 	var sway := WANDER_M * lerpf(1.6, 0.6, skill) * (0.4 + 0.6 * clampf(v / V_SHAKE_REF, 0.0, 1.5))
-	var path := func(x: float) -> float: return racing_line(x, skill) + nz.get_noise_1d(x) * sway
+	var path := func(x: float) -> float: return line_at(x, who) + nz.get_noise_1d(x) * sway
 	var across: float = path.call(s)
-	var nose := atan((float(path.call(s + 1.5)) - float(path.call(s - 1.5))) / 3.0)
-	var c := corner_at_s(s)
-	if not c.is_empty():
-		# Slip angle: the nose turns into the corner with lateral g (a = v^2 / r)
-		var inward := 1.0 if c["direction"] == "R" else -1.0
-		var g := v * v / maxf(float(c["radius"]), 1.0) / G
-		nose += inward * SLIP_RAD_PER_G * minf(g, 1.3)
+	var nose := atan((float(path.call(s + 2.0)) - float(path.call(s - 2.0))) / 4.0)
+	# Slip angle: the nose turns into the corner with lateral g (a = v^2 / r),
+	# easing in and out with the road's curve (bend_at), never in one snap
+	nose += SLIP_RAD_PER_G * clampf(v * v * bend_at(s) / G, -1.3, 1.3)
 	var limit := LANE_LIMIT_M
 	if who == "car" and driver != null:
 		for m in driver["corners"]:              # ran wide: out after the apex, back over 40 m
@@ -1869,11 +1986,65 @@ func driving_line(s: float, v: float, who: String) -> Vector2:
 ## + = turning right), from its speed through the corner (a = v^2 / r) and
 ## its acceleration along the road.
 func loads(s: float, v: float, accel: float) -> Vector2:
-	var lat := 0.0
-	var c := corner_at_s(s)
-	if not c.is_empty():
-		lat = (1.0 if c["direction"] == "R" else -1.0) * v * v / maxf(float(c["radius"]), 1.0) / G
-	return Vector2(clampf(accel / G, -1.2, 0.8), clampf(lat, -1.3, 1.3))
+	return Vector2(clampf(accel / G, -1.2, 0.8), clampf(v * v * bend_at(s) / G, -1.3, 1.3))
+
+
+## The smoothed tables (built once, build_lines): each driver's racing line and
+## the road's curvature, 1 m apart from LINE_PAD_M before the start. The pace
+## notes go straight -> full curve in one step (and an S-bend flips the line
+## from one corner's outside to the next one's in one step); real roads and
+## real drivers ease through those. Smoothing them is what keeps a car from
+## twitching side to side.
+func build_lines() -> void:
+	var n := int(float(replay["track"]["length"])) + 2 * LINE_PAD_M
+	bend = smooth(n, BEND_EASE_M, func(s: float) -> float:
+		var c := corner_at_s(s)
+		return 0.0 if c.is_empty() else (1.0 if c["direction"] == "R" else -1.0) / maxf(float(c["radius"]), 1.0))
+	for who in ["car", "ghost"] if ghost != null else ["car"]:
+		var skill := line_skill(who)
+		lines[who] = smooth(n, LINE_EASE_M, func(s: float) -> float: return racing_line(s, skill))
+
+
+## f(s) sampled every meter, then a moving average over `ease_m` twice (a
+## triangle-shaped blend: the result has no corners in it).
+func smooth(n: int, ease_m: float, f: Callable) -> PackedFloat32Array:
+	var a := PackedFloat32Array()
+	a.resize(n)
+	for i in n:
+		a[i] = f.call(float(i - LINE_PAD_M))
+	var half := maxi(int(ease_m / 2.0), 1)
+	for pass_i in 2:
+		var b := PackedFloat32Array()
+		b.resize(n)
+		var acc := 0.0
+		var lo := 0
+		var hi := -1
+		for i in n:
+			while hi < mini(i + half, n - 1):
+				hi += 1
+				acc += a[hi]
+			while lo < i - half:
+				acc -= a[lo]
+				lo += 1
+			b[i] = acc / (hi - lo + 1)
+		a = b
+	return a
+
+
+func table_at(a: PackedFloat32Array, s: float) -> float:
+	var x := clampf(s + LINE_PAD_M, 0.0, a.size() - 1.001)
+	var i := int(x)
+	return lerpf(a[i], a[i + 1], x - i)
+
+
+## A driver's racing line at s (m across, + = right of travel), smoothed.
+func line_at(s: float, who: String) -> float:
+	return table_at(lines[who], s)
+
+
+## The road's curvature at s (1/m, + = turning right), eased in and out.
+func bend_at(s: float) -> float:
+	return table_at(bend, s)
 
 
 ## Faba's acceleration along the road (m/s^2), from his speed samples.
@@ -1884,23 +2055,180 @@ func faba_accel() -> float:
 	return 0.0 if dt <= 0.0 else (float(vs[idx + 1]) - float(vs[idx])) / dt
 
 
-## The followed car's cornering: Vector2(lateral g, +1 right-hander / -1 left / 0).
-func focus_ride() -> Vector2:
-	var s := ghost_s_at(t) if pane == "them" else value_at("s")
-	var v := ghost_speed_at(t) if pane == "them" else value_at("v")
-	var c := corner_at_s(s)
-	if c.is_empty():
-		return Vector2.ZERO
-	return Vector2(v * v / maxf(float(c["radius"]), 1.0) / G, 1.0 if c["direction"] == "R" else -1.0)
+# ------------------------------------------------------------ the camera car
+
+## Which car this view films: a pane's own, else Faba.
+func subject() -> String:
+	return "ghost" if pane == "them" else "car"
 
 
-## Camera buzz (screen px, as a world offset): with speed^2 and cornering g,
-## only while the race is running in Chase.
-func camera_buzz() -> Vector2:
-	if cam_mode != CamMode.CHASE or not playing or countdown > 0.0 or t >= end_time:
-		return Vector2.ZERO
-	var v := ghost_speed_at(t) if pane == "them" else value_at("v")
-	var amp := SPEED_SHAKE_PX * pow(v / V_SHAKE_REF, 2.0) + TURN_SHAKE_PX * minf(focus_ride().x, 1.3)
-	var tt := Time.get_ticks_msec() / 1000.0 * 9.0           # slow enough to feel like a rumble
-	return Vector2(buzz.get_noise_1d(tt), buzz.get_noise_1d(tt + 300.0)) * amp / maxf(camera.zoom.x, 0.01)
+## The subject's distance along the road and speed (a wreck: where its slide is).
+func subject_sv() -> Vector2:
+	var age := subject_crash_age()
+	if subject() == "ghost":
+		if age >= 0.0:
+			var g := crash_slide(age, ghost_crash_v())
+			return Vector2(ghost_s_at(t) + g.x, g.z)
+		return Vector2(ghost_s_at(t), ghost_speed_at(t))
+	if age >= 0.0:
+		var f := crash_slide(age, float(samples["v"][-1]))
+		return Vector2(value_at("s") + f.x, f.z)
+	return Vector2(value_at("s"), value_at("v"))
+
+
+## A crash, after the sim's run ends at the apex (VISUAL, both views): the car
+## goes on off the road shedding speed hard (CRASH_DECEL: dirt, brush, the
+## hit), out past the edge to the outside of the corner. Vector3(m along the
+## road past the crash point, m out, its speed now).
+func crash_slide(age: float, v0: float) -> Vector3:
+	var tau := clampf(age, 0.0, v0 / CRASH_DECEL)
+	var along := v0 * tau - 0.5 * CRASH_DECEL * tau * tau
+	return Vector3(along, OFF_ROAD_M * smoothstep(0.0, 0.8, age), maxf(v0 - CRASH_DECEL * maxf(age, 0.0), 0.0))
+
+
+## Where a sliding wreck is (world px): s_crash + its slide along the road,
+## from its line across it out past the edge.
+func slid_position(s_crash: float, slid: Vector3, across: float) -> Vector2:
+	var s := s_crash + slid.x
+	var c := corner_at_s(s_crash)
+	var outside := -1.0 if c.get("direction", "R") == "R" else 1.0     # + = right of travel
+	var dir := road_dir(s - 1.0, s + 1.0)
+	return road_point(s) + Vector2(-dir.y, dir.x) * (across + outside * slid.y) * PX_PER_M
+
+
+## His speed as he went off (his replay's last speed sample).
+func ghost_crash_v() -> float:
+	var gs: Dictionary = ghost["samples"]
+	if gs.has("v"):
+		return float(gs["v"][-1])
+	var gt := float(ghost["lap_time"])
+	return (ghost_s_at(gt) - ghost_s_at(gt - 0.2)) / 0.2
+
+
+func subject_out() -> bool:
+	if subject() == "ghost":
+		return bool(ghost["dnf"]) and t >= float(ghost["lap_time"])
+	return dnf and t >= lap_time
+
+
+## Seconds since the subject crashed (Faba's on real time: the replay clock
+## stops at his crash; his opponent's on the replay clock), < 0 if it hasn't.
+func subject_crash_age() -> float:
+	if not subject_out():
+		return -1.0
+	if subject() == "ghost":
+		return t - float(ghost["lap_time"])
+	return maxf(crash_age, 0.0)
+
+
+## The camera car is matched to the car it films: its grip from the
+## subject's best cornering g (v_min^2 / r through each corner), its power
+## from the subject's best pull.
+func measure_subject() -> void:
+	var smp: Dictionary = ghost["samples"] if subject() == "ghost" else samples
+	if not smp.has("v"):
+		return
+	var ss: Array = smp["s"]
+	var vs: Array = smp["v"]
+	var ts: Array = smp["t"]
+	var best_g := 0.0
+	for c in corners:
+		var v_min := INF
+		for i in ss.size():
+			if float(ss[i]) >= float(c["s_start"]) and float(ss[i]) <= float(c["s_end"]):
+				v_min = minf(v_min, float(vs[i]))
+		if v_min < INF:
+			best_g = maxf(best_g, v_min * v_min / float(c["radius"]) / G)
+	camcar_grip = maxf(CAMCAR_GRIP_SHARE * best_g, CAMCAR_GRIP_MIN)
+	var best_a := 0.0
+	for i in range(1, vs.size()):
+		var dt := float(ts[i]) - float(ts[i - 1])
+		if dt > 0.0 and float(vs[i]) > 8.0:
+			best_a = maxf(best_a, (float(vs[i]) - float(vs[i - 1])) / dt)
+	camcar_accel = maxf(CAMCAR_ACCEL_MIN, CAMCAR_ACCEL_SHARE * best_a)
+
+
+## Settle it where it would be: its gap behind, at the subject's speed.
+func camcar_reset() -> void:
+	var sv := subject_sv()
+	var back := roll_back_px() / PX_PER_M if countdown > 0.0 else 0.0
+	camcar["s"] = sv.x - back - CAMCAR_GAP_M
+	camcar["v"] = 0.0 if countdown > 0.0 else sv.y
+	camcar["yaw"] = road_dir(camcar["s"] - 2.0, camcar["s"] + 8.0).angle()
+	camcar["t"] = t
+
+
+## The fastest it's willing to go here: every corner within its braking
+## reach, braked for at its planning rate (v^2 = v_c^2 + 2 a d), cornering
+## at camcar_grip (v_c = sqrt(mu g r)).
+func camcar_allow(s: float, v: float) -> float:
+	var best := INF
+	var reach := v * v / (2.0 * CAMCAR_PLAN) + 40.0
+	for c in corners:
+		var s0 := float(c["s_start"])
+		if float(c["s_end"]) < s or s0 > s + reach:
+			continue
+		var vc := sqrt(camcar_grip * G * float(c["radius"]))
+		var d := maxf(s0 - s, 0.0)
+		best = minf(best, sqrt(vc * vc + 2.0 * CAMCAR_PLAN * d))
+	return best
+
+
+## Drive it one frame. It runs on PLAYBACK time (pause, 2x, slow-mo all
+## apply), in 1/60 s steps; after a crash the replay clock stops, so it
+## rolls up to the wreck on real time.
+func camcar_step(delta: float) -> void:
+	var play := t - float(camcar["t"])
+	camcar["t"] = t
+	if play < 0.0 or play > 2.0:                  # restarted / jumped: settle instead
+		camcar_reset()
+		return
+	var sv := subject_sv()
+	var out := subject_out()
+	if out and t >= end_time and playing:
+		play = delta                              # the clock's stopped at the crash; it isn't
+	if countdown > 0.0:                           # the roll-up: it waits behind the cars, lights on
+		camcar["s"] = sv.x - roll_back_px() / PX_PER_M - CAMCAR_GAP_M
+		camcar["v"] = 0.0
+	var steps := clampi(ceili(play * 60.0), 0, 120)
+	var h := play / maxf(steps, 1)
+	for i in steps:
+		var cs: float = camcar["s"]
+		var cv: float = camcar["v"]
+		var gap := sv.x - cs
+		var fv := 0.0 if out else sv.y
+		var want := fv + CAMCAR_K_GAP * (gap - (CAMCAR_STOP_M if out else CAMCAR_GAP_M))
+		want = clampf(minf(want, camcar_allow(cs, cv)), 0.0, INF)
+		cv += clampf(want - cv, -(CAMCAR_BRAKE_HARD if out else CAMCAR_BRAKE) * h, camcar_accel * h)
+		cs += cv * h
+		if sv.x - cs < CAMCAR_MIN_GAP_M:          # never on his bumper
+			cs = sv.x - CAMCAR_MIN_GAP_M
+			cv = minf(cv, fv)
+		if sv.x - cs > CAMCAR_MAX_GAP_M:          # never loses him: floors it
+			cs = sv.x - CAMCAR_MAX_GAP_M
+		camcar["s"] = cs
+		camcar["v"] = cv
+	# Its heading: the road where IT is, plus its line, turning in a beat late
+	var cs2: float = camcar["s"]
+	var aim := road_dir(cs2 - 2.0, cs2 + 8.0).angle() + atan((camcar_lat(cs2 + 1.5) - camcar_lat(cs2 - 1.5)) / 3.0)
+	camcar["yaw"] = lerp_angle(float(camcar["yaw"]), aim, 1.0 - exp(-maxf(play, 0.0) * CAMCAR_STEER))
+
+
+## Across the road (m, + = right of travel): part of the subject's line.
+func camcar_lat(s: float) -> float:
+	return CAMCAR_LINE_SHARE * line_at(s, subject())
+
+
+## The camera car's position (world px).
+func camcar_pos() -> Vector2:
+	var s: float = camcar["s"]
+	var along := road_dir(s - 2.0, s + 2.0)
+	return road_point(s) + Vector2(-along.y, along.x) * camcar_lat(s) * PX_PER_M
+
+
+## Its own cornering: Vector2(lateral g, +1 right / -1 left / 0).
+func camcar_ride() -> Vector2:
+	var k := bend_at(float(camcar["s"]))
+	var v: float = camcar["v"]
+	return Vector2(v * v * absf(k) / G, signf(k))
 

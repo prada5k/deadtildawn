@@ -59,7 +59,7 @@ breakdown then covers only the distance both cars drove).
 
 ### 6.u Reading a road before the race (`sim/roadread.py`)
 
-The scout screen says what kind of road it is, from the pace notes and one
+The scout screen shows the road's numbers, from the pace notes and one
 theoretical-limit run of the player's car as built (no lap times shown).
 
 **By distance** (pace notes only): straight share = straight meters / road
@@ -71,13 +71,14 @@ Time, not distance, decides what a part buys: the car spends longer per
 meter in corners (it's slower there), so a road that's 55% straight by
 distance can be under half full throttle by time.
 
-**Verdict:** full throttle >= 62%: a power road; <= 48%: a grip road;
-between: both. Thresholds from data: open roads 1-9 + the test track span
-41-70% (flowing roads 66-70%, tight ones 41-44%).
+**No verdict** (Spire, Oct 2026: the player reads the numbers and decides).
+For scale: open roads 1-9 + the test track span 41-70% full throttle
+(flowing roads 66-70%, tight ones 41-44%). An earlier version called a road
+"power" (>= 62%), "grip" (<= 48%) or "both"; removed.
 
 **Predict this one:** put power parts on, and the SAME road's full-throttle
 share drops (test track: 66% -> 62.5% with an interior strip, a header and
 street cams). The straights go by faster, but corner speed is capped by grip
 ($v = \sqrt{\mu g r}$, no power in it), so the corners become a bigger share of
-the run. More power makes grip matter more: a power road can turn into a
-"both" road as you build it. (Tested: the built car's share is never higher.)
+the run. More power makes grip matter more: the more you build the motor, the
+more the corners decide the run. (Tested: the built car's share is never higher.)

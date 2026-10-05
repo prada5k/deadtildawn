@@ -206,7 +206,7 @@ def test_road_comes_before_the_opponent():
 
 def test_road_read_contract():
     r = call("road_read", "--track", TRACK)
-    assert r["ok"] and r["kind"] in ("power", "grip", "both")
+    assert r["ok"] and "kind" not in r          # numbers only, no verdict (Spire)
     assert r["tightest"]["text"] == "L1 180" and 0.4 < r["full_throttle"] < 0.8
     # More power: more of the lap is full throttle? No: the SAME road with a
     # faster car spends LESS time on straights (they go by quicker), so the

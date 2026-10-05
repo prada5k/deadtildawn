@@ -108,14 +108,6 @@ const CAUSE_WHERE := {
 	"launch": "off the line", "accel": "on the run to %s", "exit": "out of %s",
 	"braking": "into %s", "corner": "through %s", "mistake": "at %s",
 }
-# The road screen: the builder's read of tonight's road (sim/roadread.py
-# "kind"), in Sharpie under the map. DRAFTS by Claude -- Spire rewrites.
-const ROAD_KIND := {
-	"power": "power road. motor wins this one",
-	"grip": "all turns. tires, suspension, weight",
-	"both": "bit of everything on this one",
-}
-
 # The replay: what the spotters say on the radio as Faba goes by (before the
 # blind corners). DRAFT -- Spire's word.
 const SPOTTER_CALL := "clear"

@@ -31,15 +31,18 @@ def test_test_track_by_the_pace_notes():
     assert r["corners"] == 5 and r["hairpins"] == 1
 
 
-def test_a_straight_is_a_power_road():
+def test_a_straight_is_all_throttle():
     # 400 m of nothing but straight: full throttle except the shifts (~0.4 s
     # each, 2-3 of them in ~19 s), never on the brakes
     r = read(parse_pace_notes("S 400"))
     assert r["full_throttle"] > 0.85 and r["braking"] == 0.0
-    assert r["kind"] == "power" and r["tightest"] is None
+    assert r["tightest"] is None and r["hairpins"] == 0
 
 
-def test_hairpins_make_a_grip_road():
+def test_hairpins_eat_the_throttle():
+    # 240 m of straight between three 15 m hairpins: at 0.83 g a hairpin is
+    # taken at sqrt(0.83 * 9.81 * 15) = 11 m/s, so most of the run is braking
+    # for one, crawling round it, or climbing back out: well under half
     r = read(parse_pace_notes("S 60, L1 180, S 60, R1 180, S 60, L1 180, S 60"))
-    assert r["hairpins"] == 3 and r["kind"] == "grip"
+    assert r["hairpins"] == 3 and r["full_throttle"] < 0.5
     assert r["braking"] > 0.0

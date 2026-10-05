@@ -97,3 +97,4 @@ No model change: `sim/breakdown.py` only reads two runs' telemetry (PHYSICS_upda
 ## Road read on the scout screen (Oct 2026)
 
 No model change: `sim/roadread.py` reads the pace notes and one theoretical-limit run (PHYSICS_updates_G 6.u). Hand calc: test track straight share 0.647 (tested). Power/grip thresholds (62% / 48% full throttle) set from the full-throttle shares of open roads 1-9 and the test track (41-70%). Found: a built car's full-throttle share on the same road is lower (66% -> 62.5%), because corner speed doesn't depend on power.
+- **Oct 2026 (Spire):** the power / grip / both verdict is gone (`kind` removed from `road_read`, `Voice.ROAD_KIND` and the Sharpie note deleted): the scout screen shows the numbers only and the player reads them.
