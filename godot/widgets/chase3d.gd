@@ -817,6 +817,12 @@ func build_car(v: Node) -> void:
 	head.basis = Basis.looking_at(Vector3(1.0, -0.05, 0.0), Vector3.UP)
 	body.add_child(head)
 	var brake := glow_mat(BRAKE_RED, 0.0)
+	var brake_rest := 0.0                             # the taillights' glow when not braking
+	var lenses: Variant = body.get_child(0).get("taillight_mat") if who == "car" else null
+	if lenses != null:
+		brake = lenses                                  # a real model: its own lenses light up, no lamp boxes
+		brake_rest = brake.emission_energy_multiplier
+		tails = []
 	for tpos: Vector3 in tails:
 		var lamp := MeshInstance3D.new()
 		lamp.mesh = box(Vector3(0.03, 0.15, 0.42))
@@ -946,7 +952,7 @@ func build_car(v: Node) -> void:
 	flash.visible = false
 	flash.position = tip_at + Vector3(-0.4, 0.1, 0)
 	body.add_child(flash)
-	car = {"root": root, "body": body, "head": head, "brake": brake, "tail": tail, "hazard": hz,
+	car = {"root": root, "body": body, "head": head, "brake": brake, "brake_rest": brake_rest, "tail": tail, "hazard": hz,
 		"flame": flame, "flame_mat": burn, "flash": flash, "tip_at": tip_at, "ball": ball,
 		"blinkers": corners, "half": half}
 
@@ -1269,7 +1275,7 @@ func sync_car(v: Node) -> void:
 	var braking: bool = node.braking
 	if who == "ghost" and v.ghost["samples"].has("brake"):
 		braking = v.ghost_at("brake", v.t) > 0.0 and not v.subject_out()
-	car["brake"].emission_energy_multiplier = 7.0 if braking else 0.0
+	car["brake"].emission_energy_multiplier = 7.0 if braking else float(car["brake_rest"])
 	car["tail"].light_energy = 0.7 if braking else 0.12
 	var hz_key := who + "_hazard"
 	var hz_e: float = v.lights[hz_key].energy if v.lights.has(hz_key) else 0.0
