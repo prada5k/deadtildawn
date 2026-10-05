@@ -391,10 +391,20 @@ func open_hub(packed: PackedScene, tab: String) -> Control:
 	stage.show_parts(car_look())
 	stage.show_parked_car(setting("parked_car"))
 	stage.set_light(light_level())
+	stage.set_strobes(strobes_on())
 	hub_content = packed.instantiate()
 	hub_content.go.connect(_go)
 	shell.set_content(hub_content)
 	return hub_content
+
+
+## The strobes: bought and worn (body shop), and switched on (home / the replay).
+func has_strobes() -> bool:
+	return look_state()["worn"].get("strobes", "") == "strobes"
+
+
+func strobes_on() -> bool:
+	return has_strobes() and bool(state.get("strobes_on", false))
 
 
 ## The tube over the DX (home: Spire's brightness buttons), 0..4.
@@ -496,9 +506,15 @@ func show_warehouse() -> void:
 	info["parked_car"] = setting("parked_car")
 	info["caption"] = "%s, wk %d. %s" % [Voice.HOME_PLACE, int(state["week"]), home_caption(installed_part_ids().size())]
 	info["light"] = light_level()
+	info["has_strobes"] = has_strobes()
+	info["strobes_on"] = strobes_on()
 	var home: Control = open_hub(WarehouseScene, "warehouse")
 	home.setup(info)
 	home.light.connect(set_light_level)
+	home.strobes.connect(func(on: bool):
+		state["strobes_on"] = on
+		save_game()
+		shell.stage().set_strobes(on))
 
 
 ## A setting's value (state["settings"], SETTINGS' default when unset). Sound
@@ -1376,6 +1392,7 @@ func show_race(replay_path: String, result: Dictionary) -> void:
 	viewer.replay_path = replay_path        # the opponent rides along as the replay's ghost
 	viewer.embedded = true
 	viewer.busted = result.has("cops")                # the cops: lights and a siren at the end
+	viewer.strobes = strobes_on()                      # the strobes as you left them (the replay can flip them)
 	viewer.sore_loser = result.get("stiffed", false)   # jorge mode: he leans on his horn after
 	# The DX as it raced (the result saved the build before any crash damage)
 	var raced: Array = result.get("parts", [])

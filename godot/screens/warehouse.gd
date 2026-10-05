@@ -8,14 +8,20 @@ extends Control
 
 signal go(target: String)    # "race", "story"
 signal light(level: int)     # the tube over the DX (Spire: brightness buttons), 0..LEVELS-1
+signal strobes(on: bool)     # the strobes (once bought in the body shop)
 
 const LEVELS := 5
 var level := 3
+var strobing := false
 
 
 func _ready() -> void:
 	%LightDown.pressed.connect(func(): set_light(level - 1))
 	%LightUp.pressed.connect(func(): set_light(level + 1))
+	%StrobeButton.pressed.connect(func():
+		strobing = not strobing
+		show_strobes()
+		strobes.emit(strobing))
 	%GetReady.pressed.connect(func(): go.emit("race"))
 	%StoryButton.pressed.connect(func(): go.emit("story"))
 
@@ -24,6 +30,10 @@ func set_light(l: int) -> void:
 	level = clampi(l, 0, LEVELS - 1)
 	show_light()
 	light.emit(level)
+
+
+func show_strobes() -> void:
+	%StrobeButton.theme_type_variation = "OsdOnButton" if strobing else "OsdButton"
 
 
 func show_light() -> void:

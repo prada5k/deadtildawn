@@ -395,6 +395,12 @@ func show_parts(ids: Array) -> void:
 			car.build(ids)
 
 
+## The DX's strobes (body shop) flashing or not (home's STROBES button).
+func set_strobes(on: bool) -> void:
+	if car != null:
+		car.strobes_on = on
+
+
 ## The other cars parked in the garage, on or off (the settings screen).
 func show_parked_car(on: bool) -> void:
 	if other != null:

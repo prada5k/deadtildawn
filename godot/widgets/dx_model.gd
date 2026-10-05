@@ -82,6 +82,26 @@ var taillight_mat: StandardMaterial3D   # a real model's taillight lenses (null 
 var blinker_mat: StandardMaterial3D     # and its amber corners
 var parts: Array = []        # what build() was given: part ids + "look:<id>" entries
 var lights_on := true        # headlights/taillights glowing (off on the lift)
+## Strobes (body shop: "look:strobes"): flashing in the engine bay and the
+## cabin while on (the home screen's / the replay's STROBES button).
+var strobes_on := false:
+	set(v):
+		strobes_on = v
+		if not v:
+			for s: Array in strobes:
+				s[0].light_energy = 0.0
+				s[1].visible = false
+var strobes := []            # [[OmniLight3D, glowing bulb, phase (s)], ...]
+var strobe_t := 0.0
+const STROBE_PERIOD := 0.9   # each light: a double flash every period, offset from the others
+const STROBE_FLASH := 0.045
+# Where they sit (car frame), what color, when in the period they fire
+const STROBE_SPOTS := [
+	[Vector3(1.55, 0.66, 0.28), Color(1.0, 1.0, 1.0), 0.0],        # engine bay, driver side
+	[Vector3(1.55, 0.66, -0.28), Color(1.0, 0.12, 0.08), 0.45],     # engine bay, passenger side
+	[Vector3(0.25, 1.02, 0.0), Color(1.0, 1.0, 1.0), 0.22],         # dash, under the windshield
+	[Vector3(-1.1, 1.08, 0.0), Color(1.0, 0.12, 0.08), 0.67],       # rear deck, through the hatch glass
+]
 var rough := true            # Faba's DX: faded clearcoat, primer fender, missing hubcap
 var paint_color := FROST_WHITE   # a clean car (rough = false) in another paint: opponents
 var target: Node3D           # where extrude() and box() put things
@@ -218,6 +238,7 @@ func build(installed: Array = []) -> void:
 	build_interior()
 	build_exhaust()
 	build_looks(color)
+	build_strobes()
 	build_wheels(drop)
 
 
@@ -328,6 +349,64 @@ func build_exhaust() -> void:
 	for tip: Vector3 in tips:
 		cyl(r, length, tip, steel, Vector3(0, 0, PI / 2.0 + (0.25 if r < 0.03 else 0.0)))
 		cyl(r * 0.7, length + 0.005, tip, mat(Color(0.02, 0.02, 0.02), 1.0), Vector3(0, 0, PI / 2.0))
+
+
+## Strobe lights (bought in the body shop): a light + a small bulb at each
+## STROBE_SPOTS, dark until strobes_on. The engine bay ones light the hood,
+## the ground and the gaps from inside; the cabin ones show through the glass.
+func build_strobes() -> void:
+	strobes.clear()
+	if look("strobes").is_empty():
+		return
+	var f := front_x()
+	for spot: Array in STROBE_SPOTS:
+		var at: Vector3 = spot[0]
+		var bay: bool = at.x > 1.0
+		var l: Light3D
+		if bay:
+			# Behind the grille, aimed out the front: it flashes the road ahead
+			# and the grille / bumper openings, not the ground under the car
+			at = Vector3(f - 0.14, 0.5, at.z)
+			var sl := SpotLight3D.new()
+			sl.spot_range = 5.0
+			sl.spot_angle = 38.0
+			sl.rotation.y = -PI / 2.0                  # its -z down the car's +x (the nose)
+			l = sl
+		else:
+			var ol := OmniLight3D.new()                # inside the cabin: just fills it
+			ol.omni_range = 1.25
+			l = ol
+		l.light_color = spot[1]
+		l.light_energy = 0.0
+		l.position = at
+		target.add_child(l)
+		var lights: Array = [l]
+		var bulb_at := at
+		if bay:                                         # in the grille / intake openings, and a short glow on the nose
+			bulb_at = Vector3(f - 0.03, 0.42, at.z * 1.2)
+			var glow := OmniLight3D.new()
+			glow.light_color = spot[1]
+			glow.omni_range = 0.9
+			glow.light_energy = 0.0
+			glow.position = Vector3(f + 0.08, 0.45, at.z)
+			target.add_child(glow)
+			lights.append(glow)
+		var bulb := box(Vector3(0.04, 0.035, 0.1), bulb_at, mat(spot[1], 0.2, 0.0, spot[1]))
+		(bulb.material_override as StandardMaterial3D).emission_energy_multiplier = 9.0
+		bulb.visible = false
+		strobes.append([lights, bulb, spot[2], 6.0 if bay else 3.0])
+	set_process(true)
+
+func _process(delta: float) -> void:
+	if not strobes_on or strobes.is_empty():
+		return
+	strobe_t += delta
+	for s: Array in strobes:
+		var p := fmod(strobe_t + float(s[2]) * STROBE_PERIOD, STROBE_PERIOD)
+		var on := p < STROBE_FLASH or (p > STROBE_FLASH * 2.5 and p < STROBE_FLASH * 3.5)   # double flash
+		for l: Light3D in s[0]:
+			l.light_energy = float(s[3]) if on else 0.0
+		s[1].visible = on
 
 
 ## The body shop's add-ons (bodyshop.gd), built on the shell's real nose, tail

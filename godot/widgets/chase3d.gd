@@ -98,6 +98,7 @@ var road := PackedVector2Array() # centerline (m, (x, z)), 1 m apart
 var right := PackedVector2Array()  # unit normal to the right of travel
 var who := "car"                 # the filmed car: "car" (Faba) or "ghost" (him)
 var car := {}                    # its nodes: root, body, head, tail, brakes, hazard...
+var dx_car: Node3D               # Faba's DX (its strobes: the replay's STROBES button)
 var camcar_lamps := []
 var people := []                 # spotters + the flagger: {"root", "lamp", "lens", "lens_mat", "src", "beam", "flagger"}
 var cam: Camera3D
@@ -793,6 +794,8 @@ func build_car(v: Node) -> void:
 		dx.position.y = -0.5
 		body.add_child(dx)
 		dx.build(v.faba_parts)
+		dx.strobes_on = v.strobes
+		dx_car = dx
 		half = DxModel.front_x()                     # the shell on (Spire's EG6, or the EJ)
 		width = DxModel.WIDTH
 		lamp_h = 0.64

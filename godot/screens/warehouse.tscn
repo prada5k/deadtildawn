@@ -92,6 +92,15 @@ focus_mode = 0
 theme_type_variation = &"OsdButton"
 text = "+"
 
+[node name="StrobeButton" type="Button" parent="Column/LightRow"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 10
+focus_mode = 0
+theme_type_variation = &"OsdButton"
+text = "STROBES"
+
 [node name="WorkOrder" type="PanelContainer" parent="Column"]
 layout_mode = 2
 rotation = 0.01

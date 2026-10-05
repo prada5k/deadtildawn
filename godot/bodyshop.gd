@@ -27,6 +27,7 @@ const SLOTS := {
 	"exhaust": "Exhaust tip",
 	"plates": "Plates",
 	"tape": "Battle tape",
+	"strobes": "Strobe lights",
 }
 
 const ITEMS := {
@@ -63,6 +64,7 @@ const ITEMS := {
 	"tip_burnt": {"slot": "exhaust", "name": "Burnt titanium tip", "price": 160},
 	"tip_dual": {"slot": "exhaust", "name": "Dual tips", "price": 140},
 	"plates_bent": {"slot": "plates", "name": "Bent plates, front and rear", "price": 20},
+	"strobes": {"slot": "strobes", "name": "Strobe lights (engine bay + cabin)", "price": 150},
 	"battle_tape": {"slot": "tape", "name": "Battle tape (the bumper's held on with it)", "price": 15},
 }
 

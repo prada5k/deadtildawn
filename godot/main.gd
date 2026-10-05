@@ -230,6 +230,7 @@ var panes := []           # full viewer: the two pane viewers [them, faba]
 var pane_boxes := []      # ...their SubViewportContainers
 var pane_tags := []       # ...and a name + speed tag on each
 var pane_mutes := []      # ...and a MUTE button on each (Spire: mute one car's engine)
+var strobes := false      # the DX's strobes flashing (body shop; game.gd sets it, the STROBES button flips it)
 var muted := {}           # "car" / "ghost" -> true: that engine is silent
 var wander := {}          # "car" / "ghost" -> FastNoiseLite: each driver's own wander
 var lines := {}           # "car" / "ghost" -> the smoothed racing line (build_lines)
@@ -271,6 +272,8 @@ func _ready() -> void:
 			replay_path = a.trim_prefix("--replay=")
 		elif a.begins_with("--parts="):              # the DX's parts (standalone: the game passes them itself)
 			faba_parts = Array(a.trim_prefix("--parts=").split(","))
+		elif a == "--strobes":                        # (with --parts=look:strobes) strobes on from the start
+			strobes = true
 	var err := load_replay(replay_path)
 	if err != "":
 		show_message(err)
@@ -795,6 +798,18 @@ func build_hud() -> void:
 	speed.pressed.connect(func(): speed_i = (speed_i + 1) % SPEEDS.size())
 	buttons.add_child(speed)
 	hud["speed_btn"] = speed
+	if "look:strobes" in faba_parts:                  # bought in the body shop: flip them mid-run
+		var strobe := Button.new()
+		strobe.text = "STROBES"
+		strobe.theme_type_variation = "OsdOnButton" if strobes else "OsdButton"
+		strobe.focus_mode = Control.FOCUS_NONE
+		strobe.pressed.connect(func():
+			strobes = not strobes
+			strobe.theme_type_variation = "OsdOnButton" if strobes else "OsdButton"
+			for p in panes:
+				if p.chase != null and p.chase.dx_car != null:
+					p.chase.dx_car.strobes_on = strobes)
+		buttons.add_child(strobe)
 
 	var dash := Control.new()
 	bottom.add_child(dash)
@@ -943,6 +958,7 @@ func build_panes(layer: CanvasLayer) -> void:
 		v.replay_path = replay_path
 		v.embedded = embedded
 		v.faba_parts = faba_parts
+		v.strobes = strobes
 		v.busted = busted
 		v.pane = who
 		sv.add_child(v)
