@@ -1,8 +1,7 @@
 [gd_scene format=3 uid="uid://dgjoqqwn0qtpt"]
 
 [ext_resource type="Script" uid="uid://bgt4myfh4o6nq" path="res://screens/warehouse.gd" id="1"]
-[ext_resource type="Script" path="res://widgets/overlook.gd" id="2"]
-[ext_resource type="Texture2D" uid="uid://cylg33ri4iwl2" path="res://textures/tape.png" id="3"]
+[ext_resource type="Script" path="res://widgets/viewfinder.gd" id="2"]
 [ext_resource type="Script" path="res://widgets/crew_sticker.gd" id="crew"]
 
 [node name="Warehouse" type="Control"]
@@ -28,50 +27,31 @@ custom_minimum_size = Vector2(0, 430)
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="Polaroid" type="PanelContainer" parent="Column/PinnedPhoto"]
+[node name="Viewfinder" type="Control" parent="Column/PinnedPhoto"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 14.0
-offset_top = 10.0
-offset_right = -14.0
 grow_horizontal = 2
 grow_vertical = 2
-rotation = -0.025
-theme_type_variation = &"PolaroidPanel"
-
-[node name="PhotoBox" type="VBoxContainer" parent="Column/PinnedPhoto/Polaroid"]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="Overlook" type="SubViewportContainer" parent="Column/PinnedPhoto/Polaroid/PhotoBox"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 3
-stretch = true
+mouse_filter = 2
+theme_type_variation = &"Viewfinder"
 script = ExtResource("2")
 
-[node name="Caption" type="Label" parent="Column/PinnedPhoto/Polaroid/PhotoBox"]
+[node name="Caption" type="Label" parent="Column/PinnedPhoto"]
 unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"MarkerLabel"
-text = "PCH turnout, wk 1. straight shitbox"
-
-[node name="TapeStrip" type="TextureRect" parent="Column/PinnedPhoto"]
 layout_mode = 1
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -64.0
-offset_top = -6.0
-offset_right = 64.0
-offset_bottom = 26.0
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 34.0
+offset_top = 76.0
+offset_right = -34.0
+offset_bottom = 110.0
 grow_horizontal = 2
-rotation = 0.06
-mouse_filter = 2
-texture = ExtResource("3")
-expand_mode = 1
+theme_type_variation = &"OsdLabel"
+theme_override_font_sizes/font_size = 28
+text = "the garage, wk 1. straight shitbox"
+autowrap_mode = 3
 
 [node name="CrewSticker" type="Control" parent="Column/PinnedPhoto"]
 layout_mode = 1

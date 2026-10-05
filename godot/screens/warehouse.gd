@@ -8,6 +8,16 @@ extends Control
 
 signal go(target: String)    # "race", "story"
 
+const GarageCam := preload("res://widgets/garage_cam.gd")
+
+## The full-screen footage behind everything (the shell puts it behind the
+## top rail and the nav too): the DX in the garage, on tape.
+var garage := GarageCam.new()
+
+
+func backdrop() -> Control:
+	return garage
+
 
 func _ready() -> void:
 	%GetReady.pressed.connect(func(): go.emit("race"))
@@ -17,7 +27,7 @@ func _ready() -> void:
 ## Called by game.gd after the screen is added.
 func setup(info: Dictionary) -> void:
 	var parts: Array = info.get("parts", [])
-	%Overlook.show_parts(parts)
+	garage.show_parts(parts)
 	%Caption.text = info["caption"]          # the builder's note (game.gd home_caption, voice.gd)
 	%WorkOrderNo.text = "WORK ORDER #%03d" % info["order_no"]
 	%When.text = info["when"]

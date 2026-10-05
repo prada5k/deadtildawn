@@ -3,8 +3,10 @@ extends RefCounted
 ## (docs/ART_DIRECTION.md, Voice): the builder's notes, then Faba's lines.
 ## Edit lines here, not in the screens.
 
-# Home Polaroid caption: "PCH turnout, wk N. <line>". game.gd home_caption()
-# picks the first that fits, top to bottom.
+# Home caption (the camcorder's title over the garage footage):
+# "<HOME_PLACE>, wk N. <line>". game.gd home_caption() picks the first line
+# that fits, top to bottom.
+const HOME_PLACE := "the garage"                          # DRAFT (Claude): was "PCH turnout" before the garage
 const HOME_SKIPPED := "bitched tf out"                    # skipped the last race night
 const HOME_CRASHED := "fahhhhhhh idk how im gonna fix that"   # last race ended in the trees
 const HOME_WIN_STREAK := "been locked in"                  # 3+ wins in a row

@@ -420,7 +420,7 @@ func show_warehouse() -> void:
 	info["losses"] = record.y
 	info["min_buy_in_text"] = UI.money(min_bet())
 	info["parts"] = car_look()
-	info["caption"] = "PCH turnout, wk %d. %s" % [int(state["week"]), home_caption(installed_part_ids().size())]
+	info["caption"] = "%s, wk %d. %s" % [Voice.HOME_PLACE, int(state["week"]), home_caption(installed_part_ids().size())]
 	open_hub(WarehouseScene, "warehouse").setup(info)
 
 

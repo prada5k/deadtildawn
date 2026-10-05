@@ -94,6 +94,17 @@ func set_content(screen: Control) -> void:
 		child.queue_free()
 	screen.set_anchors_preset(Control.PRESET_FULL_RECT)
 	%ContentSlot.add_child(screen)
+	# A screen with its own full-screen backdrop (home: the garage on tape)
+	# puts it behind everything, the top rail and the nav included; the others
+	# get the pegboard wall.
+	for child in %Backdrop.get_children():
+		child.queue_free()
+	var backdrop: Control = screen.backdrop() if screen.has_method("backdrop") else null
+	if backdrop != null:
+		backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
+		%Backdrop.add_child(backdrop)
+	%Pegboard.visible = backdrop == null
+	%ShopLight.visible = backdrop == null
 	if animate:                              # slide up into place, fading in
 		screen.modulate.a = 0.0
 		screen.position.y = SLIDE_PX
