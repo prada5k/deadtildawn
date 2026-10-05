@@ -46,6 +46,22 @@ hood), **Fender** (the front right fender: primer until a respray),
 **Glass** (tint), **Headlight / Taillight / Amber** (glow when the lights
 are on). Trim and Plate stay as modeled.
 
+## Wheels and body shop looks (models too)
+
+- **Wheels:** `art/blender/build_wheels.py` builds `godot/models/wheels/`
+  `wheels_stock` (14" steelie + an object named `Hubcap`, hidden on the
+  front right of Faba's car), `wheels_light` (7 spokes), `wheels_forged` (10
+  spokes). One RIGHT-side wheel per file, centered on the axle, its face
+  toward Blender -Y; the game turns it around for the left side. Material
+  `Rim` takes the wheel's color (or the body shop's rims), `Hubcap` the cap's.
+  Mostly lathes (a profile spun around the axle) + one spoke copied around.
+- **Looks:** `godot/models/looks/<body shop item id>.glb`, in the CAR's frame,
+  replaces that item's code-built version (`dx_model.gd look_model`, for the
+  stripes, lip and wing slots). `build_dx.py` builds `stripes_side`,
+  `stripes_twin`, `wing_duck` and `lip` on the body's real surface; `Paint`
+  takes the car's color, `Contrast` the stripe color. The GT wing comes from a
+  picture (`art/looks/README.md`).
+
 ## The rules (so it lines up with everything else)
 
 | What | Rule |

@@ -19,6 +19,23 @@ extends Control
 	set(v):
 		halo = v
 		queue_redraw()
+## The rarity's name (common / rare / epic / legendary): a picture at
+## GLOW_DIR/<rarity>.png replaces the drawn glow (Spire's halftone art).
+@export var rarity := "":
+	set(v):
+		rarity = v
+		queue_redraw()
+var glow_spin := 0.0:            # the glow turning (radians; the reveal animates it)
+	set(v):
+		glow_spin = v
+		queue_redraw()
+var glow_scale := 1.0:           # and breathing
+	set(v):
+		glow_scale = v
+		queue_redraw()
+
+const GLOW_DIR := "res://textures/glow/"
+const RAYS := {"rare": 0, "epic": 12, "legendary": 18}   # the burst behind the better pulls
 
 const DEFAULTS := {
 	"ink": Color(0.102, 0.078, 0.086),
@@ -109,8 +126,7 @@ func _draw() -> void:
 	_o = (size - Vector2(100, 100) * _s) / 2.0
 	_lw = maxf(1.2, 2.0 * _s)
 	if halo.a > 0.0:                                 # the rarity, glowing behind it
-		for k in 6:
-			draw_circle(p(50, 50), (48.0 - k * 6.0) * _s, Color(halo, halo.a * 0.2))
+		draw_glow()
 	var img := image_for(part_id)
 	if img != null:                                  # the real (cartoonized) picture, fit and centered
 		var side := minf(size.x, size.y)
@@ -199,13 +215,54 @@ func _draw() -> void:
 			text("?", Vector2(50, 54), 30, col("ink"))
 
 
+## The glow behind the part: Spire's picture for the rarity if there is one
+## (turning slowly), else a halftone glow drawn here: a soft core, a burst of
+## rays for epic and up, and print dots that shrink toward the edge.
+func draw_glow() -> void:
+	var c := p(50, 50)
+	var tex := load_image(GLOW_DIR + rarity + ".png", "glow:" + rarity) if rarity != "" else null
+	if tex != null:
+		var side := minf(size.x, size.y) * 1.25 * glow_scale     # a bit past the edges: no hard corners
+		draw_set_transform(c, glow_spin, Vector2.ONE)
+		draw_texture_rect(tex, Rect2(-Vector2(side, side) / 2.0, Vector2(side, side)), false, Color(1, 1, 1, halo.a))
+		draw_set_transform(Vector2.ZERO)
+		return
+	var r_max := 64.0 * glow_scale                                  # spills past the picture
+	for k in 4:                                                    # the soft core
+		draw_circle(c, (14.0 + k * 7.0) * glow_scale * _s, Color(halo, halo.a * 0.10))
+	var rays: int = RAYS.get(rarity, 0)
+	for k in rays:                                                 # the burst, every other wedge
+		var a0 := glow_spin + TAU * k / rays
+		var a1 := a0 + TAU / rays * 0.45
+		draw_colored_polygon(PackedVector2Array([c, c + Vector2.from_angle(a0) * r_max * 1.3 * _s,
+			c + Vector2.from_angle(a1) * r_max * 1.3 * _s]), Color(halo, halo.a * 0.16))
+	var step := 4.2                                                # halftone: a dot grid at 45 degrees
+	var n := int(r_max / step) + 1
+	var rot := Vector2.from_angle(PI / 4.0)
+	for i in range(-n, n + 1):
+		for j in range(-n, n + 1):
+			var q := Vector2(i, j) * step
+			q = Vector2(q.x * rot.x - q.y * rot.y, q.x * rot.y + q.y * rot.x)
+			var d := q.length() / r_max
+			if d >= 1.0:
+				continue
+			var dot_r := step * 0.48 * (1.0 - d) * (1.0 - d)            # big in the middle, gone at the edge
+			if dot_r * _s > 0.4:
+				draw_circle(c + q * _s, dot_r * _s, Color(halo, halo.a * 0.55))
+
+
 ## The image for a part, if one's been made: imported (the editor / F5), or a
 ## loose PNG (just dropped in, not imported yet). Looked up once per id.
 static func image_for(id: String) -> Texture2D:
 	if id == "":
 		return null
-	if not _images.has(id):
-		var path := IMAGE_DIR + id + ".png"
+	return load_image(IMAGE_DIR + id + ".png", id)
+
+
+## A picture at `path` (imported, or a loose PNG not imported yet), or null;
+## looked up once and remembered under `key`.
+static func load_image(path: String, key: String) -> Texture2D:
+	if not _images.has(key):
 		var tex: Texture2D = null
 		if ResourceLoader.exists(path):
 			tex = load(path) as Texture2D
@@ -213,8 +270,8 @@ static func image_for(id: String) -> Texture2D:
 			var im := Image.load_from_file(ProjectSettings.globalize_path(path))
 			if im != null:
 				tex = ImageTexture.create_from_image(im)
-		_images[id] = tex
-	return _images[id]
+		_images[key] = tex
+	return _images[key]
 
 
 ## A conical pleated air filter, its open end at `top`.

@@ -115,6 +115,7 @@ func show_compare(c: Dictionary) -> void:
 	%CompareSwap.text = "%s  >  %s" % [c["from"], c["to"]]
 	%ComparePic.part_id = c.get("part", "")
 	%ComparePic.halo = c.get("rarity_color", Color(0, 0, 0, 0))
+	%ComparePic.rarity = str(c.get("rarity", "")).to_lower()
 	var notes: Array = c["effects"].duplicate()
 	if c["damaged"]:
 		notes.append("DAMAGED: does nothing until it's repaired")

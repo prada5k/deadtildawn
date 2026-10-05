@@ -24,6 +24,8 @@ extends Node3D
 const BodyShop := preload("res://bodyshop.gd")
 const Voice := preload("res://voice.gd")
 const MODEL_PATH := "res://models/dx.glb"
+const LOOK_DIR := "res://models/looks/"      # <body shop item id>.glb replaces its code-built version (in the car's frame)
+const WHEEL_DIR := "res://models/wheels/"    # wheels_stock / wheels_light / wheels_forged .glb: a whole right-side wheel
 
 const LENGTH := 4.45
 const WIDTH := 1.70
@@ -46,6 +48,8 @@ const HUBCAP := Color(0.72, 0.73, 0.75)
 const CARBON := Color(0.07, 0.07, 0.08)
 const BRONZE := Color(0.55, 0.4, 0.2)
 const SILVER := Color(0.78, 0.79, 0.81)
+const CHROME := Color(0.9, 0.91, 0.93)
+const P1_WHITE := Color(0.94, 0.94, 0.91)
 const CLOTH := Color(0.2, 0.2, 0.22)         # stock seats
 const BUCKET := Color(0.08, 0.08, 0.09)
 const BUCKET_TRIM := Color(0.62, 0.08, 0.08)
@@ -147,7 +151,7 @@ func build(installed: Array = []) -> void:
 		var s := str(p)
 		if s.begins_with("look:") and BodyShop.ITEMS.has(s.substr(5)):
 			var item: Dictionary = BodyShop.ITEMS[s.substr(5)]
-			looks[item["slot"]] = item
+			looks[item["slot"]] = item.merged({"id": s.substr(5)})
 	for c in get_children():
 		c.queue_free()
 	# Stance: lowering springs 35 mm, coilovers 60 mm (and a touch of camber)
@@ -215,18 +219,12 @@ func build_details(paint: Material) -> void:
 func build_shell_model(paint: Material, faded: Material, hood: Material, fender: Material, glass: Material) -> void:
 	var shell: Node3D = (load(MODEL_PATH) as PackedScene).instantiate()
 	target.add_child(shell)
-	var swaps := {
+	swap_materials(shell, {
 		"Paint": paint, "Roof": faded, "Hood": hood, "Fender": fender, "Glass": glass,
 		"Headlight": mat(Color(1, 0.96, 0.85), 0.2, 0.0, Color(1.0, 0.92, 0.72) if lights_on else Color.BLACK),
 		"Taillight": mat(Color(0.6, 0.05, 0.05), 0.3, 0.0, Color(0.9, 0.05, 0.03) if lights_on else Color.BLACK),
 		"Amber": mat(AMBER, 0.3, 0.0, AMBER * 0.6 if lights_on else Color.BLACK),
-	}
-	for mi in shell.find_children("*", "MeshInstance3D", true, false):
-		var m := mi as MeshInstance3D
-		for i in m.mesh.get_surface_count():
-			var sm := m.mesh.surface_get_material(i)
-			if sm != null and swaps.has(sm.resource_name):
-				m.set_surface_override_material(i, swaps[sm.resource_name])
+	})
 
 
 ## Seats and dash, seen through the glass: stock cloth seats and a rear
@@ -270,8 +268,36 @@ func build_exhaust() -> void:
 
 
 ## The body shop's add-ons (bodyshop.gd), on the paint `color`.
+## A model file for a body shop item (LOOK_DIR, built in Blender, in the car's
+## frame): placed on the body; its "Paint" material takes the car's color, a
+## "Contrast" material the stripe color. Returns whether there was one.
+func look_model(slot: String, color: Color, contrast: Color) -> bool:
+	var id: String = look(slot).get("id", "")
+	var path := LOOK_DIR + id + ".glb"
+	if id == "" or not ResourceLoader.exists(path):
+		return false
+	var m: Node3D = (load(path) as PackedScene).instantiate()
+	target.add_child(m)
+	swap_materials(m, {"Paint": mat(color, 0.35), "Contrast": mat(contrast, 0.4)})
+	return true
+
+
+## Replace a model's materials by name (the names given in Blender).
+func swap_materials(root: Node, swaps: Dictionary) -> void:
+	for mi in root.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		for i in m.mesh.get_surface_count():
+			var sm := m.mesh.surface_get_material(i)
+			if sm != null and swaps.has(sm.resource_name):
+				m.set_surface_override_material(i, swaps[sm.resource_name])
+
+
 func build_looks(color: Color) -> void:
 	var contrast := Color(0.06, 0.06, 0.07) if color.get_luminance() > 0.5 else Color(0.95, 0.95, 0.93)
+	var modeled := {}
+	for slot in ["stripes", "lip", "wing"]:            # the shaped ones: a model when there is one
+		if look_model(slot, color, contrast):
+			modeled[slot] = true
 	if not look("banner").is_empty():
 		# Across the top of the windshield, its letters facing forward and up
 		var d := Vector2(-0.70, 0.45).normalized()             # up the windshield
@@ -289,7 +315,7 @@ func build_looks(color: Color) -> void:
 		label.basis = Basis(Vector3(0, 0, -1), Vector3(d.x, d.y, 0), Vector3(-d.y, d.x, 0) * -1.0)
 		label.position = at + Vector3(-d.y, d.x, 0) * -0.012
 		target.add_child(label)
-	match look("stripes").get("name", ""):
+	match "" if modeled.has("stripes") else look("stripes").get("name", ""):
 		"Side stripe":
 			for side: float in [-1.0, 1.0]:
 				box(Vector3(3.6, 0.05, 0.006), Vector3(-0.1, 0.72, side * (WIDTH / 2.0 + 0.006)), mat(contrast, 0.4))
@@ -318,9 +344,9 @@ func build_looks(color: Color) -> void:
 			for k in 3:
 				box(Vector3(0.16, 0.05, 0.004), Vector3(-1.22 + k * 0.03, 1.08 - k * 0.07, side * (WIDTH * 0.42 + 0.004)),
 					mat(STICKERS[k], 0.5))
-	if not look("lip").is_empty():
+	if not look("lip").is_empty() and not modeled.has("lip"):
 		box(Vector3(0.16, 0.025, WIDTH * 0.95), Vector3(2.16, 0.265, 0), mat(Color(0.05, 0.05, 0.06), 0.5))
-	match look("wing").get("name", ""):
+	match "" if modeled.has("wing") else look("wing").get("name", ""):
 		"Ducktail spoiler":
 			box(Vector3(0.12, 0.05, WIDTH * 0.86), Vector3(-2.05, 0.9, 0), mat(color, 0.35), Vector3(0, 0, 0.3))
 		"GT wing":
@@ -343,10 +369,14 @@ func build_looks(color: Color) -> void:
 func build_wheels(drop: float) -> void:
 	var forged := has_part("wheels_forged")
 	var light := has_part("wheels_light")
-	var rim_col: Color = BRONZE if forged else (SILVER if light else STEELIE)
+	# Spire's picks: lightweight = chrome Konig Countergrams (9 spokes), forged = white Buddy Club P1s (6)
+	var rim_col: Color = P1_WHITE if forged else (CHROME if light else STEELIE)
 	rim_col = look("rims").get("color", rim_col)
+	var chrome := light and look("rims").is_empty()
 	var camber := 0.035 if has_part("coilovers") else 0.0
-	var spokes := 10 if forged else 7
+	var spokes := 6 if forged else 9
+	var model_path := WHEEL_DIR + ("wheels_forged" if forged else ("wheels_light" if light else "wheels_stock")) + ".glb"
+	var wheel_model: PackedScene = load(model_path) if ResourceLoader.exists(model_path) else null
 	for axle: float in [FRONT_AXLE, REAR_AXLE]:
 		for side: float in [-1.0, 1.0]:
 			var w := Node3D.new()
@@ -354,6 +384,24 @@ func build_wheels(drop: float) -> void:
 			w.rotation.x = -side * camber
 			add_child(w)
 			var face := side * (TIRE_W / 2.0 + 0.006)
+			var hubcap_gone := rough and look("paint").is_empty() and axle == FRONT_AXLE and side > 0.0   # lost on the 5
+			if wheel_model != null:                  # the Blender wheel (art/blender/build_wheels.py)
+				var wm: Node3D = wheel_model.instantiate()
+				if side < 0.0:
+					wm.rotation.y = PI               # modeled as a right-side wheel: turn it to face out on the left
+				w.add_child(wm)
+				# Low metal values: a fully metallic surface only mirrors its surroundings, and
+				# the night / garage scenes are dark, so real "chrome" renders near black
+				var rim_mat := mat(rim_col, 0.15, 0.45) if chrome else mat(rim_col, 0.4, 0.15 if forged else 0.3)
+				var cap_mat := mat(HUBCAP if look("rims").is_empty() else rim_col, 0.3, 0.3)
+				for m: StandardMaterial3D in [rim_mat, cap_mat]:
+					m.cull_mode = BaseMaterial3D.CULL_DISABLED     # two-sided, like the model's (the barrel's seen from inside)
+				swap_materials(wm, {"Rim": rim_mat, "Hubcap": cap_mat})
+				var cap := wm.find_child("Hubcap", true, false)
+				if cap != null:
+					cap.visible = not hubcap_gone
+				add_tire_letters(w, face)
+				continue
 			cyl(TIRE_R, TIRE_W, Vector3.ZERO, mat(TIRE, 0.9), Vector3(PI / 2.0, 0, 0), w)
 			cyl(0.18, TIRE_W + 0.01, Vector3.ZERO, mat(rim_col, 0.45, 0.6), Vector3(PI / 2.0, 0, 0), w)
 			if light or forged:
@@ -370,18 +418,24 @@ func build_wheels(drop: float) -> void:
 					s.material_override = spoke
 					w.add_child(s)
 				cyl(0.035, 0.02, Vector3(0, 0, face), mat(rim_col.darkened(0.2), 0.4, 0.7), Vector3(PI / 2.0, 0, 0), w)
-			elif not (rough and look("paint").is_empty() and axle == FRONT_AXLE and side > 0.0):
+			elif not hubcap_gone:
 				cyl(0.19, 0.02, Vector3(0, 0, face), mat(HUBCAP if look("rims").is_empty() else rim_col, 0.35, 0.8),
 					Vector3(PI / 2.0, 0, 0), w)
-			if has_part("tires_r_comp"):                # yellow letters around the sidewall
-				var letter := mat(Color(0.98, 0.85, 0.1), 0.6)
-				for k in 8:
-					var a := TAU * k / 8.0
-					var l := MeshInstance3D.new()
-					var lb := BoxMesh.new()
-					lb.size = Vector3(0.07, 0.02, 0.004)
-					l.mesh = lb
-					l.position = Vector3(cos(a), sin(a), 0) * 0.245 + Vector3(0, 0, face)
-					l.rotation.z = a + PI / 2.0
-					l.material_override = letter
-					w.add_child(l)
+			add_tire_letters(w, face)
+
+
+## R-compound tires: yellow letters around the sidewall.
+func add_tire_letters(w: Node3D, face: float) -> void:
+	if not has_part("tires_r_comp"):
+		return
+	var letter := mat(Color(0.98, 0.85, 0.1), 0.6)
+	for k in 8:
+		var a := TAU * k / 8.0
+		var l := MeshInstance3D.new()
+		var lb := BoxMesh.new()
+		lb.size = Vector3(0.07, 0.02, 0.004)
+		l.mesh = lb
+		l.position = Vector3(cos(a), sin(a), 0) * 0.245 + Vector3(0, 0, face)
+		l.rotation.z = a + PI / 2.0
+		l.material_override = letter
+		w.add_child(l)

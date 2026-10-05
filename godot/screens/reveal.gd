@@ -36,6 +36,8 @@ func setup(info: Dictionary, stage: String) -> void:
 	%PartName.text = info["name"]
 	%PartPic.part_id = info.get("id", "")
 	%PartPic.halo = info["rarity_color"]
+	%PartPic.rarity = str(info["rarity"]).to_lower()
+	spin_glow()
 	%Slot.text = info["slot"]
 	show_stage(stage)
 	if stage == "dyno":
@@ -53,6 +55,19 @@ func show_stage(stage: String) -> void:
 	%KeepButton.visible = stage == "sheet"
 	if stage == "sheet":
 		fill_sheet(false)
+
+
+## The glow behind the part turns slowly and breathes (once per screen).
+func spin_glow() -> void:
+	if has_meta("glow_tween"):
+		return
+	var pic: Control = %PartPic
+	var spin := create_tween().set_loops()
+	spin.tween_property(pic, "glow_spin", TAU, 30.0).from(0.0)
+	var breathe := create_tween().set_loops()
+	breathe.tween_property(pic, "glow_scale", 1.05, 1.4).set_trans(Tween.TRANS_SINE)
+	breathe.tween_property(pic, "glow_scale", 0.95, 1.4).set_trans(Tween.TRANS_SINE)
+	set_meta("glow_tween", true)
 
 
 ## Shake the box, it pops, the part comes out with its rarity.

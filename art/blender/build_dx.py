@@ -334,6 +334,40 @@ def ribbon_up(bm, x, h0, h1, wide, side, out=0.003):
     return [face_out(bm, (a[0], a[1], b[1], b[0]), sideways) for a, b in zip(pairs, pairs[1:])]
 
 
+LAMP_IN = 0.235                 # the taillights' inboard edge (lateral)
+LAMP_WRAP = 0.11                # how far they wrap forward round the corner (m along x)
+
+
+def lamp_patch(bm, side, h0, h1, off, grow=0.0, rows=4):
+    """A taillight lens lying on the tail: across the flat tail panel from
+    LAMP_IN out to its edge, then round the corner along the side, between
+    heights h0 and h1, `off` proud of the paint. grow: a bigger copy (the bezel)."""
+    def path(h):
+        edge = surface_lat(TAIL, h) - 0.004
+        pts = []
+        l_in = LAMP_IN - grow
+        for i in range(7):                                     # the flat panel: facing straight back
+            pts.append((TAIL - off, l_in + (edge - l_in) * i / 6, Vector((-1, 0))))
+        xs = [TAIL + 0.004 + (LAMP_WRAP + grow) * (i / 6) ** 1.3 for i in range(7)]
+        for x in xs:                                           # round the corner and along the side
+            lat = surface_lat(x, h)
+            slope = (surface_lat(x + 0.003, h) - surface_lat(x - 0.003, h)) / 0.006
+            n = Vector((-slope, 1)).normalized()               # outward from the outline
+            pts.append((x + n.x * off, lat + n.y * off, n))
+        return pts
+    hs = [h0 - grow + (h1 - h0 + 2 * grow) * i / rows for i in range(rows + 1)]
+    grid = []
+    for h in hs:
+        grid.append([(bm.verts.new(to_blender(x, side * lat, h)), n) for x, lat, n in path(h)])
+    faces = []
+    for a, b in zip(grid, grid[1:]):
+        for k in range(len(a) - 1):
+            n = a[k][1]
+            out = Vector((n.x, -side * n.y, 0))                 # car frame -> Blender (right = -Y)
+            faces.append(face_out(bm, (a[k][0], a[k + 1][0], b[k + 1][0], b[k][0]), out))
+    return faces
+
+
 # ---------------------------------------------------------------- build
 
 def build():
@@ -381,12 +415,11 @@ def build():
             # headlights: wide and low, swept back along the nose
             (add_box(bm, (2.19, s * 0.47, 0.585), (0.09, 0.36, 0.075), rot_z=-s * 0.20, rot_y=-0.35), "Headlight"),
             (add_box(bm, (2.185, s * 0.47, 0.585), (0.08, 0.39, 0.095), rot_z=-s * 0.20, rot_y=-0.35), "Trim"),  # its housing
-            # taillights: red outboard, white (the reverse light) inboard, in a black housing
-            (add_box(bm, (TAIL - 0.006, s * 0.57, tail_h), (0.012, 0.235, 0.15)), "Taillight"),
-            (add_box(bm, (TAIL - 0.006, s * 0.335, tail_h), (0.012, 0.225, 0.15)), "Reverse"),
-            (add_box(bm, (TAIL - 0.001, s * 0.455, tail_h), (0.010, 0.50, 0.175)), "Trim"),
-            (add_box(bm, (TAIL + 0.03, s * (surface_lat(TAIL + 0.03, tail_h) - 0.004), tail_h),
-                     (0.06, 0.02, 0.15)), "Taillight"),                                    # the wrap onto the corner
+            # taillights (Spire): two colors stacked, red over white (the reverse light), lenses
+            # that follow the tail panel and wrap round the corner, in a black bezel
+            (lamp_patch(bm, s, tail_h, tail_h + 0.075, 0.006), "Taillight"),
+            (lamp_patch(bm, s, tail_h - 0.07, tail_h, 0.006), "Reverse"),
+            (lamp_patch(bm, s, tail_h - 0.085, tail_h + 0.09, 0.003, grow=0.014), "Trim"),
             (add_box(bm, (2.03, s * (surface_lat(2.03, 0.58) + 0.002), 0.58), (0.09, 0.01, 0.04)), "Amber"),
             (add_box(bm, (-2.05, s * (surface_lat(-2.05, 0.66) + 0.002), 0.66), (0.08, 0.01, 0.035)), "Taillight"),
             (ribbon_along(bm, -0.95, 0.88, 0.50, 0.045, s, out=0.010), "Trim"),          # the side molding
@@ -404,7 +437,7 @@ def build():
         (add_box(bm, (NOSE - 0.03, 0.0, 0.37), (0.07, 0.86, 0.06)), "Trim"),                     # lower intake
         (add_box(bm, (NOSE + 0.008, 0.0, 0.42), (0.012, 0.30, 0.11)), "Plate"),
         (add_box(bm, (TAIL - 0.008, 0.0, 0.52), (0.012, 0.30, 0.15)), "Plate"),
-        (add_box(bm, (TAIL - 0.003, 0.0, tail_h), (0.010, 0.42, 0.05)), "Trim"),                 # garnish between the lights
+        (add_box(bm, (TAIL - 0.003, 0.0, tail_h), (0.010, 0.44, 0.05)), "Trim"),                 # garnish between the lights
     ]
     for faces, m in parts:
         for f in faces:
@@ -414,6 +447,156 @@ def build():
     for ob in (body, cabin, details):
         smooth_by_angle(ob)
     return [body, cabin, details]
+
+
+# ---------------------------------------------------------------- body shop looks
+# Each is its own .glb in godot/models/looks/<item id>.glb, in the car's frame,
+# built ON this body's surface (dx_model.gd uses it instead of its code-built
+# box). Materials: Paint (the car's color), Contrast (the stripe color), Trim.
+
+def top_h(x, l):
+    """The height of the body's top (hood / trunk) at x, lateral l."""
+    half, _, yt = body_half(x)
+    top = half[-6:] + [(0.0, yt + 0.035)]          # shoulder -> crown -> center: lateral shrinking
+    for (l0, h0), (l1, h1) in zip(top, top[1:]):
+        if l1 <= abs(l) <= l0:
+            return h0 + (h1 - h0) * (l0 - abs(l)) / (l0 - l1)
+    return top[-1][1]
+
+
+def roof_h(x, l):
+    """The height of the cabin's roof at x, lateral l."""
+    ring = cabin_ring(x)
+    pts = sorted({(abs(v.y), v.z) for v in ring if v.z >= spline(YR, x) - 0.06}, reverse=True)
+    for (l0, h0), (l1, h1) in zip(pts, pts[1:]):
+        if l1 <= abs(l) <= l0:
+            return h0 + (h1 - h0) * (l0 - abs(l)) / (l0 - l1)
+    return pts[-1][1]
+
+
+def band_on_top(bm, x0, x1, l_center, width, height_at, lift=0.004):
+    """A flat band (a stripe) lying on a top surface from x0 to x1."""
+    xs = stations(x0, x1, 0.04, extra=(x0, x1))
+    ls = [l_center - width / 2, l_center, l_center + width / 2]
+    rows = [[bm.verts.new(to_blender(x, l, height_at(x, l) + lift)) for l in ls] for x in xs]
+    faces = []
+    for a, b in zip(rows, rows[1:]):
+        for k in range(len(ls) - 1):
+            faces.append(face_out(bm, (a[k], a[k + 1], b[k + 1], b[k]), Vector((0, 0, 1))))
+    return faces
+
+
+def look_object(name, mats, fill):
+    bm = bmesh.new()
+    fill(bm)
+    ob = new_object(name, bm, mats, fix_normals=False)
+    smooth_by_angle(ob)
+    return ob
+
+
+def build_looks():
+    for name in ("Contrast",):
+        COLORS.setdefault(name, (0.06, 0.06, 0.07, 1))
+        material(name)
+    looks = {}
+
+    def side_stripe(bm):
+        for s in (-1, 1):
+            ribbon_along(bm, TAIL + 0.08, NOSE - 0.12, 0.735, 0.05, s, out=0.004)
+    looks["stripes_side"] = look_object("stripes_side", ["Contrast"], side_stripe)
+
+    def twin_stripes(bm):
+        for lc in (-0.13, 0.13):
+            band_on_top(bm, 0.74, NOSE - 0.06, lc, 0.16, top_h)                    # hood
+            band_on_top(bm, REAR_GLASS[1] + 0.02, WINDSHIELD_X - 0.02, lc, 0.16, roof_h)   # roof
+            band_on_top(bm, TAIL + 0.02, REAR_GLASS[0] - 0.08, lc, 0.16, top_h)    # trunk
+    looks["stripes_twin"] = look_object("stripes_twin", ["Contrast"], twin_stripes)
+
+    def ducktail(bm):
+        # A wedge along the trunk's back edge, kicking up and back
+        ls = [i / 10 * 0.72 for i in range(-10, 11)]
+        rows = []
+        for l in ls:
+            edge = 1.0 - (abs(l) / (0.72 * 1.02)) ** 6                  # rounds off at the corners
+            rows.append([bm.verts.new(to_blender(x, l, h)) for x, h in (
+                (-1.98, top_h(-1.98, l) - 0.004),
+                (-2.19, top_h(-2.19, l) + 0.06 * edge),
+                (-2.215, top_h(-2.215, l) + 0.045 * edge),
+                (-2.215, top_h(-2.215, l) - 0.01))])
+        for a, b in zip(rows, rows[1:]):
+            for k in range(3):
+                face_out(bm, (a[k], b[k], b[k + 1], a[k + 1]), Vector((-0.5, 0, 1)) if k < 2 else Vector((-1, 0, 0)))
+        face_out(bm, rows[0], Vector((0, 1, 0)))
+        face_out(bm, rows[-1], Vector((0, -1, 0)))
+    looks["wing_duck"] = look_object("wing_duck", ["Paint"], ducktail)
+
+    def front_lip(bm):
+        # A thin black splitter under the bumper, following the nose's curve in plan view
+        ls = [i / 12 * 0.80 for i in range(-12, 13)]
+        rows = []
+        for l in ls:
+            front = NOSE + 0.035 - 0.30 * (abs(l) / 0.80) ** 3
+            back = 1.92
+            rows.append([bm.verts.new(to_blender(x, l, h)) for x, h in (
+                (back, 0.27), (front, 0.255), (front, 0.235), (back, 0.25))])
+        for a, b in zip(rows, rows[1:]):
+            for k in range(4):
+                j = (k + 1) % 4
+                face_out(bm, (a[k], b[k], b[j], a[j]), Vector((0, 0, 1 if k == 0 else -1)) if k in (0, 2)
+                         else Vector((1 if k == 1 else -1, 0, 0)))
+        face_out(bm, rows[0], Vector((0, 1, 0)))
+        face_out(bm, rows[-1], Vector((0, -1, 0)))
+    looks["lip"] = look_object("lip", ["Trim"], front_lip)
+
+    def pedestal_wing(bm):
+        # Spire's picture (art/looks/wing_gt.png): a body-colored pedestal wing. Two
+        # pedestals flared at the foot, a gently arched blade between their tops.
+        ped_l, ped_x = 0.60, -1.98                  # where the pedestals stand (lateral, x of the middle)
+        rise = 0.15                                 # how high the blade sits over the trunk
+        for s in (-1, 1):
+            l = s * ped_l
+            base = top_h(ped_x, l)
+            # Sections up the pedestal: (height over the trunk, length along x, width across)
+            secs = [(-0.01, 0.30, 0.10), (0.012, 0.26, 0.075), (0.05, 0.20, 0.055), (rise, 0.15, 0.048)]
+            rings = []
+            for dh, ln, wd in secs:
+                h = base + dh
+                rings.append([bm.verts.new(to_blender(ped_x + dx, l + dl, h)) for dx, dl in (
+                    (-ln / 2, -wd / 2), (ln / 2, -wd / 2), (ln / 2, wd / 2), (-ln / 2, wd / 2))])
+            for a, b in zip(rings, rings[1:]):
+                for k in range(4):
+                    j = (k + 1) % 4
+                    face_out(bm, (a[k], a[j], b[j], b[k]), (sum((v.co for v in a[k:k + 1] + a[j:j + 1]), Vector())
+                                                            / 2 - to_blender(ped_x, l, a[0].co.z)).normalized())
+            face_out(bm, rings[-1], Vector((0, 0, 1)))
+            face_out(bm, rings[0], Vector((0, 0, -1)))
+        # The blade: an airfoil, chord 0.21 m, arched up 2 cm in the middle, overlapping the pedestal tops
+        top = top_h(ped_x, ped_l) + rise
+        foil = [(0.105, 0.0), (0.06, 0.012), (0.0, 0.018), (-0.07, 0.012), (-0.105, 0.002),
+                (-0.07, -0.004), (0.0, -0.006), (0.06, -0.004)]                     # (x along the chord, up)
+        span = [i / 16 * (ped_l + 0.03) for i in range(-16, 17)]
+        rings = []
+        for l in span:
+            arch = 0.02 * (1 - (l / (ped_l + 0.03)) ** 2)
+            tilt = 0.08                                                            # trailing edge up a touch
+            rings.append([bm.verts.new(to_blender(ped_x + cx, l, top + arch + cz - cx * tilt)) for cx, cz in foil])
+        for a, b in zip(rings, rings[1:]):
+            for k in range(len(foil)):
+                j = (k + 1) % len(foil)
+                up = Vector((0, 0, 1)) if k < 4 else Vector((0, 0, -1))
+                face_out(bm, (a[k], b[k], b[j], a[j]), up)
+        face_out(bm, rings[0], Vector((0, 1, 0)))
+        face_out(bm, rings[-1], Vector((0, -1, 0)))
+    looks["wing_gt"] = look_object("wing_gt", ["Paint"], pedestal_wing)
+    return looks
+
+
+def export_one(ob, path):
+    bpy.ops.object.select_all(action="DESELECT")
+    ob.select_set(True)
+    bpy.context.view_layer.objects.active = ob
+    bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", use_selection=True,
+                              export_yup=True, export_apply=True)
 
 
 def export(objs):
@@ -428,6 +611,14 @@ def export(objs):
 
 
 objs = build()
+looks = build_looks()
+for _ob in looks.values():
+    _ob.hide_set(True)                 # in the .blend but out of the way (unhide to look at one)
 export(objs)
+os.makedirs(os.path.join(REPO, "godot", "models", "looks"), exist_ok=True)
+for _id, _ob in looks.items():
+    _ob.hide_set(False)
+    export_one(_ob, os.path.join(REPO, "godot", "models", "looks", _id + ".glb"))
+    _ob.hide_set(True)
 tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in objs)
-print("built", [o.name for o in objs], "triangles:", tris, "->", OUT_GLB)
+print("built", [o.name for o in objs], "triangles:", tris, "->", OUT_GLB, "| looks:", list(looks))

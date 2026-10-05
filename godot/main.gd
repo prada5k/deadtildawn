@@ -40,6 +40,7 @@ extends Node2D
 ##   --replay=<path>   play this replay instead of replays/latest.json
 ##   --selftest        step through the replay headless, print checks, quit
 ##   --shots=<folder>  save stills from every camera at several moments, quit
+##   --parts=a,b       the DX's part ids (e.g. header_421: its exhaust pops)
 
 const REPLAY_PATH := "res://replays/latest.json"
 const REPLAY_FORMAT := "deadtildawn-replay"
@@ -266,6 +267,8 @@ func _ready() -> void:
 	for a in args:
 		if a.begins_with("--replay="):
 			replay_path = a.trim_prefix("--replay=")
+		elif a.begins_with("--parts="):              # the DX's parts (standalone: the game passes them itself)
+			faba_parts = Array(a.trim_prefix("--parts=").split(","))
 	var err := load_replay(replay_path)
 	if err != "":
 		show_message(err)
@@ -2284,17 +2287,22 @@ func camcar_ride() -> Vector2:
 ## Every downshift in a car's run (sim: one gear at a time while braking; the
 ## gear reads 0 for the 0.4 s the clutch is in): the gap (t0 -> t1) is when
 ## the driver blips the throttle to match revs, and just after it, off the
-## gas, the exhaust MAY pop (2-5 bangs + flames, POP_CHANCE of the time; Spire:
-## not every single time). The pops come from a seed per shift, so the full
-## viewer's sound and each pane's flames agree.
-const POP_CHANCE := 0.4
+## gas, the exhaust MAY pop (2-5 bangs + flames). Spire: only with an
+## aftermarket HEADER on (a stock manifold + cat doesn't), and then POP_CHANCE
+## of the shifts. Faba's header is in faba_parts; the opponents' cars don't
+## list exhausts, so they blip but never pop. The pops come from a seed per
+## shift, so the full viewer's sound and each pane's flames agree.
+const POP_CHANCE := 0.7
 func build_shifts() -> void:
-	shifts["car"] = find_downshifts(samples, "car")
+	var header := false
+	for p in faba_parts:
+		header = header or str(p).begins_with("header")
+	shifts["car"] = find_downshifts(samples, "car", header)
 	if ghost != null and ghost["samples"].has("gear"):
-		shifts["ghost"] = find_downshifts(ghost["samples"], "ghost")
+		shifts["ghost"] = find_downshifts(ghost["samples"], "ghost", false)
 
 
-func find_downshifts(smp: Dictionary, who: String) -> Array:
+func find_downshifts(smp: Dictionary, who: String, can_pop: bool) -> Array:
 	var out := []
 	var ts: Array = smp["t"]
 	var gs: Array = smp["gear"]
@@ -2310,7 +2318,7 @@ func find_downshifts(smp: Dictionary, who: String) -> Array:
 		if last > 0 and g < last:
 			rng.seed = hash("%s/%d" % [who, i])      # the same pops in the picture and the sound
 			var pops := []
-			if rng.randf() < POP_CHANCE:                 # the blip always; the pops + flames only sometimes
+			if can_pop and rng.randf() < POP_CHANCE:     # the blip always; the pops + flames with a header, mostly
 				var tp := float(ts[i]) + rng.randf_range(0.04, 0.14)
 				for k in rng.randi_range(2, 5):
 					pops.append(tp)

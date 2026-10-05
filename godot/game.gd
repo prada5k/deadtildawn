@@ -555,7 +555,7 @@ func show_car() -> void:
 			"effects": inst.get("effects_text", []), "damaged": inst.get("damaged", false),
 			"now": car_stats, "with": compare["stats"], "slot_id": compare["slot"], "uid": compare["uid"],
 			"part": inst.get("part", ""), "rarity_color": RARITY_COLORS.get(part_by_id(inst.get("part", "")).get("rarity", ""),
-				Color(0, 0, 0, 0))})
+				Color(0, 0, 0, 0)), "rarity": part_by_id(inst.get("part", "")).get("rarity", "")})
 
 
 ## Slot -> the part id on it (the build sheet draws each one's picture).
@@ -1200,7 +1200,9 @@ func apply_result(r: Dictionary) -> Dictionary:
 	# The cops (COPS_CHANCE, or the "heat" code): speeding + reckless driving.
 	# A win pays nothing (the cash is evidence); a loss still costs the wager.
 	# Not after a crash: the tow ticket is enough.
-	var busted: bool = not r["dnf"] and not no_contest and (state.get("heat", false) or randf() < COPS_CHANCE)
+	# (Tests and stills: only the heat code calls them, so a 3% roll can't flip a hand calc.)
+	var busted: bool = not r["dnf"] and not no_contest and (state.get("heat", false)
+		or (not still_mode and randf() < COPS_CHANCE))
 	state.erase("heat")
 	if busted and won:
 		cash_change = 0
