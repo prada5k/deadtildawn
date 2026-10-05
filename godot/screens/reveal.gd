@@ -55,6 +55,7 @@ func show_stage(stage: String) -> void:
 ## Shake the box, it pops, the part comes out with its rarity.
 func open_box() -> void:
 	%OpenButton.disabled = true
+	Sound.play("box")
 	var box: Control = %Box
 	box.pivot_offset = box.size / 2.0
 	var tw := create_tween()
@@ -130,6 +131,7 @@ func fill_sheet(animate: bool) -> void:
 		l.visible_ratio = 0.0
 	var tw := create_tween()
 	for l: Label in labels:
+		tw.tween_callback(Sound.play.bind("print", -6.0))   # the print head, line by line
 		tw.tween_property(l, "visible_ratio", 1.0, LINE_DELAY)
 	tw.tween_callback(func():
 		note.visible = note_text != ""

@@ -143,6 +143,7 @@ func load_game() -> void:
 	if typeof(data) != TYPE_DICTIONARY:
 		return
 	state = migrate(data)
+	Sound.muted = state.get("mute", false)     # code "mute" (an optional key: older saves just don't have it)
 
 
 ## Upgrade an older save instead of throwing it away. Each step takes a save
@@ -1080,6 +1081,9 @@ func apply_result(r: Dictionary) -> Dictionary:
 	var no_contest: bool = r["no_contest"]
 	var wager := int(choice["wager"])
 	var cash_change := 0 if no_contest else (wager if won else -wager)
+	var stiffed: bool = won and not no_contest and state.get("jorge", false)   # jorge mode: he won't pay
+	if stiffed:
+		cash_change = 0
 	var rival_night: bool = night.get("id", "") != "street"
 	var rep_change: int = ((REP_RIVAL_WIN if rival_night else REP_OPEN_WIN) if won
 		else (REP_CRASH if r["dnf"] else REP_LOSS))
@@ -1094,7 +1098,7 @@ func apply_result(r: Dictionary) -> Dictionary:
 		"mistakes": r["mistakes"], "parts": parts_args(), "loot": "", "damage": {},
 		"track": night.get("track", ""), "rival_night": rival_night,
 		"top_bet": mini(int(state["cash"]), max_bet()), "min_bet": min_bet(),   # before this night counts
-		"breakdown": r.get("breakdown", {})}
+		"breakdown": r.get("breakdown", {}), "stiffed": stiffed}
 	state["cash"] = int(state["cash"]) + cash_change
 	state["rep"] = maxi(int(state["rep"]) + rep_change, 0)
 	if r["dnf"]:
@@ -1217,6 +1221,8 @@ const CODES := {
 	"memories": "unlocks every TEAM memory",
 	"broke": "cash to $0 to see the BROKE screen (scrap parts there to get back)",
 	"startover": "wipes the save and starts the story over (asks first)",
+	"jorge": "jorge mode on / off: win a race and the other guy won't pay up",
+	"mute": "sound off / on",
 }
 const CHEAT_CASH := 10000
 const CHEAT_REP := 100
@@ -1304,6 +1310,13 @@ func enter_code(raw: String) -> void:
 			save_game()
 			show_broke()
 			return
+		"jorge":
+			state["jorge"] = not state.get("jorge", false)
+			msg = "Jorge mode is %s." % ("ON. Win and see what happens" if state["jorge"] else "off")
+		"mute":
+			state["mute"] = not state.get("mute", false)
+			Sound.muted = state["mute"]
+			msg = "Sound %s." % ("off" if state["mute"] else "on")
 	save_game()
 	show_codes(msg)
 
@@ -1523,6 +1536,15 @@ func game_test() -> void:
 	state["night"] = street_card
 	apply_result(won_race)
 	check(int(state["rep"]) == 19, "street win: rep %d (expect 15 + 4 = 19)" % state["rep"])
+	# Jorge mode: a win, but he doesn't pay (the rep still counts)
+	state["jorge"] = true
+	state["night"] = street_card
+	var cash_jorge := int(state["cash"])
+	var stiffed := apply_result(won_race)
+	check(int(state["cash"]) == cash_jorge and stiffed["stiffed"] and int(stiffed["cash_change"]) == 0
+		and int(state["rep"]) == 23, "jorge mode: won, cash %d (expect %d, unpaid), rep %d (expect 23)" % [
+		state["cash"], cash_jorge, state["rep"]])
+	state["jorge"] = false
 	# A damaged part stays in its slot but is off the car until repaired.
 	# Hand calc: rsb_19 is $320, repair 30% = $96, from $500 over tonight's minimum bet.
 	var c := add_instance("rsb_19", 0.5, true, "shop")
@@ -1775,6 +1797,10 @@ func game_shots(folder: String) -> void:
 	var rs: ScrollContainer = screen.find_child("Scroll", true, false)
 	rs.scroll_vertical = 520
 	await snap(folder, "6_results_why")
+	var stiffed := result.duplicate()                       # jorge mode: he won't pay
+	stiffed.merge({"won": true, "no_contest": false, "stiffed": true, "cash_change": 0}, true)
+	show_results(stiffed)
+	await snap(folder, "6_results_jorge")
 	show_codes("$10,000 in the envelope.")
 	await snap(folder, "7_codes")
 	state["cash"] = 40                                       # BROKE: scrap your way back

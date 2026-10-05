@@ -55,6 +55,7 @@ const BODY_FONT := preload("res://fonts/BarlowCondensed-Bold.ttf")
 const SceneryScript := preload("res://widgets/scenery.gd")
 const Chase3D := preload("res://widgets/chase3d.gd")
 const SpeedBlur := preload("res://widgets/speed_blur.gdshader")
+const CarAudio := preload("res://widgets/car_audio.gd")
 const VhsShader := preload("res://widgets/vhs.gdshader")
 const Voice := preload("res://voice.gd")
 const SPEEDS := [0.25, 0.5, 1.0, 2.0, 4.0, 8.0]
@@ -237,6 +238,9 @@ var camcar_accel := CAMCAR_ACCEL_MIN
 var flagger: Node2D
 var land: Node2D           # the 2D scenery (the 3D chase reuses its coastline / drop-off)
 var chase: Node3D          # a pane's 3D world (widgets/chase3d.gd)
+var audio := {}            # full viewer: "car" / "ghost" -> CarAudio (each engine, live)
+var last_count := 99       # the count we last beeped (3, 2, 1, 0 = GO)
+var last_radio := -1       # the spotter whose call we last played
 
 
 # ------------------------------------------------------------------ setup
@@ -264,6 +268,7 @@ func _ready() -> void:
 		return
 	build_world()
 	build_hud()
+	build_audio()
 	set_cam_mode(CamMode.CHASE)                 # Spire: chase by default, game and viewer
 	countdown = COUNTDOWN_S
 	for a in args:
@@ -882,9 +887,13 @@ func update_split(vp: Vector2) -> void:
 func update_radio(vp: Vector2) -> void:
 	var radio: Label = hud["radio"]
 	radio.visible = false
-	for sp: Dictionary in spotters:
+	for k in spotters.size():
+		var sp: Dictionary = spotters[k]
 		var passed := time_at(samples["s"], samples["t"], float(sp["s"]))
 		if t >= passed and t < passed + RADIO_SHOW_S and (not dnf or passed < lap_time) and t < end_time:
+			if last_radio != k and playing:
+				last_radio = k
+				Sound.play("squelch", -4.0)
 			radio.text = "SPOTTER: %s" % Voice.SPOTTER_CALL.to_upper()
 			radio.reset_size()
 			radio.position = Vector2(vp.x - radio.size.x - 20, TOP_BAR_PX + 76)
@@ -1305,6 +1314,10 @@ func update_intro(vp: Vector2) -> void:
 		var n := 3 - int((elapsed - ROLL_S) / COUNT_STEP_S)
 		count.visible = (countdown > 0.0 and elapsed >= ROLL_S) or (countdown <= 0.0 and t < 0.6 and hud.has("intro_used"))
 		count.text = "GO" if countdown <= 0.0 else str(clampi(n, 1, 3))
+		var now := (0 if countdown <= 0.0 else clampi(n, 1, 3)) if count.visible else 99
+		if now != 99 and now != last_count:          # a beep on each count, a long one on GO
+			last_count = now
+			Sound.play("go" if now == 0 else "beep", -3.0)
 		count.reset_size()
 		count.position = Vector2((vp.x - count.size.x) / 2.0, TOP_BAR_PX + 120)
 	var blink := countdown > 0.0 and fmod(elapsed, 0.5) < 0.25
@@ -1358,6 +1371,7 @@ func _process(delta: float) -> void:
 	camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * 16.0 * shake * shake
 	if pane == "":
 		update_hud()
+		update_audio()
 	else:
 		update_intro(get_viewport_rect().size)  # hazards + the flagger's light
 		camcar_step(delta)
@@ -1411,16 +1425,21 @@ func fire_events(delta: float) -> void:
 			crash_age = 0.0
 			if pane != "them":                  # not in his half: Faba isn't there
 				crash_fx(car.position, car.rotation)
+			if pane == "":
+				Sound.play("crash")
 		else:
 			crash_age += delta
 	if ghost != null and bool(ghost["dnf"]):
 		var gt := float(ghost["lap_time"])
 		if prev_t < gt and t >= gt and pane != "faba":
 			crash_fx(ghost_car.position, ghost_car.rotation)
+			if pane == "":
+				Sound.play("crash", -3.0 if ghost != null and is_split() else 0.0)
 	if not dnf and prev_t < end_time and t >= end_time and hud.has("flash"):   # the winner's line
 		var flash: ColorRect = hud["flash"]
 		flash.color.a = 0.7
 		create_tween().tween_property(flash, "color:a", 0.0, 0.5)
+		Sound.play("horn", -5.0)                  # the guys at the line lean on their horns
 
 
 func crash_fx(pos: Vector2, heading: float) -> void:
@@ -1730,6 +1749,8 @@ func restart() -> void:
 	playing = true
 	countdown = COUNTDOWN_S
 	crash_age = -1.0
+	last_count = 99
+	last_radio = -1
 	camcar_reset()
 	if chase != null:
 		chase.reset()
@@ -2232,3 +2253,76 @@ func camcar_ride() -> Vector2:
 	var v: float = camcar["v"]
 	return Vector2(v * v * absf(k) / G, signf(k))
 
+
+
+# ------------------------------------------------------------ sound
+
+## Each car's engine, synthesized live (widgets/car_audio.gd), in the full
+## viewer only. The broadcast's other noises fire from their moments: the
+## count (update_intro), the spotters' radio (update_radio), a crash and the
+## horns at the line (fire_events). Sound.play: sound.gd.
+func build_audio() -> void:
+	for who in ["car", "ghost"] if ghost != null else ["car"]:
+		var a: AudioStreamPlayer = CarAudio.new()
+		a.cylinders = CarAudio.cylinders_for(str(replay["car"]["name"]) if who == "car" else str(ghost["car"]))
+		a.volume_db = 0.0 if who == "car" else -2.0
+		add_child(a)
+		audio[who] = a
+
+
+## What each engine is doing now: off the replay's telemetry while racing;
+## revving at the line during the count (his a beat after Faba's: a standoff);
+## idling once it's over; dying after a crash while the wreck slides.
+## Split screen pans him left and Faba right, like the picture.
+func update_audio() -> void:
+	var split := is_split() and ghost != null
+	var slow := clampf(SPEEDS[speed_i] * (SLOW_MO if finish_slow() else 1.0), 0.5, 1.0)
+	var elapsed := COUNTDOWN_S - countdown
+	for who: String in audio:
+		var a: AudioStreamPlayer = audio[who]
+		var them := who == "ghost"
+		a.pan = (-0.6 if them else 0.6) if split else 0.0
+		a.time_scale = slow
+		a.gain = 1.0 if playing else 0.0                # a paused tape is silent
+		a.alive = 1.0
+		a.squeal = 0.0
+		if countdown > 0.0:
+			a.speed = 0.0
+			if elapsed < ROLL_S:                         # rolling up to the line
+				a.rpm = 1300.0
+				a.throttle = 0.15
+			else:                                        # a blip on every count
+				var k := fmod(elapsed - ROLL_S + (0.3 if them else 0.0), COUNT_STEP_S) / COUNT_STEP_S
+				a.rpm = lerpf(1100.0, 5200.0, exp(-k * 5.0))
+				a.throttle = 1.0 if k < 0.15 else 0.05
+			continue
+		var out := (bool(ghost["dnf"]) and t >= float(ghost["lap_time"])) if them else (dnf and t >= lap_time)
+		if out:                                          # off the road: the motor dies, the tires scream
+			var age := t - float(ghost["lap_time"]) if them else maxf(crash_age, 0.0)
+			var v0 := ghost_crash_v() if them else float(samples["v"][-1])
+			a.speed = crash_slide(age, v0).z
+			a.alive = clampf(1.0 - age / 0.35, 0.0, 1.0)
+			a.squeal = 1.0 if a.speed > 3.0 else 0.0
+			continue
+		if t >= end_time:                                # over: off the gas, idling at the line
+			a.rpm = 1000.0
+			a.throttle = 0.0
+			a.speed = 0.0
+			continue
+		var s := ghost_s_at(t) if them else value_at("s")
+		var v := ghost_speed_at(t) if them else value_at("v")
+		if them:
+			var has: bool = ghost["samples"].has("rpm")
+			a.rpm = ghost_at("rpm", t) if has else clampf(1500.0 + v * 90.0, 1500.0, 7000.0)
+			a.throttle = ghost_at("throttle", t) if has else 0.8
+		else:
+			a.rpm = value_at("rpm")
+			a.throttle = value_at("throttle")
+		a.speed = v
+		# Tires: a squeal past ~0.7 g of cornering (a = v^2 / r), all out running wide
+		a.squeal = clampf((absf(v * v * bend_at(s)) / G - 0.7) / 0.25, 0.0, 1.0)
+		if not them and driver != null:
+			for c in driver["corners"]:
+				var mid := (float(c["s_start"]) + float(c["s_end"])) / 2.0
+				if c["mistake"] and s >= mid and s <= float(c["s_end"]):
+					a.squeal = 1.0

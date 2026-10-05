@@ -18,6 +18,10 @@ config/name="deadtildawn"
 run/main_scene="res://game.tscn"
 config/features=PackedStringArray("4.7")
 
+[autoload]
+
+Sound="*res://sound.gd"
+
 [display]
 
 window/size/viewport_width=720

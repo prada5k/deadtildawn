@@ -25,7 +25,13 @@ func _ready() -> void:
 	%Skip.pressed.connect(func(): finished.emit())
 	%Footage.setup(Voice.STORY_BOSS, [], Voice.STORY_FA5)
 	%Footage.frame("chase")                    # portrait: over the FA5's shoulder
+	Sound.loop("hiss", -16.0)                  # the tape running
 	next_slide()
+
+
+func _exit_tree() -> void:
+	Sound.stop("hiss")
+	Sound.stop("static")
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -54,6 +60,8 @@ func next_slide() -> void:
 	if not %Phone.visible:
 		%Tape.visible = false
 		%Phone.visible = true
+		Sound.stop("hiss")
+		Sound.stop("static")
 		show_block()
 		return
 	if typing:
@@ -75,13 +83,19 @@ func show_tape(slide: Dictionary) -> void:
 	var black: ColorRect = %Blackout
 	match slide["shot"]:
 		"glitch":                                 # the tape starts to go
+			Sound.play("crash", -6.0, 0.85)           # ...as the car hits the tree
+			Sound.loop("static", -16.0)
 			tape.set_shader_parameter("band", 0.6)
 			tape.set_shader_parameter("bleed", 6.0)
 		"static":                                 # gone: black, heavy tracking noise
+			Sound.loop("static", -8.0)
 			tape.set_shader_parameter("band", 1.4)
 			tape.set_shader_parameter("bleed", 10.0)
 			black.color.a = 0.85
 		"black":                                  # tape stopped
+			Sound.stop("static")
+			Sound.stop("hiss")
+			Sound.play("tape", -2.0, 0.7)             # the deck's STOP key
 			tape.set_shader_parameter("band", 0.0)
 			tape.set_shader_parameter("bleed", 0.0)
 			black.color.a = 1.0
@@ -136,6 +150,7 @@ func add_message(who: String, text: String) -> void:
 		bubble.add_child(label)
 		bubble.modulate.a = 0.0
 		create_tween().tween_property(bubble, "modulate:a", 1.0, 0.2)
+		Sound.play("text", -6.0 if who == "me" else -2.0, 1.0 if who == "me" else 0.84)
 	await get_tree().process_frame                   # scroll to the newest message
 	var sc: ScrollContainer = %Scroll
 	sc.scroll_vertical = int(sc.get_v_scroll_bar().max_value)

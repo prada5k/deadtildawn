@@ -26,7 +26,13 @@ func setup(result: Dictionary, info: Dictionary) -> void:
 	%Verdict.text = verdict
 	%FabaLine.text = (Voice.FABA_WON if won else (Voice.FABA_NO_CONTEST if result["no_contest"] else
 		(Voice.FABA_CRASHED if result["dnf"] else Voice.FABA_LOST)))
+	var stiffed: bool = result.get("stiffed", false)  # jorge mode: he lost and won't pay
+	%TheySays.visible = stiffed
+	%TheyTag.text = str(result["rival"]).to_lower()
+	%TheyLine.text = Voice.JORGE_LINE
 	stamp()
+	if won and not stiffed and int(result["cash_change"]) > 0:
+		get_tree().create_timer(0.45).timeout.connect(func(): Sound.play("cash"))
 
 	%Gap.visible = not result["dnf"] and not result["opponent_dnf"]
 	if %Gap.visible:
@@ -50,6 +56,8 @@ func setup(result: Dictionary, info: Dictionary) -> void:
 	# money is always green, rep always orange
 	UI.stat_row(lines, "Cash", "%s%s  ->  %s" % ["+" if result["cash_change"] > 0 else "",
 		UI.money(result["cash_change"]), UI.money(info["cash"])], "InkMutedLabel", "InkMoneyLabel")
+	if result.get("stiffed", false):
+		UI.stat_row(lines, "", "%s %s" % [str(result["rival"]), Voice.JORGE_RECEIPT], "InkMutedLabel", "InkLabel")
 	UI.stat_row(lines, "Rep", "%+d  ->  %d" % [result["rep_change"], info["rep"]], "InkMutedLabel", "InkRepLabel")
 
 	# Tow ticket
@@ -133,3 +141,4 @@ func stamp() -> void:
 	var tw := create_tween().set_parallel()
 	tw.tween_property(v, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tw.tween_property(v, "modulate:a", 1.0, 0.12)
+	get_tree().create_timer(0.17).timeout.connect(func(): Sound.play("stamp"))   # thunk as it lands

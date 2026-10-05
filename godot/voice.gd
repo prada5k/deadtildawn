@@ -75,6 +75,10 @@ const FABA_WON := "did you expect anything else"
 const FABA_LOST := "fuck that foo"
 const FABA_CRASHED := "brah fuckkkkk we might be cooked"
 const FABA_NO_CONTEST := "come on son"
+# Jorge mode (code "jorge", Spire): you win, he doesn't pay. What he says, and
+# the receipt's note
+const JORGE_LINE := "fuck you"
+const JORGE_RECEIPT := "didn't pay up"
 
 # Results: why it went that way (sim/breakdown.py "verdict": the cause behind
 # the biggest loss, or the biggest gain on a win). Said under the breakdown
