@@ -905,6 +905,7 @@ func build_car(v: Node) -> void:
 	tip.material_override = mat(Color(0.5, 0.5, 0.52), 0.35)
 	tip.rotation.z = PI / 2.0
 	tip.position = tip_at
+	tip.visible = who != "car"                         # the DX models its own (by its header)
 	body.add_child(tip)
 	var fire := CylinderMesh.new()
 	fire.top_radius = 0.0                              # the tip of the flame...

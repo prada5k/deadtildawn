@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://bgt4myfh4o6nq" path="res://screens/warehouse.gd" id="1"]
 [ext_resource type="Script" path="res://widgets/overlook.gd" id="2"]
 [ext_resource type="Texture2D" uid="uid://cylg33ri4iwl2" path="res://textures/tape.png" id="3"]
+[ext_resource type="Script" path="res://widgets/crew_sticker.gd" id="crew"]
 
 [node name="Warehouse" type="Control"]
 layout_mode = 3
@@ -71,6 +72,24 @@ rotation = 0.06
 mouse_filter = 2
 texture = ExtResource("3")
 expand_mode = 1
+
+[node name="CrewSticker" type="Control" parent="Column/PinnedPhoto"]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -330.0
+offset_top = -118.0
+offset_right = -10.0
+offset_bottom = -20.0
+grow_horizontal = 0
+grow_vertical = 0
+rotation = -0.05
+mouse_filter = 2
+theme_type_variation = &"CrewSticker"
+script = ExtResource("crew")
 
 [node name="WorkOrder" type="PanelContainer" parent="Column"]
 layout_mode = 2

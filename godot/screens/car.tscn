@@ -154,6 +154,14 @@ rotation = 0.015
 theme_type_variation = &"TapeButton"
 text = "take it all off"
 
+[node name="BodyShopButton" type="Button" parent="Scroll/Column/BuildSheet/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 8
+rotation = 0.012
+theme_type_variation = &"TapeButton"
+text = "body shop  >"
+
 [node name="ShopButton" type="Button" parent="Scroll/Column/BuildSheet/Box"]
 unique_name_in_owner = true
 layout_mode = 2

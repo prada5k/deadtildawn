@@ -32,6 +32,8 @@ const MeetingScene := preload("res://screens/meeting.tscn")
 const ResultsScene := preload("res://screens/results.tscn")
 const CodesScene := preload("res://screens/codes.tscn")
 const TutorialScene := preload("res://screens/tutorial.tscn")
+const BodyShopScene := preload("res://screens/bodyshop.tscn")
+const BodyShop := preload("res://bodyshop.gd")
 const BrokeScene := preload("res://screens/broke.tscn")
 const ScoutScene := preload("res://screens/scout.tscn")
 const ShellScene := preload("res://screens/shell.tscn")
@@ -45,6 +47,7 @@ const LOCATIONS := {
 	"codes": "THE BACK ROOM",
 	"road": "TONIGHT'S ROAD",
 	"tutorial": "HOW TO RACE",
+	"bodyshop": "BAY 2 // BODY SHOP",
 }
 
 const SAVE_PATH := "user://save.json"
@@ -352,6 +355,8 @@ func _go(target: String) -> void:
 			show_briefing()
 		"codes":
 			show_codes()
+		"bodyshop":
+			show_bodyshop()
 		"fullbuild":                         # the code was waiting on the catalog
 			enter_code("fullbuild")
 		"broke":
@@ -411,8 +416,8 @@ func show_warehouse() -> void:
 	info["wins"] = record.x
 	info["losses"] = record.y
 	info["min_buy_in_text"] = UI.money(min_bet())
-	info["parts"] = installed_part_ids()
-	info["caption"] = "PCH turnout, wk %d. %s" % [int(state["week"]), home_caption(info["parts"].size())]
+	info["parts"] = car_look()
+	info["caption"] = "PCH turnout, wk %d. %s" % [int(state["week"]), home_caption(installed_part_ids().size())]
 	open_hub(WarehouseScene, "warehouse").setup(info)
 
 
@@ -444,6 +449,52 @@ func streak(races: Array, wins: bool) -> int:
 			break
 		n += 1
 	return n
+
+
+## The body shop: what's owned and what's worn (an optional save key:
+## older saves just don't have one yet).
+func look_state() -> Dictionary:
+	if not state.has("look"):
+		state["look"] = {"owned": [], "worn": {}}
+	return state["look"]
+
+
+## Everything the 3D DX shows: its parts and its looks ("look:<id>").
+func car_look() -> Array:
+	return installed_part_ids() + BodyShop.look_tags(look_state()["worn"])
+
+
+func show_bodyshop(message := "") -> void:
+	var lk := look_state()
+	var bs: Control = open_hub(BodyShopScene, "bodyshop")
+	bs.buy.connect(buy_look)
+	bs.wear.connect(func(id):
+		lk["worn"][BodyShop.ITEMS[id]["slot"]] = id
+		save_game()
+		show_bodyshop())
+	bs.take_off.connect(func(slot):
+		lk["worn"].erase(slot)
+		save_game()
+		show_bodyshop())
+	bs.setup({"parts": installed_part_ids(), "owned": lk["owned"], "worn": lk["worn"],
+		"spendable": int(state["cash"]) - min_bet(), "message": message})
+
+
+## Buy a cosmetic and put it on. Same rule as parts: never below the buy-in.
+func buy_look(id: String) -> void:
+	var item: Dictionary = BodyShop.ITEMS.get(id, {})
+	if item.is_empty() or id in look_state()["owned"]:
+		return
+	if not can_spend(int(item["price"])):
+		show_bodyshop("Can't: that would leave less than the %s buy-in." % UI.money(min_bet()))
+		return
+	state["cash"] = int(state["cash"]) - int(item["price"])
+	stat_add("spent", int(item["price"]))
+	look_state()["owned"].append(id)
+	look_state()["worn"][item["slot"]] = id
+	save_game()
+	Sound.play("cash")
+	show_bodyshop("%s: done." % item["name"])
 
 
 ## Part ids on the car right now (installed and not damaged): for the 3D model.
@@ -485,7 +536,7 @@ func show_car() -> void:
 		compare = {}
 		show_car())
 	var info := common_info()
-	info["parts_on"] = installed_part_ids()
+	info["parts_on"] = car_look()
 	var night: Dictionary = state["night"]
 	info["night"] = ("locked" if build_locked() else
 		("scouting" if not night.is_empty() and night.get("event") == event_key(next_event()) else ""))
@@ -871,7 +922,7 @@ func team_info() -> Dictionary:
 			["Net cash", "%s%s" % ["+" if net > 0 else "", UI.money(net)]],
 			["Biggest bet", UI.money(int(st.get("biggest_bet", 0)))]] + vs_rows,
 		"memories": memories,
-		"parts_on": installed_part_ids(),
+		"parts_on": car_look(),
 	}
 
 
@@ -1054,7 +1105,7 @@ func show_meeting() -> void:
 		"where": "%s // %s" % [when(ev["week"], ev["day"]).replace(",", ""),
 			"%s'S HOME ROAD" % str(night["name"]).to_upper() if rival_night else "OPEN ROAD"],
 		"rival_night": rival_night,
-		"opponent_car": night["car"], "faba_parts": installed_part_ids(),
+		"opponent_car": night["car"], "faba_parts": car_look(),
 		"road_info": "%s  /  %d m, %d corners" % [night["club"], int(track_info["length"]),
 			track_info["corners"].size()],
 		"track": track_info, "mine": car_stats, "theirs": night["stats"],
@@ -1199,6 +1250,7 @@ func show_race(replay_path: String, result: Dictionary) -> void:
 	if raced.size() == 2:
 		for entry: String in str(raced[1]).split(","):
 			viewer.faba_parts.append(entry.get_slice("@", 0))
+	viewer.faba_parts.append_array(BodyShop.look_tags(look_state()["worn"]))   # and the paint, the stickers
 	last_replay = replay_path
 	viewer.finished_viewing.connect(show_results.bind(result))
 	add_child(viewer)
@@ -1220,7 +1272,7 @@ func show_results(result: Dictionary) -> void:
 				result["rival"], str(lp.get("rarity", "")), lp.get("name", result["loot"])]
 	var replay = JSON.parse_string(FileAccess.get_file_as_string(last_replay)) 		if FileAccess.file_exists(last_replay) else null
 	r.setup(result, {"cash": int(state["cash"]), "rep": int(state["rep"]),
-		"faba_parts": installed_part_ids(), "loot_text": loot_text,
+		"faba_parts": car_look(), "loot_text": loot_text,
 		"track": replay["track"] if replay is Dictionary else {}})
 
 
@@ -1741,6 +1793,16 @@ func game_test() -> void:
 	state["installed"] = {"rear_sway": strip_me["uid"]}
 	check(strip_all() and state["installed"].is_empty() and instance(strip_me["uid"]).size() > 0,
 		"take it all off: the car's stock, the part's back in the spares")
+	# The body shop: a buy goes on the car and into the look; never below the buy-in.
+	# Hand calc: min bet + $700 cash, Milano Red $700 -> exactly the buy-in left
+	state["cash"] = min_bet() + 700
+	state.erase("look")
+	buy_look("paint_milano")
+	buy_look("tow")                                       # $40: would cross the buy-in
+	check(int(state["cash"]) == min_bet() and "look:paint_milano" in car_look()
+		and not "tow" in look_state()["owned"],
+		"body shop: Milano Red bought and worn, cash at the buy-in (%d), the tow hooks refused" % state["cash"])
+	state.erase("look")
 	lock_build()
 	var lock_part := add_instance("rsb_24", 0.5, true, "shop")
 	install_part("rear_sway", lock_part["uid"], false)
@@ -1814,6 +1876,12 @@ func game_shots(folder: String) -> void:
 	await snap(folder, "1b_car")
 	hub_content.get_node("%Scroll").scroll_vertical = 900
 	await snap(folder, "1b_car_parts")
+	look_state()["owned"] = ["paint_milano", "banner"]          # the body shop: two owned, one on trial
+	look_state()["worn"] = {"paint": "paint_milano", "banner": "banner"}
+	show_bodyshop()
+	hub_content.try_on("wing_duck")
+	await snap(folder, "1c_bodyshop")
+	state.erase("look")
 	var trial: Dictionary = state["installed"].duplicate()     # the swap comparison
 	var spare_cams := add_instance("intake_cold_air", 0.62, true, "shop", part_by_id("intake_cold_air")["effects_text"])
 	trial["intake"] = spare_cams["uid"]
@@ -1922,6 +1990,7 @@ func game_shots(folder: String) -> void:
 	await jump_replay(maxf(float(first_split["t_me"]), float(first_split["t_them"])) + 0.5)
 	await snap(folder, "5_race_split")
 	show_results(result)
+	await get_tree().create_timer(1.0).timeout                # the stamp, then the seal
 	await snap(folder, "6_results")
 	var rs: ScrollContainer = screen.find_child("Scroll", true, false)
 	rs.scroll_vertical = 520

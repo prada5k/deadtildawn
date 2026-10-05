@@ -33,6 +33,7 @@ var locked := false            # the build is locked in for tonight
 
 func _ready() -> void:
 	%ShopButton.pressed.connect(func(): go.emit("shop"))
+	%BodyShopButton.pressed.connect(func(): go.emit("bodyshop"))
 	%CompareNo.pressed.connect(func(): compare_closed.emit())
 	%ToRoad.pressed.connect(func(): go.emit("road"))
 	%StripButton.pressed.connect(func(): strip_pressed.emit())

@@ -4,6 +4,7 @@
 [ext_resource type="Script" path="res://widgets/overlook.gd" id="2"]
 [ext_resource type="Script" path="res://widgets/lift_bay.gd" id="3"]
 [ext_resource type="Texture2D" uid="uid://bh57thicmbofh" path="res://textures/pin.png" id="4"]
+[ext_resource type="Script" path="res://widgets/crew_sticker.gd" id="crew"]
 
 [node name="Team" type="Control"]
 layout_mode = 3
@@ -32,6 +33,13 @@ theme_type_variation = &"CorkPanel"
 [node name="Box" type="VBoxContainer" parent="Scroll/Cork"]
 layout_mode = 2
 theme_override_constants/separation = 18
+
+[node name="CrewSticker" type="Control" parent="Scroll/Cork/Box"]
+custom_minimum_size = Vector2(0, 96)
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"CrewSticker"
+script = ExtResource("crew")
 
 [node name="Photos" type="HBoxContainer" parent="Scroll/Cork/Box"]
 layout_mode = 2

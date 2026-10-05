@@ -101,6 +101,21 @@ const TUTORIAL := [
 		"the sheet don't lie"],
 ]
 
+# The body shop (screens/bodyshop.tscn): the note on the sheet, and what the
+# kanjo banner across the windshield says. DRAFTS by Claude -- Spire's words.
+const BODYSHOP_NOTE := "Looks only. The sim doesn't care what color it is. Faba does."
+
+# The crew (Spire: option A, a SoCal crew that runs kanjo style). Its name on
+# the sticker (home, TEAM), the windshield banner and the rear-window decal.
+# The Japanese under it: 環状族 (kanjo-zoku, "loop tribe", what the Osaka loop
+# crews are called). DRAFTS by Claude -- Spire names the crew. Have a Japanese
+# speaker check any Japanese before it's anywhere permanent.
+const CREW_NAME := "DEADTILDAWN"
+const CREW_SUB := "環状族  ·  SOCAL"
+const BANNER_TEXT := CREW_NAME
+# The results hanko (red seal): win, loss (a crash too), no contest
+const HANKO := {"win": "勝", "loss": "負", "no_contest": "引"}
+
 # The cops (3% of races that finish): pulled over on the way down the hill.
 # A citation on the results screen. DRAFTS by Claude -- Spire rewrites.
 const COPS_TITLE := "CITATION"

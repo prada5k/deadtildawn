@@ -11,3 +11,5 @@ frame, pushpin, dot-matrix fan-fold paper (dotmatrix.png).
 
 Fonts are in ../fonts with their licenses (OFL; Permanent Marker: Apache 2.0).
 Doto (dot-matrix, the dyno printout) is OFL: fonts/OFL-Doto.txt.
+Dela Gothic One (the crew sticker, the hanko, the decals; Japanese + Latin) is OFL:
+fonts/OFL-DelaGothicOne.txt (github.com/syakuzen/DelaGothic, via Google Fonts).

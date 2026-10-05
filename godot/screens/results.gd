@@ -24,6 +24,7 @@ func setup(result: Dictionary, info: Dictionary) -> void:
 	var verdict := "YOU WON" if won else ("NO CONTEST" if result["no_contest"] else
 		("CRASHED" if result["dnf"] else "YOU LOST"))
 	%Verdict.text = verdict
+	%Hanko.glyph = Voice.HANKO["win" if won else ("no_contest" if result["no_contest"] else "loss")]
 	%FabaLine.text = (Voice.FABA_WON if won else (Voice.FABA_NO_CONTEST if result["no_contest"] else
 		(Voice.FABA_CRASHED if result["dnf"] else Voice.FABA_LOST)))
 	if result.has("cops"):
@@ -160,3 +161,11 @@ func stamp() -> void:
 	tw.tween_property(v, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tw.tween_property(v, "modulate:a", 1.0, 0.12)
 	get_tree().create_timer(0.17).timeout.connect(func(): Sound.play("stamp"))   # thunk as it lands
+	# ...then the seal, pressed down hard a beat later
+	var h: Control = %Hanko
+	h.scale = Vector2(1.8, 1.8)
+	h.modulate.a = 0.0
+	var th := create_tween().set_parallel()
+	th.tween_property(h, "scale", Vector2.ONE, 0.14).set_delay(0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	th.tween_property(h, "modulate:a", 1.0, 0.1).set_delay(0.45)
+	get_tree().create_timer(0.6).timeout.connect(func(): Sound.play("stamp", -2.0, 1.25))
