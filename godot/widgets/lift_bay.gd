@@ -18,6 +18,9 @@ const DUSK := Color(1.0, 0.55, 0.3)          # through the door
 
 const YAW_MIN := 0.45                # radians around the car; 0 = side on (the near post blocks it)
 const YAW_MAX := 1.45                # ~ head on
+const FRONT_YAW := 1.0               # 3/4 front, right side
+const REAR_YAW := -1.0               # 3/4 rear, right side (body shop: allow_rear)
+const REAR_MIN := -1.5               # ~ straight behind
 const CAM_DIST := 4.9
 
 const LOWER_S := 2.2                 # the lift coming down (body shop), seconds
@@ -25,7 +28,8 @@ const LOWER_S := 2.2                 # the lift coming down (body shop), seconds
 var car: Node3D
 var cam: Camera3D
 var carriage: Node3D                 # what rides up and down with the car: carriages, arms, pads
-var yaw := 1.0                       # 3/4 front, right side
+var yaw := FRONT_YAW
+var yaw_min := YAW_MIN               # how far round a drag can go (allow_rear opens the back)
 var lift_h := LIFT_H                 # the car's height up on the lift (Spire's lift model sets its own)
 var height := LIFT_H                 # where the car sits now (0 = on the floor)
 var target := Vector3(0.3, LIFT_H + 0.5, 0.0)
@@ -61,6 +65,7 @@ func _ready() -> void:
 	car = DxModel.new()
 	car.lights_on = false
 	car.position.y = lift_h
+	pose_lift(lift_h)
 	vp.add_child(car)
 	show_parts([])
 
@@ -79,6 +84,23 @@ func place_camera() -> void:
 	var up := lerpf(1.0, -0.35, height / lift_h)      # up on the lift: looking up at it; on the floor: down on it
 	var pos := target + Vector3(sin(yaw) * CAM_DIST, up, cos(yaw) * CAM_DIST)
 	cam.look_at_from_position(pos, target)
+
+
+## Let the drag go all the way round to the back (the body shop: Spire, to
+## see the rear spoiler, tips, plates).
+func allow_rear() -> void:
+	yaw_min = REAR_MIN
+
+
+## Swing the camera round to a yaw (the body shop's front / back button).
+func swing_to(to: float) -> void:
+	var tw := create_tween()
+	tw.tween_method(set_yaw, yaw, to, 0.6).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+func set_yaw(y: float) -> void:
+	yaw = y
+	place_camera()
 
 
 ## Bring the car down onto the floor (Spire: the body shop, so the car's
@@ -100,6 +122,7 @@ func set_height(h: float) -> void:
 	height = h
 	car.position.y = h
 	carriage.position.y = h - lift_h         # built at lift_h
+	pose_lift(h)
 	target.y = h + 0.5
 	place_camera()
 
@@ -113,7 +136,7 @@ func _gui_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion and (event as InputEventMouseMotion).button_mask & MOUSE_BUTTON_MASK_LEFT:
 		rel = (event as InputEventMouseMotion).relative
 	if rel != Vector2.ZERO and absf(rel.x) > absf(rel.y):
-		yaw = clampf(yaw + rel.x * 0.006, YAW_MIN, YAW_MAX)
+		yaw = clampf(yaw + rel.x * 0.006, yaw_min, YAW_MAX)
 		place_camera()
 		accept_event()
 
@@ -219,15 +242,21 @@ func build_bay(vp: Node) -> void:
 		box(Vector3(6.0, 0.005, 0.08), Vector3(0.0, 0.003, z), Color(0.85, 0.7, 0.15), vp, 0.7)
 
 
-## Spire's lift model (models/car_lift.glb, Oct 2026) when it's there: its
-## posts and floor plate stay put; its arms and carriages ("lift*" nodes) ride
-## up and down with the car. Placed so its arms' center is under the car.
-## Model frame (Blender): posts along Y, arms along X, arms' pads up at
-## LIFT_MODEL_PADS; centered on LIFT_MODEL_CENTER.
+## Spire's lift model (models/car_lift.glb, Oct 2026) when it's there. It's
+## RIGGED: its arms ride on bones, moved by its own animations ("...|up": the
+## arms swing in, then rise). So the car's height picks the moment of "up"
+## where the pads meet the car's sills (pose_lift): up on the lift, and all the
+## way down in the body shop. Model frame (Blender): posts along Y, arms along
+## X; centered on LIFT_MODEL_CENTER.
 const LIFT_MODEL := "res://models/car_lift.glb"
 const LIFT_MODEL_CENTER := Vector2(1.52, 2.42)    # Blender x, y between the posts
-const LIFT_MODEL_PADS := 1.69                     # the raised arms' top (m)
+const PAD_ABOVE_BONE := 0.05                      # the pads' top over the arm bone (measured at rest)
 const SILL := 0.19                                # the car's sills over its tires' bottom (where the pads go)
+const ARM_BONE := "Bone.001_01"
+
+var lift_anim: AnimationPlayer
+var lift_up := ""                    # the "up" animation's name
+var rise := []                       # [time, arm bone height] through "up"
 
 
 func build_lift_model(vp: Node) -> bool:
@@ -237,20 +266,48 @@ func build_lift_model(vp: Node) -> bool:
 	# Blender (x, y, z) arrives as Godot (x, z, -y): center it on the car (x = 0, z = 0)
 	lift.position = Vector3(-LIFT_MODEL_CENTER.x, 0.0, LIFT_MODEL_CENTER.y)
 	vp.add_child(lift)
-	carriage = Node3D.new()
+	for n in lift.find_children("Icosphere*", "", true, false):   # a stray sphere in the file
+		n.queue_free()
+	carriage = Node3D.new()                           # (the box lift's; unused with the model)
 	vp.add_child(carriage)
-	for n in lift.find_children("*", "Node3D", true, false):
-		var name_l := String(n.name).to_lower()
-		if name_l.begins_with("icosphere"):           # a stray sphere in the file
-			n.queue_free()
-		elif name_l.begins_with("lift") and n is MeshInstance3D:
-			var g := (n as Node3D).global_transform
-			n.get_parent().remove_child(n)
-			carriage.add_child(n)
-			(n as Node3D).global_transform = g
-	# The arms are modeled raised: the carriage starts there (set_height moves it)
-	carriage.set_meta("built_at", LIFT_MODEL_PADS - SILL)
+	var aps := lift.find_children("*", "AnimationPlayer", true, false)
+	var skels := lift.find_children("*", "Skeleton3D", true, false)
+	if aps.is_empty() or skels.is_empty():
+		return true
+	lift_anim = aps[0]
+	var skel: Skeleton3D = skels[0]
+	for a in lift_anim.get_animation_list():
+		if String(a).ends_with("|up"):
+			lift_up = a
+	var bone := skel.find_bone(ARM_BONE)
+	if lift_up == "" or bone < 0:
+		return true
+	# How high the arms are through "up" (sampled once)
+	lift_anim.play(lift_up)
+	lift_anim.pause()
+	var length := lift_anim.get_animation(lift_up).length
+	for k in 121:
+		var time := length * k / 120.0
+		lift_anim.seek(time, true)
+		skel.force_update_all_bone_transforms()
+		rise.append([time, (skel.global_transform * skel.get_bone_global_pose(bone)).origin.y])
+	carriage.set_meta("built_at", float(rise[-1][1]) + PAD_ABOVE_BONE - SILL)   # the car's height up top
 	return true
+
+
+## Pose the lift model's arms under a car sitting at height h.
+func pose_lift(h: float) -> void:
+	if lift_anim == null or rise.is_empty():
+		return
+	var want := h + SILL - PAD_ABOVE_BONE
+	var time: float = rise[-1][0]
+	for k in range(1, rise.size()):
+		var y0: float = rise[k - 1][1]
+		var y1: float = rise[k][1]
+		if y1 >= want and y1 > y0:                     # the first moment the arms rise past it
+			time = lerpf(rise[k - 1][0], rise[k][0], clampf((want - y0) / (y1 - y0), 0.0, 1.0))
+			break
+	lift_anim.seek(time, true)
 
 
 ## Two-post lift: posts either side of the car, an overhead beam, carriages at

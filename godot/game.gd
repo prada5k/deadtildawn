@@ -2028,6 +2028,8 @@ func game_shots(folder: String) -> void:
 	show_bodyshop()
 	hub_content.try_on("roof_spoiler")
 	await snap(folder, "1c_bodyshop")
+	hub_content.get_node("%Lift").set_yaw(-1.0)                # the back (the "see the back" button)
+	await snap(folder, "1c_bodyshop_rear")
 	state.erase("look")
 	var trial: Dictionary = state["installed"].duplicate()     # the swap comparison
 	var spare_cams := add_instance("intake_cold_air", 0.62, true, "shop", part_by_id("intake_cold_air")["effects_text"])

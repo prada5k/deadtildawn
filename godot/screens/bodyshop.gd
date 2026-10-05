@@ -13,6 +13,7 @@ signal take_off(slot: String)
 const UI := preload("res://ui.gd")
 const BodyShop := preload("res://bodyshop.gd")
 const Voice := preload("res://voice.gd")
+const Lift := preload("res://widgets/lift_bay.gd")
 
 var info := {}
 var trying := ""             # the item on preview ("" = none)
@@ -20,6 +21,11 @@ var trying := ""             # the item on preview ("" = none)
 
 func _ready() -> void:
 	%Back.pressed.connect(func(): go.emit("car"))
+	%Lift.allow_rear()           # Spire: a way to see the back (drag all the way round, or the button)
+	%Flip.pressed.connect(func():
+		var to_back: bool = %Lift.yaw > 0.0
+		%Lift.swing_to(Lift.REAR_YAW if to_back else Lift.FRONT_YAW)
+		%Flip.text = "see the front" if to_back else "see the back")
 	%Buy.pressed.connect(func():
 		if trying != "":
 			buy.emit(trying))
