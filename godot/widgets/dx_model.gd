@@ -221,7 +221,7 @@ func build_shell_model(paint: Material, faded: Material, hood: Material, fender:
 	target.add_child(shell)
 	swap_materials(shell, {
 		"Paint": paint, "Roof": faded, "Hood": hood, "Fender": fender, "Glass": glass,
-		"Headlight": mat(Color(1, 0.96, 0.85), 0.2, 0.0, Color(1.0, 0.92, 0.72) if lights_on else Color.BLACK),
+		"Headlight": mat(Color(0.72, 0.78, 0.84), 0.15, 0.2, Color(1.0, 0.92, 0.72) if lights_on else Color.BLACK),   # glassy blue-gray lens
 		"Taillight": mat(Color(0.6, 0.05, 0.05), 0.3, 0.0, Color(0.9, 0.05, 0.03) if lights_on else Color.BLACK),
 		"Amber": mat(AMBER, 0.3, 0.0, AMBER * 0.6 if lights_on else Color.BLACK),
 	})

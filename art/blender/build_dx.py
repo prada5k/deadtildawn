@@ -62,24 +62,27 @@ ARCH_FROM = 0.50                      # the wells go this far in from the side (
 # The body curves, (x, value), rear to front (x ascending), meters.
 # The tail is an upright panel (the lights sit on it) with a lip on the trunk's edge.
 YB = [(TAIL, 0.36), (-2.20, 0.30), (-2.15, 0.28), (-2.0, 0.27), (2.0, 0.27),
-      (2.15, 0.28), (2.20, 0.30), (NOSE, 0.36)]
-YT = [(TAIL, 0.885), (-2.20, 0.945), (-2.16, 0.955), (-2.05, 0.945), (-1.55, 0.94),   # a wedge: high tail,
-      (0.70, 0.88), (1.85, 0.77), (2.05, 0.72), (2.15, 0.67), (2.20, 0.62), (NOSE, 0.56)]   # low round nose
+      (2.15, 0.27), (2.20, 0.29), (NOSE, 0.33)]
+# Measured off Spire's side photo (art/refs/perfectside.jpg: px -> m by the axles, the roof
+# scaled to 1.335 m, the crown taken off): a wedge, a long hood dropping to a low nose.
+YT = [(TAIL, 0.885), (-2.20, 0.935), (-2.16, 0.945), (-2.05, 0.945), (-1.80, 0.95),
+      (-1.22, 0.925), (0.0, 0.895), (0.86, 0.85), (1.23, 0.78), (1.78, 0.68), (2.0, 0.61),
+      (2.12, 0.565), (2.20, 0.515), (NOSE, 0.47)]
 W = [(TAIL, 0.74), (-2.20, 0.80), (-2.15, 0.83), (-2.0, 0.845), (-1.6, 0.85),
      (1.4, 0.85), (1.85, 0.84), (2.05, 0.81), (2.15, 0.76), (2.20, 0.70), (NOSE, 0.60)]
 # The roof line, center of the roof: rear glass, roof, the raked windshield
-YR = [(-1.58, 0.92), (-1.50, 0.97), (-1.20, 1.17), (-0.80, 1.335), (-0.20, 1.34),
-      (0.20, 1.14), (0.72, 0.86)]
-WINDSHIELD_X = -0.24                  # the windshield's top edge
-REAR_GLASS = (-1.52, -0.80)           # the rear window, from x to x
-SIDE_GLASS = (-1.22, 0.66)            # door + quarter glass, from x to x
-B_PILLAR = (-0.70, -0.62)
+YR = [(-1.80, 0.985), (-1.74, 1.03), (-1.40, 1.17), (-1.06, 1.285), (-0.80, 1.325),
+      (-0.55, 1.337), (-0.25, 1.322), (0.0, 1.278), (0.42, 1.08), (0.86, 0.872)]   # (the photo)
+WINDSHIELD_X = 0.0                    # the windshield's top edge
+REAR_GLASS = (-1.74, -1.08)           # the rear window, from x to x
+SIDE_GLASS = (-1.22, 0.70)            # door + quarter glass, from x to x
+B_PILLAR = (-0.56, -0.49)
 CREASE = 0.64                         # the side crease, as a share of the body's height at that station
 
 COLORS = {   # what the materials look like in Blender (the game overrides most)
     "Paint": (0.93, 0.93, 0.91, 1), "Hood": (0.93, 0.93, 0.91, 1), "Roof": (0.93, 0.93, 0.91, 1),
     "Fender": (0.93, 0.93, 0.91, 1), "Glass": (0.05, 0.06, 0.08, 0.6), "Trim": (0.06, 0.06, 0.065, 1),
-    "Headlight": (0.92, 0.92, 0.88, 1), "Taillight": (0.6, 0.05, 0.05, 1), "Reverse": (0.80, 0.81, 0.83, 1),
+    "Headlight": (0.72, 0.78, 0.84, 1), "Taillight": (0.6, 0.05, 0.05, 1), "Reverse": (0.80, 0.81, 0.83, 1),
     "Amber": (1.0, 0.55, 0.1, 1), "Plate": (0.85, 0.85, 0.82, 1), "Seam": (0.03, 0.03, 0.035, 1),
 }
 
@@ -239,9 +242,9 @@ def classify(ob, rule):
 def body_material(x, lat, h, nx, nlat, nh, current):
     if current == "Trim":                         # the wheel wells (from the boolean)
         return current
-    if nh > 0.6 and 0.72 < x < 2.12 and abs(lat) < 0.8 * spline(W, x):
+    if nh > 0.6 and 0.86 < x < 2.15 and abs(lat) < 0.8 * spline(W, x):
         return "Hood"
-    if lat > 0.3 and nlat > 0.4 and 0.62 < x < 1.84 and h > 0.30:
+    if lat > 0.3 and nlat > 0.4 and 0.74 < x < 1.84 and h > 0.30:
         return "Fender"                          # front right fender, the primer one on Faba's car
     return "Paint"
 
@@ -334,6 +337,72 @@ def ribbon_up(bm, x, h0, h1, wide, side, out=0.003):
     return [face_out(bm, (a[0], a[1], b[1], b[0]), sideways) for a, b in zip(pairs, pairs[1:])]
 
 
+# ---------------------------------------------------------------- the front (Spire's photos)
+# Things on the nose are laid ON its surface: for a point (lateral l, height h),
+# find how far forward the body reaches there (x_front) and put it just proud.
+
+HEAD_L = (0.31, 0.72)           # the headlights from their inner edge (by the grille) out round the corner
+GRILLE_L = 0.27                 # the grille's half width
+BUMPER_H = 0.53                 # the bumper's top seam, just under the lights
+
+
+def head_lo(l):                 # the headlight's bottom edge: low by the grille, rising as it wraps
+    t = min(max((abs(l) - HEAD_L[0]) / (HEAD_L[1] - HEAD_L[0]), 0.0), 1.0)
+    return 0.545 + 0.055 * t ** 1.4
+
+
+def head_hi(l):                 # its top edge: under the hood line
+    return hood_line(l) - 0.006
+
+
+def hood_line(l):               # the hood's front edge: a shallow dip in the middle
+    t = min(abs(l) / HEAD_L[1], 1.0)
+    return 0.65 + 0.012 * t
+
+
+def inside(x, l, h):
+    half, yb, yt = body_half(x)
+    return yb <= h <= top_h(x, l) and abs(l) <= surface_lat(x, h)
+
+
+def x_front(l, h):
+    lo, hi = 1.2, NOSE + 0.001
+    for _ in range(26):
+        mid = (lo + hi) / 2
+        if inside(mid, l, h):
+            lo = mid
+        else:
+            hi = mid
+    return lo
+
+
+def front_point(l, h, off):
+    """The nose's surface at (l, h), `off` out along its normal: (Blender point, Blender normal)."""
+    e = 0.004
+    x = x_front(l, h)
+    dxdl = (x_front(l + e, h) - x_front(l - e, h)) / (2 * e)
+    dxdh = (x_front(l, h + e) - x_front(l, h - e)) / (2 * e)
+    n = Vector((1.0, -dxdl, -dxdh)).normalized()                 # (x, l, h)
+    p = Vector((x, l, h)) + n * off
+    return to_blender(p.x, p.y, p.z), Vector((n.x, -n.y, n.z))
+
+
+def front_patch(bm, l0, l1, h_lo, h_hi, off, nl=14, nh=3):
+    """A patch on the nose from lateral l0 to l1, between heights h_lo(l) and h_hi(l)."""
+    grid = []
+    for i in range(nl + 1):
+        l = l0 + (l1 - l0) * i / nl
+        lo, hi = h_lo(l), h_hi(l)
+        grid.append([front_point(l, lo + (hi - lo) * j / nh, off) for j in range(nh + 1)])
+    verts = [[bm.verts.new(p) for p, _ in col] for col in grid]
+    faces = []
+    for i in range(nl):
+        for j in range(nh):
+            out = grid[i][j][1]
+            faces.append(face_out(bm, (verts[i][j], verts[i + 1][j], verts[i + 1][j + 1], verts[i][j + 1]), out))
+    return faces
+
+
 LAMP_IN = 0.235                 # the taillights' inboard edge (lateral)
 LAMP_WRAP = 0.11                # how far they wrap forward round the corner (m along x)
 
@@ -412,9 +481,13 @@ def build():
     tail_h = 0.74                                # the taillights' center height on the tail panel
     for s in (-1, 1):
         parts += [
-            # headlights: wide and low, swept back along the nose
-            (add_box(bm, (2.19, s * 0.47, 0.585), (0.09, 0.36, 0.075), rot_z=-s * 0.20, rot_y=-0.35), "Headlight"),
-            (add_box(bm, (2.185, s * 0.47, 0.585), (0.08, 0.39, 0.095), rot_z=-s * 0.20, rot_y=-0.35), "Trim"),  # its housing
+            # headlights (Spire's front photos): almonds tucked under the hood's edge, tall by
+            # the grille, narrowing as they wrap round the corner; a black bezel behind
+            (front_patch(bm, s * HEAD_L[0], s * HEAD_L[1], head_lo, head_hi, 0.006), "Headlight"),
+            (front_patch(bm, s * (HEAD_L[0] - 0.018), s * (HEAD_L[1] + 0.012),
+                         lambda l: head_lo(l) - 0.016, lambda l: head_hi(l) + 0.010, 0.003), "Trim"),
+            # the reflector bowl inside, by the grille: the "eye"
+            (front_patch(bm, s * 0.35, s * 0.50, lambda l: 0.568, lambda l: 0.626, 0.0075, nl=6, nh=2), "Seam"),
             # taillights (Spire): two colors stacked, red over white (the reverse light), lenses
             # that follow the tail panel and wrap round the corner, in a black bezel
             (lamp_patch(bm, s, tail_h, tail_h + 0.075, 0.006), "Taillight"),
@@ -423,19 +496,27 @@ def build():
             (add_box(bm, (2.03, s * (surface_lat(2.03, 0.58) + 0.002), 0.58), (0.09, 0.01, 0.04)), "Amber"),
             (add_box(bm, (-2.05, s * (surface_lat(-2.05, 0.66) + 0.002), 0.66), (0.08, 0.01, 0.035)), "Taillight"),
             (ribbon_along(bm, -0.95, 0.88, 0.50, 0.045, s, out=0.010), "Trim"),          # the side molding
-            (ribbon_along(bm, 1.60, NOSE, 0.47, 0.007, s, wrap_end=NOSE if s > 0 else None), "Seam"),   # front bumper line
+            (ribbon_along(bm, 1.60, 2.0, BUMPER_H, 0.007, s), "Seam"),                     # front bumper line: the side...
             (ribbon_along(bm, TAIL, -1.58, 0.60, 0.007, s, wrap_end=TAIL if s > 0 else None), "Seam"),  # rear bumper line
-            (ribbon_up(bm, 0.62, 0.33, spline(YT, 0.62) - 0.02, 0.007, s), "Seam"),       # door: front edge
-            (ribbon_up(bm, -0.68, 0.33, spline(YT, -0.68) - 0.02, 0.007, s), "Seam"),     # door: rear edge
-            (add_box(bm, (-0.47, s * (surface_lat(-0.47, 0.78) + 0.004), 0.78), (0.11, 0.012, 0.016)), "Trim"),  # handle
-            (add_box(bm, (0.66, s * 0.79, 0.915), (0.10, 0.10, 0.05)), "Trim"),           # mirror base
-            (add_box(bm, (0.64, s * 0.90, 0.965), (0.13, 0.12, 0.09)), "Paint"),          # mirror
-            (add_box(bm, (0.77, s * 0.22, 0.895), (0.025, 0.44, 0.012), rot_z=s * 0.05), "Trim"),   # wipers
+            (ribbon_up(bm, 0.74, 0.33, spline(YT, 0.74) - 0.02, 0.007, s), "Seam"),       # door: front edge
+            (ribbon_up(bm, -0.55, 0.33, spline(YT, -0.55) - 0.02, 0.007, s), "Seam"),     # door: rear edge
+            (add_box(bm, (-0.32, s * (surface_lat(-0.32, 0.73) + 0.004), 0.73), (0.11, 0.012, 0.016)), "Trim"),  # handle
+            (add_box(bm, (0.56, s * 0.79, 0.89), (0.10, 0.10, 0.05)), "Trim"),           # mirror base
+            (add_box(bm, (0.54, s * 0.90, 0.935), (0.13, 0.12, 0.09)), "Paint"),          # mirror
+            (add_box(bm, (0.90, s * 0.22, 0.87), (0.025, 0.44, 0.012), rot_z=s * 0.05), "Trim"),   # wipers
         ]
     parts += [
-        (add_box(bm, (NOSE + 0.002, 0.0, 0.53), (0.012, 0.56, 0.04)), "Trim"),                   # grille slot
-        (add_box(bm, (NOSE - 0.03, 0.0, 0.37), (0.07, 0.86, 0.06)), "Trim"),                     # lower intake
-        (add_box(bm, (NOSE + 0.008, 0.0, 0.42), (0.012, 0.30, 0.11)), "Plate"),
+        # ...and across the front, under the lights
+        (front_patch(bm, -surface_lat(2.0, BUMPER_H) + 0.01, surface_lat(2.0, BUMPER_H) - 0.01,
+                     lambda l: BUMPER_H - 0.0035, lambda l: BUMPER_H + 0.0035, 0.003, nh=1), "Seam"),
+        # the grille: a wide, low black opening between the lights
+        (front_patch(bm, -GRILLE_L, GRILLE_L, lambda l: 0.548, lambda l: 0.638 - 0.02 * (l / GRILLE_L) ** 2, 0.004), "Trim"),
+        # the hood's shut line across the top of the lights and the grille
+        (front_patch(bm, -HEAD_L[1], HEAD_L[1], lambda l: hood_line(l) - 0.003, lambda l: hood_line(l) + 0.003,
+                     0.004, nh=1), "Seam"),
+        # the bumper: a long thin intake low down, the plate above it
+        (front_patch(bm, -0.56, 0.56, lambda l: 0.355, lambda l: 0.392, 0.004), "Trim"),
+        (front_patch(bm, -0.15, 0.15, lambda l: 0.415, lambda l: 0.51, 0.009, nl=2, nh=1), "Plate"),
         (add_box(bm, (TAIL - 0.008, 0.0, 0.52), (0.012, 0.30, 0.15)), "Plate"),
         (add_box(bm, (TAIL - 0.003, 0.0, tail_h), (0.010, 0.44, 0.05)), "Trim"),                 # garnish between the lights
     ]
@@ -502,12 +583,12 @@ def build_looks():
 
     def side_stripe(bm):
         for s in (-1, 1):
-            ribbon_along(bm, TAIL + 0.08, NOSE - 0.12, 0.735, 0.05, s, out=0.004)
+            ribbon_along(bm, TAIL + 0.08, 1.55, 0.70, 0.05, s, out=0.004)
     looks["stripes_side"] = look_object("stripes_side", ["Contrast"], side_stripe)
 
     def twin_stripes(bm):
         for lc in (-0.13, 0.13):
-            band_on_top(bm, 0.74, NOSE - 0.06, lc, 0.16, top_h)                    # hood
+            band_on_top(bm, 0.90, NOSE - 0.06, lc, 0.16, top_h)                    # hood
             band_on_top(bm, REAR_GLASS[1] + 0.02, WINDSHIELD_X - 0.02, lc, 0.16, roof_h)   # roof
             band_on_top(bm, TAIL + 0.02, REAR_GLASS[0] - 0.08, lc, 0.16, top_h)    # trunk
     looks["stripes_twin"] = look_object("stripes_twin", ["Contrast"], twin_stripes)
