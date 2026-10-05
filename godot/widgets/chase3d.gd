@@ -28,8 +28,8 @@ const Land2D := preload("res://widgets/scenery.gd")
 const SkyShader := preload("res://widgets/night_sky.gdshader")
 
 # The camera
-const CAM_H_M := 2.0             # camera on the camera car's roof (sees over the car, down the road)
-const AIM_UP_M := 0.7            # the operator frames the car low in the shot...
+const CAM_H_M := 0.85            # camera at the camera car's hood height (Spire: low, like a car chasing)
+const AIM_UP_M := 1.15           # aimed a touch UP at the car's roofline (Spire: tilted upward)...
 const AIM_LEAD_M := 1.5          # ...and a little ahead of it (room to drive into)
 const PAN_RATE := 5.0            # 1/s: how fast his pan catches up (a beat late)
 const FRAME_W_M := 9.5           # he zooms to keep about this much width at the car...

@@ -52,6 +52,7 @@ CARS = {
 }
 
 DX_FRONT, DX_REAR, DX_TRACK = 1.275, -1.345, 1.47
+BUMPER_FRONT_X, BUMPER_REAR_X, BUMPER_TOP = 1.70, -1.70, 0.5   # the EG6's bumpers (from a gridded side render)
 DX_DROP = ("Tire", "Rim", "Nut", "Spring", "Seats", "Eg6_Sticker", "Myogi_Night_Kids_Logo")
 DX_RENAME = {"Car_Paint": "Paint", "Glass": "Glass", "HeadLight": "Headlight", "Taillight": "Taillight",
              "Blinkers": "Amber"}
@@ -205,6 +206,9 @@ def fit_dx(ob):
             p.material_index = names.index("Fender")          # -Y = the car's right
     lo, hi = bounds(ob)
     # Where things are, for the game: the tail lights, the exhaust, the nose and tail
+    roof = [p.center.x for p in ob.data.polygons if p.center.z > hi.z - 0.1 and p.normal.z > 0.5]
+    roof_rear = min(roof) if roof else lo.x + 0.4
+    glass = [p.center.copy() for p in ob.data.polygons if names[p.material_index] == "Glass" and p.normal.y < -0.5]
     tails = [p.center.copy() for p in ob.data.polygons if names[p.material_index] == "Taillight"]
     meta = {"front": hi.x, "rear": lo.x, "width": hi.y - lo.y, "height": hi.z}
     if tails:
@@ -217,7 +221,43 @@ def fit_dx(ob):
     if ex:
         c = sum(ex, Vector()) / len(ex)
         meta["exhaust"] = [min(p.x for p in ex), c.z, -c.y]
+    meta["roof_rear"] = [roof_rear, hi.z]
+    if glass:                                    # the right side's windows: x from / to, height from / to, out
+        meta["side_glass"] = [min(g.x for g in glass), max(g.x for g in glass),
+                              min(g.z for g in glass), max(g.z for g in glass), -min(g.y for g in glass)]
     return meta
+
+
+def split_dx_pieces(ob):
+    """The pieces the body shop hides: the front and rear bumpers (bumperless)
+    and the side windows (window nets), each its own object so the game can
+    hide it by name. Returns them."""
+    zones = {
+        "BumperFront": lambda p: p.center.x > BUMPER_FRONT_X and p.center.z < BUMPER_TOP,
+        "BumperRear": lambda p: p.center.x < BUMPER_REAR_X and p.center.z < BUMPER_TOP,
+        "SideGlass": lambda p: ob.data.materials[p.material_index].name == "Glass" and abs(p.normal.y) > 0.5,
+    }
+    pieces = []
+    for name, inside in zones.items():
+        ids = [p.index for p in ob.data.polygons if inside(p)]
+        if not ids:
+            continue
+        bpy.ops.object.select_all(action="DESELECT")
+        bpy.context.view_layer.objects.active = ob
+        ob.select_set(True)
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="DESELECT")
+        bpy.ops.object.mode_set(mode="OBJECT")
+        for i in ids:
+            ob.data.polygons[i].select = True
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.separate(type="SELECTED")
+        bpy.ops.object.mode_set(mode="OBJECT")
+        new = [o for o in bpy.context.selected_objects if o is not ob][0]
+        new.name = name
+        pieces.append(new)
+        print(f"  eg6: {name}: {len(ids)} faces")
+    return pieces
 
 
 # ---------------------------------------------------------------- the lights
@@ -369,10 +409,12 @@ def lights_check(ob, name):
     sc.display.shading.color_type = "TEXTURE"
 
 
-def export(ob, path):
+def export(ob, path, extra=()):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     bpy.ops.object.select_all(action="DESELECT")
     ob.select_set(True)
+    for o in extra:
+        o.select_set(True)
     bpy.context.view_layer.objects.active = ob
     bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", use_selection=True, export_yup=True)
 
@@ -388,7 +430,8 @@ for name in only:
         print(f"  {name} lights:", mark_lights(ob))
     if name == "eg6":
         meta = fit_dx(ob)
-        export(ob, os.path.join(REPO, "godot", "models", "dx.glb"))
+        pieces = split_dx_pieces(ob)
+        export(ob, os.path.join(REPO, "godot", "models", "dx.glb"), pieces)
         with open(os.path.join(REPO, "godot", "models", "dx.json"), "w") as f:
             json.dump(meta, f, indent=1)
     else:

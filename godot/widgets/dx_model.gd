@@ -13,7 +13,8 @@ extends Node3D
 ##   canister); buckets in place of the stock seats, no rear seat once the
 ##   interior's stripped (seen through the glass); the carbon hood.
 ##   LOOKS ("look:<id>", bodyshop.gd): a respray (fixes the primer and the
-##   fade), banner, stripes, stickers, tint, lip, wing, rim color.
+##   fade), tint, window nets, lip / splitter / bumperless, bumper holes, the roof
+##   spoiler, rim color, fogs, exhaust tips, bent plates, battle tape.
 ##
 ## A real model: put a glTF at MODEL_PATH (docs/MODELS.md) and it replaces the
 ## code-built shell; wheels, interior and the add-ons stay code-built on it.
@@ -25,7 +26,6 @@ const BodyShop := preload("res://bodyshop.gd")
 const Voice := preload("res://voice.gd")
 const MODEL_PATH := "res://models/dx.glb"
 const SHELL_INFO := "res://models/dx.json"  # a fitted model's nose, tail, taillights (art/blender/prep_cars.py)
-const LOOK_DIR :="res://models/looks/"      # <body shop item id>.glb replaces its code-built version (in the car's frame)
 const WHEEL_DIR := "res://models/wheels/"    # wheels_stock / wheels_light / wheels_forged .glb: a whole right-side wheel
 
 const LENGTH := 4.45
@@ -55,7 +55,6 @@ const CLOTH := Color(0.2, 0.2, 0.22)         # stock seats
 const BUCKET := Color(0.08, 0.08, 0.09)
 const BUCKET_TRIM := Color(0.62, 0.08, 0.08)
 const AMBER := Color(1.0, 0.55, 0.1)
-const STICKERS := [Color(0.95, 0.85, 0.15), Color(0.9, 0.2, 0.2), Color(0.95, 0.95, 0.95)]
 
 # Side profile (x, y) of the body below the beltline, with wheel arches
 const BODY_PROFILE := [
@@ -257,6 +256,11 @@ func build_shell_model(paint: Material, faded: Material, hood: Material, fender:
 	taillight_mat.emission_energy_multiplier = TAIL_GLOW if lights_on else 0.0
 	blinker_mat = mat(AMBER, 0.3, 0.0, AMBER)               # off until the hazards blink it (chase3d.gd)
 	blinker_mat.emission_energy_multiplier = 0.0
+	for piece: Array in [["BumperFront", look("front").get("id", "") == "bumperless_front"],
+			["BumperRear", not look("rear").is_empty()], ["SideGlass", not look("windows").is_empty()]]:
+		var node := shell.find_child(piece[0], true, false)
+		if node != null:
+			node.visible = not piece[1]
 	swap_materials(shell, {
 		"Paint": paint, "Roof": faded, "Hood": hood, "Fender": fender, "Glass": glass,
 		"Headlight": mat(Color(0.72, 0.78, 0.84), 0.15, 0.2, Color(1.0, 0.92, 0.72) if lights_on else Color.BLACK),   # glassy blue-gray lens
@@ -303,23 +307,30 @@ func build_exhaust() -> void:
 		r = 0.038
 		length = 0.16
 	var at := EXHAUST_AT if shell_info().is_empty() else Vector3(rear_x() + 0.025, EXHAUST_AT.y, EXHAUST_AT.z)
-	cyl(r, length, at, steel, Vector3(0, 0, PI / 2.0 + (0.25 if r < 0.03 else 0.0)))
-	cyl(r * 0.7, length + 0.005, at, mat(Color(0.02, 0.02, 0.02), 1.0), Vector3(0, 0, PI / 2.0))
+	if not look("rear").is_empty():
+		at.x = rear_x() + 0.2                                  # no bumper: the pipe ends further in
+	var tips := [at]
+	match look("exhaust").get("id", ""):                       # the body shop's tip over whatever header
+		"tip_canister":
+			r = maxf(r, 0.06)
+			length = maxf(length, 0.26)
+			steel = mat(Color(0.75, 0.76, 0.78), 0.25, 0.85)
+		"tip_burnt":
+			r = maxf(r, 0.045)
+			length = maxf(length, 0.18)
+			steel = mat(Color(0.38, 0.3, 0.55), 0.25, 0.9)         # heat-blued titanium
+		"tip_dual":
+			r = maxf(r, 0.034)
+			length = maxf(length, 0.16)
+			steel = mat(Color(0.82, 0.83, 0.85), 0.2, 0.9)
+			tips = [at + Vector3(0, 0, -0.045), at + Vector3(0, 0, 0.045)]
+	for tip: Vector3 in tips:
+		cyl(r, length, tip, steel, Vector3(0, 0, PI / 2.0 + (0.25 if r < 0.03 else 0.0)))
+		cyl(r * 0.7, length + 0.005, tip, mat(Color(0.02, 0.02, 0.02), 1.0), Vector3(0, 0, PI / 2.0))
 
 
-## The body shop's add-ons (bodyshop.gd), on the paint `color`.
-## A model file for a body shop item (LOOK_DIR, built in Blender, in the car's
-## frame): placed on the body; its "Paint" material takes the car's color, a
-## "Contrast" material the stripe color. Returns whether there was one.
-func look_model(slot: String, color: Color, contrast: Color) -> bool:
-	var id: String = look(slot).get("id", "")
-	var path := LOOK_DIR + id + ".glb"
-	if id == "" or not ResourceLoader.exists(path) or not shell_info().is_empty():   # (built on the EJ's surface)
-		return false
-	var m: Node3D = (load(path) as PackedScene).instantiate()
-	target.add_child(m)
-	swap_materials(m, {"Paint": mat(color, 0.35), "Contrast": mat(contrast, 0.4)})
-	return true
+## The body shop's add-ons (bodyshop.gd), built on the shell's real nose, tail
+## and roof (shell_info): see build_looks below.
 
 
 ## Replace a model's materials by name (the names given in Blender).
@@ -333,74 +344,80 @@ func swap_materials(root: Node, swaps: Dictionary) -> void:
 
 
 func build_looks(color: Color) -> void:
-	var contrast := Color(0.06, 0.06, 0.07) if color.get_luminance() > 0.5 else Color(0.95, 0.95, 0.93)
-	var modeled := {}
-	for slot in ["stripes", "lip", "wing"]:            # the shaped ones: a model when there is one
-		if look_model(slot, color, contrast):
-			modeled[slot] = true
-	if not look("banner").is_empty():
-		# Across the top of the windshield, its letters facing forward and up
-		var d := Vector2(-0.70, 0.45).normalized()             # up the windshield
-		var n := Vector3(-d.y, d.x, 0.0) * -1.0                 # out of it, forward-up
-		var at := Vector3(0.62, 0.87, 0) + Vector3(d.x, d.y, 0) * 0.74 + n * 0.008
-		box(Vector3(0.012, 0.15, WIDTH * 0.78), at, mat(Color(0.04, 0.04, 0.05), 0.6),
-			Vector3(0, 0, atan2(d.y, d.x) - PI / 2.0))
-		var label := Label3D.new()
-		label.text = Voice.BANNER_TEXT
-		label.font = preload("res://fonts/RacingSansOne-Regular.ttf")
-		label.font_size = 72
-		label.pixel_size = 0.0014
-		label.outline_size = 0
-		label.modulate = Color(0.97, 0.97, 0.95)
-		label.basis = Basis(Vector3(0, 0, -1), Vector3(d.x, d.y, 0), Vector3(-d.y, d.x, 0) * -1.0)
-		label.position = at + Vector3(-d.y, d.x, 0) * -0.012
-		target.add_child(label)
-	match "" if modeled.has("stripes") else look("stripes").get("name", ""):
-		"Side stripe":
-			for side: float in [-1.0, 1.0]:
-				box(Vector3(3.6, 0.05, 0.006), Vector3(-0.1, 0.72, side * (WIDTH / 2.0 + 0.006)), mat(contrast, 0.4))
-		"Twin racing stripes":
-			var hood_angle := atan2(0.89 - 0.77, 1.90 - 0.62)
-			for z: float in [-0.13, 0.13]:
-				box(Vector3(1.3, 0.008, 0.16), Vector3(1.26, 0.852, z), mat(contrast, 0.4), Vector3(0, 0, -hood_angle))
-				box(Vector3(0.72, 0.008, 0.16), Vector3(-0.44, 1.348, z), mat(contrast, 0.4))
-				box(Vector3(0.5, 0.008, 0.16), Vector3(-1.82, 0.9, z), mat(contrast, 0.4), Vector3(0, 0, 0.09))
-	if look("stickers").get("name", "").begins_with("Crew decal"):
-		# The crew's name across the top of the rear window, reading from behind
-		var u := Vector2(0.70, 0.41).normalized()                # up the rear glass
-		var at := Vector3(-0.80, 1.34, 0) + Vector3(-u.x, -u.y, 0) * 0.12
-		var decal := Label3D.new()
-		decal.text = Voice.CREW_NAME
-		decal.font = preload("res://fonts/DelaGothicOne-Regular.ttf")
-		decal.font_size = 72
-		decal.pixel_size = 0.0019
-		decal.outline_size = 0
-		decal.modulate = Color(0.97, 0.96, 0.93)
-		decal.basis = Basis(Vector3(0, 0, 1), Vector3(u.x, u.y, 0), Vector3(-u.y, u.x, 0))
-		decal.position = at + Vector3(-u.y, u.x, 0) * 0.012
-		target.add_child(decal)
-	elif not look("stickers").is_empty():
-		for side: float in [-1.0, 1.0]:                        # on the rear quarter glass
-			for k in 3:
-				box(Vector3(0.16, 0.05, 0.004), Vector3(-1.22 + k * 0.03, 1.08 - k * 0.07, side * (WIDTH * 0.42 + 0.004)),
-					mat(STICKERS[k], 0.5))
-	if not look("lip").is_empty() and not modeled.has("lip"):
-		box(Vector3(0.16, 0.025, WIDTH * 0.95), Vector3(2.16, 0.265, 0), mat(Color(0.05, 0.05, 0.06), 0.5))
-	match "" if modeled.has("wing") else look("wing").get("name", ""):
-		"Ducktail spoiler":
-			box(Vector3(0.12, 0.05, WIDTH * 0.86), Vector3(-2.05, 0.9, 0), mat(color, 0.35), Vector3(0, 0, 0.3))
-		"GT wing":
-			for z: float in [-0.5, 0.5]:
-				box(Vector3(0.05, 0.2, 0.03), Vector3(-1.98, 0.99, z), mat(Color(0.08, 0.08, 0.09), 0.5))
-			box(Vector3(0.3, 0.03, WIDTH * 0.92), Vector3(-1.99, 1.1, 0), mat(Color(0.08, 0.08, 0.09), 0.4), Vector3(0, 0, 0.12))
-			for z: float in [-0.78, 0.78]:
-				box(Vector3(0.32, 0.1, 0.01), Vector3(-1.99, 1.09, z), mat(Color(0.08, 0.08, 0.09), 0.4))
+	var f := front_x()
+	var r := rear_x()
+	var dark := mat(Color(0.05, 0.05, 0.06), 0.5)
+	var raw := mat(Color(0.32, 0.32, 0.34), 0.45, 0.7)          # bare steel crash bars
+	var front_gone: bool = look("front").get("id", "") == "bumperless_front"
+	var rear_gone := not look("rear").is_empty()
+	match look("front").get("id", ""):
+		"lip":                                                  # a thin black lip under the nose
+			box(Vector3(0.16, 0.025, 1.55), Vector3(f - 0.06, 0.15, 0), dark)
+		"splitter":                                             # a flat plate sticking out, on two struts
+			box(Vector3(0.34, 0.018, 1.62), Vector3(f - 0.06, 0.145, 0), dark)
+			for z: float in [-0.35, 0.35]:
+				box(Vector3(0.015, 0.12, 0.015), Vector3(f - 0.08, 0.21, z), raw, Vector3(0, 0, 0.4))
+		"bumperless_front":                                     # the bumper's off: crash bar + radiator
+			box(Vector3(0.08, 0.1, 1.3), Vector3(f - 0.24, 0.36, 0), raw)
+			box(Vector3(0.05, 0.3, 0.72), Vector3(f - 0.34, 0.4, 0), mat(Color(0.1, 0.1, 0.11), 0.6, 0.4))
+			box(Vector3(0.04, 0.34, 1.5), Vector3(f - 0.42, 0.33, 0), mat(Color(0.06, 0.06, 0.07), 0.9))   # the bare front end behind it
+			for z: float in [-0.55, 0.55]:
+				box(Vector3(0.14, 0.06, 0.06), Vector3(f - 0.3, 0.36, z), raw)
+	if rear_gone:                                               # the rear bumper's off: crash bar + panel
+		box(Vector3(0.08, 0.1, 1.25), Vector3(r + 0.22, 0.38, 0), raw)
+		box(Vector3(0.04, 0.3, 1.45), Vector3(r + 0.36, 0.36, 0), mat(Color(0.08, 0.08, 0.09), 0.8))   # the bare rear panel
+	if not look("holes").is_empty():                            # holes cut in whatever bumper is left
+		var hole := mat(Color(0.01, 0.01, 0.012), 1.0)
+		for z: float in [-0.62, -0.46, 0.46, 0.62]:
+			if not front_gone:
+				cyl(0.055, 0.03, Vector3(f - 0.07 - absf(z) * 0.12, 0.3, z), hole, Vector3(0, 0, PI / 2.0))
+			if not rear_gone:
+				cyl(0.05, 0.03, Vector3(r + 0.06 + absf(z) * 0.1, 0.34, z), hole, Vector3(0, 0, PI / 2.0))
+	if not look("wing").is_empty():                             # Mugen-style: off the back of the roof, painted
+		var roof: Array = shell_info().get("roof_rear", [r + 0.4, 1.3])
+		var rx: float = roof[0]
+		var ry: float = roof[1]
+		box(Vector3(0.3, 0.035, 1.24), Vector3(rx - 0.1, ry - 0.005, 0), mat(color, 0.35), Vector3(0, 0, 0.16))
+		for z: float in [-0.62, 0.62]:
+			box(Vector3(0.26, 0.07, 0.025), Vector3(rx - 0.1, ry - 0.03, z), mat(color, 0.35), Vector3(0, 0, 0.16))
+	if not look("fogs").is_empty():                             # yellow fogs: in the bumper, or on the bar
+		var fog := mat(Color(1.0, 0.82, 0.2), 0.2, 0.0, Color(1.0, 0.78, 0.15) if lights_on else Color(0.35, 0.26, 0.05))
+		for z: float in [-0.48, 0.48]:
+			var at := Vector3(f - 0.2, 0.43, z * 0.85) if front_gone else Vector3(f - 0.09, 0.27, z)
+			cyl(0.055, 0.05, at, fog, Vector3(0, 0, PI / 2.0))
+			cyl(0.065, 0.045, at - Vector3(0.012, 0, 0), dark, Vector3(0, 0, PI / 2.0))
+	if not look("plates").is_empty():                           # bent plates, a corner folded over
+		var plate := mat(Color(0.85, 0.85, 0.82), 0.6)
+		for end: Array in [[f + 0.004 if not front_gone else f - 0.2, 0.33, 1.0], [r - 0.004 if not rear_gone else r + 0.18, 0.46, -1.0]]:
+			var x: float = end[0]
+			var y: float = end[1]
+			var s: float = end[2]
+			box(Vector3(0.012, 0.15, 0.24), Vector3(x, y, -0.03), plate, Vector3(0, 0, s * 0.12))
+			box(Vector3(0.012, 0.15, 0.08), Vector3(x - s * 0.03, y, 0.12), plate, Vector3(0, s * 0.7, s * 0.12))
+	if not look("windows").is_empty() and shell_info().has("side_glass"):
+		# Window nets where the door glass was: a grid of black rope
+		var g: Array = shell_info()["side_glass"]
+		var rope := mat(Color(0.03, 0.03, 0.035), 0.9)
+		var x0 := maxf(float(g[0]), -0.55)
+		var x1 := float(g[1]) - 0.05
+		var y0 := float(g[2]) + 0.02
+		var y1 := float(g[3]) - 0.04
+		var out := float(g[4]) - 0.03
+		for side: float in [-1.0, 1.0]:
+			var x := x0
+			while x <= x1:
+				box(Vector3(0.012, y1 - y0, 0.012), Vector3(x, (y0 + y1) / 2.0, side * out), rope)
+				x += 0.09
+			var y := y0
+			while y <= y1:
+				box(Vector3(x1 - x0, 0.012, 0.012), Vector3((x0 + x1) / 2.0, y, side * out), rope)
+				y += 0.09
 	if not look("tape").is_empty():                            # silver duct tape across the front corner
 		var tape := mat(Color(0.72, 0.73, 0.74), 0.45, 0.3)
 		for k in 3:
-			box(Vector3(0.09, 0.05, 0.005), Vector3(2.0 - k * 0.07, 0.5 + k * 0.06, -(WIDTH / 2.0 + 0.006)),
+			box(Vector3(0.09, 0.05, 0.005), Vector3(f - 0.12 - k * 0.07, 0.36 + k * 0.05, -0.855),
 				tape, Vector3(0, 0, 0.5 - k * 0.3))
-			box(Vector3(0.005, 0.05, 0.12), Vector3(2.226, 0.46 + k * 0.06, -0.62 + k * 0.03), tape, Vector3(0.4 * k, 0, 0))
+			box(Vector3(0.005, 0.05, 0.12), Vector3(f + 0.002, 0.3 + k * 0.05, -0.6 + k * 0.03), tape, Vector3(0.4 * k, 0, 0))
 
 
 ## Wheels: steelies with hubcaps (the front right lost on the 5), or the
@@ -412,7 +429,7 @@ func build_wheels(drop: float) -> void:
 	# Spire's picks: lightweight = chrome Konig Countergrams (9 spokes), forged = white Buddy Club P1s (6)
 	var rim_col: Color = P1_WHITE if forged else (CHROME if light else STEELIE)
 	rim_col = look("rims").get("color", rim_col)
-	var chrome := light and look("rims").is_empty()
+	var chrome: bool = (light and look("rims").is_empty()) or look("rims").get("chrome", false)
 	var camber := 0.035 if has_part("coilovers") else 0.0
 	var spokes := 6 if forged else 9
 	var model_path := WHEEL_DIR + ("wheels_forged" if forged else ("wheels_light" if light else "wheels_stock")) + ".glb"
