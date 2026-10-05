@@ -290,44 +290,62 @@ shadow_color = Color(0, 0, 0, 0.45)
 shadow_size = 4
 shadow_offset = Vector2(0, 3)
 
-[sub_resource type="StyleBoxTexture" id="paper"]
+[sub_resource type="StyleBoxFlat" id="paper"]
+content_margin_left = 22.0
+content_margin_top = 18.0
+content_margin_right = 22.0
+content_margin_bottom = 20.0
+bg_color = Color(0.950, 0.930, 0.870, 1.00)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(1, 1, 1, 1.00)
+corner_radius_top_left = 18
+corner_radius_top_right = 18
+corner_radius_bottom_right = 18
+corner_radius_bottom_left = 18
+shadow_color = Color(0, 0, 0, 0.5)
+shadow_size = 6
+shadow_offset = Vector2(0, 4)
+
+[sub_resource type="StyleBoxFlat" id="polaroid"]
 content_margin_left = 18.0
-content_margin_top = 14.0
+content_margin_top = 18.0
 content_margin_right = 18.0
-content_margin_bottom = 16.0
-texture = ExtResource("t_paper")
-texture_margin_left = 0.0
-texture_margin_top = 0.0
-texture_margin_right = 0.0
-texture_margin_bottom = 0.0
-modulate_color = Color(0.97, 0.93, 0.85, 1)
-axis_stretch_horizontal = 1
-axis_stretch_vertical = 1
+content_margin_bottom = 14.0
+bg_color = Color(0.980, 0.980, 0.970, 1.00)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(1, 1, 1, 1.00)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+shadow_color = Color(0, 0, 0, 0.5)
+shadow_size = 6
+shadow_offset = Vector2(0, 4)
 
-[sub_resource type="StyleBoxTexture" id="polaroid"]
-content_margin_left = 14.0
-content_margin_top = 14.0
-content_margin_right = 14.0
-content_margin_bottom = 10.0
-texture = ExtResource("t_paper")
-texture_margin_left = 0.0
-texture_margin_top = 0.0
-texture_margin_right = 0.0
-texture_margin_bottom = 0.0
-modulate_color = Color(1, 1, 0.98, 1)
-axis_stretch_horizontal = 1
-axis_stretch_vertical = 1
-
-[sub_resource type="StyleBoxTexture" id="receipt"]
-content_margin_left = 14.0
-content_margin_top = 8.0
-content_margin_right = 14.0
-content_margin_bottom = 16.0
-texture = ExtResource("t_receipt")
-texture_margin_left = 8.0
-texture_margin_top = 8.0
-texture_margin_right = 8.0
-texture_margin_bottom = 10.0
+[sub_resource type="StyleBoxFlat" id="receipt"]
+content_margin_left = 18.0
+content_margin_top = 12.0
+content_margin_right = 18.0
+content_margin_bottom = 20.0
+bg_color = Color(0.990, 0.990, 0.980, 1.00)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(1, 1, 1, 1.00)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+shadow_color = Color(0, 0, 0, 0.5)
+shadow_size = 5
+shadow_offset = Vector2(0, 4)
 
 [sub_resource type="StyleBoxTexture" id="drawer"]
 content_margin_left = 6.0
@@ -501,82 +519,116 @@ corner_radius_top_right = 12
 corner_radius_bottom_right = 12
 corner_radius_bottom_left = 12
 
-[sub_resource type="StyleBoxTexture" id="whiteboard"]
-content_margin_left = 30.0
-content_margin_top = 24.0
-content_margin_right = 30.0
-content_margin_bottom = 32.0
-texture = ExtResource("t_whiteboard")
-texture_margin_left = 18.0
-texture_margin_top = 18.0
-texture_margin_right = 18.0
-texture_margin_bottom = 22.0
+[sub_resource type="StyleBoxFlat" id="whiteboard"]
+content_margin_left = 34.0
+content_margin_top = 28.0
+content_margin_right = 34.0
+content_margin_bottom = 36.0
+bg_color = Color(0.970, 0.970, 0.960, 1.00)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(1, 1, 1, 1.00)
+corner_radius_top_left = 18
+corner_radius_top_right = 18
+corner_radius_bottom_right = 18
+corner_radius_bottom_left = 18
+shadow_color = Color(0, 0, 0, 0.5)
+shadow_size = 6
+shadow_offset = Vector2(0, 4)
 
-[sub_resource type="StyleBoxTexture" id="corkboard"]
-content_margin_left = 22.0
-content_margin_top = 26.0
-content_margin_right = 22.0
-content_margin_bottom = 24.0
-texture = ExtResource("t_cork")
-texture_margin_left = 18.0
-texture_margin_top = 18.0
-texture_margin_right = 18.0
-texture_margin_bottom = 18.0
+[sub_resource type="StyleBoxFlat" id="corkboard"]
+content_margin_left = 25.0
+content_margin_top = 29.0
+content_margin_right = 25.0
+content_margin_bottom = 27.0
+bg_color = Color(0.060, 0.060, 0.080, 0.72)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(1, 1, 1, 0.85)
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
 
-[sub_resource type="StyleBoxTexture" id="flyer_yellow"]
-content_margin_left = 16.0
-content_margin_top = 4.0
-content_margin_right = 16.0
-content_margin_bottom = 16.0
-texture = ExtResource("t_paper")
-texture_margin_left = 0.0
-texture_margin_top = 0.0
-texture_margin_right = 0.0
-texture_margin_bottom = 0.0
-modulate_color = Color(1, 0.93, 0.5, 1)
-axis_stretch_horizontal = 1
-axis_stretch_vertical = 1
-
-[sub_resource type="StyleBoxTexture" id="flyer_pink"]
-content_margin_left = 16.0
-content_margin_top = 4.0
-content_margin_right = 16.0
-content_margin_bottom = 16.0
-texture = ExtResource("t_paper")
-texture_margin_left = 0.0
-texture_margin_top = 0.0
-texture_margin_right = 0.0
-texture_margin_bottom = 0.0
-modulate_color = Color(1, 0.74, 0.78, 1)
-axis_stretch_horizontal = 1
-axis_stretch_vertical = 1
-
-[sub_resource type="StyleBoxTexture" id="flyer_blue"]
-content_margin_left = 16.0
-content_margin_top = 4.0
-content_margin_right = 16.0
-content_margin_bottom = 16.0
-texture = ExtResource("t_paper")
-texture_margin_left = 0.0
-texture_margin_top = 0.0
-texture_margin_right = 0.0
-texture_margin_bottom = 0.0
-modulate_color = Color(0.72, 0.85, 1, 1)
-axis_stretch_horizontal = 1
-axis_stretch_vertical = 1
-
-[sub_resource type="StyleBoxTexture" id="cardboard"]
-content_margin_left = 22.0
-content_margin_top = 18.0
-content_margin_right = 22.0
+[sub_resource type="StyleBoxFlat" id="flyer_yellow"]
+content_margin_left = 20.0
+content_margin_top = 8.0
+content_margin_right = 20.0
 content_margin_bottom = 20.0
-texture = ExtResource("t_cardboard")
-texture_margin_left = 0.0
-texture_margin_top = 0.0
-texture_margin_right = 0.0
-texture_margin_bottom = 0.0
-axis_stretch_horizontal = 1
-axis_stretch_vertical = 1
+bg_color = Color(0.990, 0.870, 0.360, 1.00)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(1, 1, 1, 1.00)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+shadow_color = Color(0, 0, 0, 0.5)
+shadow_size = 5
+shadow_offset = Vector2(0, 4)
+
+[sub_resource type="StyleBoxFlat" id="flyer_pink"]
+content_margin_left = 20.0
+content_margin_top = 8.0
+content_margin_right = 20.0
+content_margin_bottom = 20.0
+bg_color = Color(0.990, 0.740, 0.800, 1.00)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(1, 1, 1, 1.00)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+shadow_color = Color(0, 0, 0, 0.5)
+shadow_size = 5
+shadow_offset = Vector2(0, 4)
+
+[sub_resource type="StyleBoxFlat" id="flyer_blue"]
+content_margin_left = 20.0
+content_margin_top = 8.0
+content_margin_right = 20.0
+content_margin_bottom = 20.0
+bg_color = Color(0.720, 0.850, 0.990, 1.00)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(1, 1, 1, 1.00)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+shadow_color = Color(0, 0, 0, 0.5)
+shadow_size = 5
+shadow_offset = Vector2(0, 4)
+
+[sub_resource type="StyleBoxFlat" id="cardboard"]
+content_margin_left = 26.0
+content_margin_top = 22.0
+content_margin_right = 26.0
+content_margin_bottom = 24.0
+bg_color = Color(0.700, 0.550, 0.370, 1.00)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(1, 1, 1, 1.00)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+shadow_color = Color(0, 0, 0, 0.5)
+shadow_size = 5
+shadow_offset = Vector2(0, 4)
 
 [sub_resource type="StyleBoxTexture" id="dotmatrix"]
 content_margin_left = 50.0
@@ -651,14 +703,21 @@ corner_radius_top_right = 18
 corner_radius_bottom_right = 18
 corner_radius_bottom_left = 18
 
-[sub_resource type="StyleBoxTexture" id="bench"]
-content_margin_left = 24.0
-content_margin_top = 24.0
-content_margin_right = 24.0
-content_margin_bottom = 24.0
-texture = ExtResource("t_bench")
-axis_stretch_horizontal = 1
-axis_stretch_vertical = 1
+[sub_resource type="StyleBoxFlat" id="bench"]
+content_margin_left = 27.0
+content_margin_top = 27.0
+content_margin_right = 27.0
+content_margin_bottom = 27.0
+bg_color = Color(0.060, 0.060, 0.080, 0.72)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(1, 1, 1, 0.85)
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
 
 [sub_resource type="StyleBoxFlat" id="gaff_red"]
 content_margin_left = 42.0
@@ -718,29 +777,42 @@ shadow_size = 2
 shadow_offset = Vector2(0, 1)
 
 [sub_resource type="StyleBoxFlat" id="speech"]
-content_margin_left = 20.0
-content_margin_top = 12.0
-content_margin_right = 20.0
-content_margin_bottom = 14.0
-bg_color = Color(0.98, 0.97, 0.94, 1)
-border_width_left = 3
-border_width_top = 3
-border_width_right = 3
-border_width_bottom = 5
-border_color = Color(0.102, 0.078, 0.086, 1)
+content_margin_left = 24.0
+content_margin_top = 16.0
+content_margin_right = 24.0
+content_margin_bottom = 18.0
+bg_color = Color(0.980, 0.980, 0.970, 1.00)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(1, 1, 1, 1.00)
 corner_radius_top_left = 22
 corner_radius_top_right = 22
 corner_radius_bottom_right = 22
-corner_radius_bottom_left = 4
+corner_radius_bottom_left = 22
+shadow_color = Color(0, 0, 0, 0.5)
+shadow_size = 5
+shadow_offset = Vector2(0, 4)
 
-[sub_resource type="StyleBoxTexture" id="clipboard"]
-content_margin_left = 16.0
-content_margin_top = 34.0
-content_margin_right = 16.0
-content_margin_bottom = 18.0
-texture = ExtResource("t_hardboard")
-axis_stretch_horizontal = 1
-axis_stretch_vertical = 1
+[sub_resource type="StyleBoxFlat" id="clipboard"]
+content_margin_left = 20.0
+content_margin_top = 38.0
+content_margin_right = 20.0
+content_margin_bottom = 22.0
+bg_color = Color(0.950, 0.930, 0.870, 1.00)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(1, 1, 1, 1.00)
+corner_radius_top_left = 18
+corner_radius_top_right = 18
+corner_radius_bottom_right = 18
+corner_radius_bottom_left = 18
+shadow_color = Color(0, 0, 0, 0.5)
+shadow_size = 6
+shadow_offset = Vector2(0, 4)
 
 [sub_resource type="StyleBoxFlat" id="stamp_big"]
 content_margin_left = 18.0
@@ -755,16 +827,23 @@ border_width_bottom = 7
 border_color = Color(0.84, 0.2, 0.2, 0.92)
 
 [sub_resource type="StyleBoxFlat" id="memory_photo"]
-content_margin_left = 8.0
-content_margin_top = 8.0
-content_margin_right = 8.0
-content_margin_bottom = 8.0
-bg_color = Color(0.231, 0.173, 0.306, 1)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.13, 0.1, 0.17, 1)
+content_margin_left = 12.0
+content_margin_top = 12.0
+content_margin_right = 12.0
+content_margin_bottom = 12.0
+bg_color = Color(0.980, 0.980, 0.970, 1.00)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(1, 1, 1, 1.00)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+shadow_color = Color(0, 0, 0, 0.5)
+shadow_size = 6
+shadow_offset = Vector2(0, 4)
 
 [sub_resource type="StyleBoxFlat" id="phone"]
 content_margin_left = 22.0

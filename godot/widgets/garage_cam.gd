@@ -298,6 +298,12 @@ func tube_mesh(vp: Node, at: Vector3, color: Color, glow: float) -> MeshInstance
 	return m
 
 
+## Faba's car on or off (the other screens' dimmed backdrop: the lot without it).
+func show_car(on: bool) -> void:
+	if car != null:
+		car.visible = on
+
+
 ## The other car in the garage, on or off (the settings screen).
 func show_parked_car(on: bool) -> void:
 	if other != null:

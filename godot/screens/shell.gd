@@ -23,6 +23,10 @@ const STICKER_PX := 100.0     # a sticker's size (just over the drawer's height:
 const STICKER_OPEN := 1.15    # the open tab's sticker, bigger...
 const STICKER_LIFT := 8.0     # ...and lifted
 
+const GarageCam := preload("res://widgets/garage_cam.gd")
+const LOT_VEIL := Color(0.02, 0.02, 0.04, 0.55)   # the dimmed lot behind the other screens
+
+var lot: Control              # the night lot backdrop (night_lot)
 var stickers := {}            # tab -> its sticker (empty: the drawers)
 var open_tab := ""
 var taps := 0
@@ -151,6 +155,27 @@ func apply_stickers() -> void:
 		i += 1
 
 
+## The backdrop behind the screens that don't bring their own: the night
+## garage (widgets/garage_cam.gd) without Faba's car, under a dark veil.
+## Built once, kept.
+func night_lot() -> Control:
+	if lot == null:
+		lot = Control.new()
+		lot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lot.set_anchors_preset(Control.PRESET_FULL_RECT)
+		%Backdrop.add_child(lot)
+		var cam: Control = GarageCam.new()
+		cam.set_anchors_preset(Control.PRESET_FULL_RECT)
+		lot.add_child(cam)
+		cam.show_car(false)
+		var veil := ColorRect.new()
+		veil.color = LOT_VEIL
+		veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		veil.set_anchors_preset(Control.PRESET_FULL_RECT)
+		lot.add_child(veil)
+	return lot
+
+
 ## Replace the content slot's screen with a new one (the old one is freed).
 func set_content(screen: Control) -> void:
 	for child in %ContentSlot.get_children():
@@ -161,13 +186,17 @@ func set_content(screen: Control) -> void:
 	# puts it behind everything, the top rail and the nav included; the others
 	# get the pegboard wall.
 	for child in %Backdrop.get_children():
-		child.queue_free()
+		if child != lot:
+			child.queue_free()
 	var backdrop: Control = screen.backdrop() if screen.has_method("backdrop") else null
 	if backdrop != null:
 		backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
 		%Backdrop.add_child(backdrop)
-	%Pegboard.visible = backdrop == null
-	%ShopLight.visible = backdrop == null
+	# Every other screen: the same night lot, dimmed, the menus over it (kanjo:
+	# no more pegboard)
+	night_lot().visible = backdrop == null
+	%Pegboard.visible = false
+	%ShopLight.visible = false
 	if animate:                              # slide up into place, fading in
 		screen.modulate.a = 0.0
 		screen.position.y = SLIDE_PX

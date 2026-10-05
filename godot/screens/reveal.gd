@@ -14,11 +14,25 @@ signal leave_pressed           # later / keep as spare
 const LINE_DELAY := 0.11       # s between printed lines (the print head)
 const JUNK_PCT := 20           # a roll under this % gets the sad trombone when the sheet's done
 const Voice := preload("res://voice.gd")
+const GarageCam := preload("res://widgets/garage_cam.gd")
 
 var data := {}
 
 
 func _ready() -> void:
+	# Kanjo: the box gets opened in the night lot (the garage, dimmed), not on the pegboard
+	$Pegboard.visible = false
+	var lot: Control = GarageCam.new()
+	lot.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(lot)
+	move_child(lot, 0)
+	lot.show_car(false)
+	var veil := ColorRect.new()
+	veil.color = Color(0.02, 0.02, 0.04, 0.6)
+	veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	veil.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(veil)
+	move_child(veil, 1)
 	%OpenButton.pressed.connect(open_box)
 	%DynoButton.pressed.connect(func(): dyno_pressed.emit())
 	%LaterButton.pressed.connect(func(): leave_pressed.emit())
