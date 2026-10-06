@@ -89,18 +89,21 @@ var strobes_on := false:
 		strobes_on = v
 		if not v:
 			for s: Array in strobes:
-				s[0].light_energy = 0.0
-				s[1].visible = false
-var strobes := []            # [[OmniLight3D, glowing bulb, phase (s)], ...]
+				for l: Light3D in s[0]:              # s[0] is a LIST of lights (bay: spot + nose glow)
+					if is_instance_valid(l):
+						l.light_energy = 0.0
+				if is_instance_valid(s[1]):
+					s[1].visible = false
+var strobes := []            # [[[Light3D, ...], glowing bulb, phase (period fraction), energy], ...]
 var strobe_t := 0.0
 const STROBE_PERIOD := 0.9   # each light: a double flash every period, offset from the others
 const STROBE_FLASH := 0.045
 # Where they sit (car frame), what color, when in the period they fire
 const STROBE_SPOTS := [
-	[Vector3(1.55, 0.66, 0.28), Color(1.0, 1.0, 1.0), 0.0],        # engine bay, driver side
-	[Vector3(1.55, 0.66, -0.28), Color(1.0, 0.12, 0.08), 0.45],     # engine bay, passenger side
+	[Vector3(1.55, 0.66, 0.28), Color("ffffffff"), 0.0],        # engine bay, driver side
+	[Vector3(1.55, 0.66, -0.28), Color("ffffffff"), 0.45],     # engine bay, passenger side
 	[Vector3(0.25, 1.02, 0.0), Color(1.0, 1.0, 1.0), 0.22],         # dash, under the windshield
-	[Vector3(-1.1, 1.08, 0.0), Color(1.0, 0.12, 0.08), 0.67],       # rear deck, through the hatch glass
+	[Vector3(-1.1, 1.08, 0.0), Color("ffffffff"), 0.67],       # rear deck, through the hatch glass
 ]
 var rough := true            # Faba's DX: faded clearcoat, primer fender, missing hubcap
 var paint_color := FROST_WHITE   # a clean car (rough = false) in another paint: opponents

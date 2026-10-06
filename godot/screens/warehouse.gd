@@ -44,6 +44,9 @@ func show_light() -> void:
 func setup(info: Dictionary) -> void:
 	level = int(info.get("light", 3))
 	show_light()
+	%StrobeButton.visible = bool(info.get("has_strobes", false))   # only once bought + worn (body shop)
+	strobing = bool(info.get("strobes_on", false))
+	show_strobes()
 	%Caption.text = info["caption"]          # the builder's note (game.gd home_caption, voice.gd)
 	%WorkOrderNo.text = "WORK ORDER #%03d" % info["order_no"]
 	%When.text = info["when"]
