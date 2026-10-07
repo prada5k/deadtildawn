@@ -1,0 +1,2 @@
+# LOCAL_STRAIGHT: permanent controlled quarter-mile test road (402.336 m).
+S 402.336

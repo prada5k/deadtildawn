@@ -41,15 +41,48 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 0
 
-[node name="TopRail" type="PanelContainer" parent="Column"]
+[node name="MainArea" type="Control" parent="Column"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ContentMargin" type="MarginContainer" parent="Column/MainArea"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 184
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 18
+
+[node name="ContentSlot" type="Control" parent="Column/MainArea/ContentMargin"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="TopChrome" type="VBoxContainer" parent="Column/MainArea"]
+mouse_filter = 2
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 184.0
+grow_horizontal = 2
+theme_override_constants/separation = 0
+
+[node name="TopRail" type="PanelContainer" parent="Column/MainArea/TopChrome"]
+unique_name_in_owner = true
+mouse_filter = 2
 layout_mode = 2
 theme_override_styles/panel = SubResource("Rail")
 
-[node name="RailRow" type="HBoxContainer" parent="Column/TopRail"]
+[node name="RailRow" type="HBoxContainer" parent="Column/MainArea/TopChrome/TopRail"]
+mouse_filter = 2
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="Avatar" type="Label" parent="Column/TopRail/RailRow"]
+[node name="Avatar" type="Label" parent="Column/MainArea/TopChrome/TopRail/RailRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(64, 64)
 layout_mode = 2
@@ -58,61 +91,54 @@ text = "C96"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="NameBox" type="VBoxContainer" parent="Column/TopRail/RailRow"]
+[node name="NameBox" type="VBoxContainer" parent="Column/MainArea/TopChrome/TopRail/RailRow"]
+mouse_filter = 2
 layout_mode = 2
 size_flags_horizontal = 3
 alignment = 1
 
-[node name="DriverName" type="Label" parent="Column/TopRail/RailRow/NameBox"]
+[node name="DriverName" type="Label" parent="Column/MainArea/TopChrome/TopRail/RailRow/NameBox"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
 text = "GARAGE 1"
 
-[node name="CrewName" type="Label" parent="Column/TopRail/RailRow/NameBox"]
+[node name="CrewName" type="Label" parent="Column/MainArea/TopChrome/TopRail/RailRow/NameBox"]
 layout_mode = 2
 theme_type_variation = &"MutedLabel"
-text = "CONTRABAND96 // SOCAL"
+text = "CONTRABAND96 / SOCAL"
 
-[node name="StatsBox" type="VBoxContainer" parent="Column/TopRail/RailRow"]
+[node name="StatsBox" type="VBoxContainer" parent="Column/MainArea/TopChrome/TopRail/RailRow"]
+mouse_filter = 2
 layout_mode = 2
 alignment = 1
 
-[node name="Cash" type="Label" parent="Column/TopRail/RailRow/StatsBox"]
+[node name="Cash" type="Label" parent="Column/MainArea/TopChrome/TopRail/RailRow/StatsBox"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
-text = "$250"
+theme_override_font_sizes/font_size = 24
+text = "CASH ON HAND $2,500"
 horizontal_alignment = 2
 
-[node name="Rep" type="Label" parent="Column/TopRail/RailRow/StatsBox"]
+[node name="Rep" type="Label" parent="Column/MainArea/TopChrome/TopRail/RailRow/StatsBox"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "0 FOLLOWERS"
 horizontal_alignment = 2
 
-[node name="LocationRibbon" type="PanelContainer" parent="Column"]
+[node name="LocationRibbon" type="PanelContainer" parent="Column/MainArea/TopChrome"]
+unique_name_in_owner = true
+mouse_filter = 2
 layout_mode = 2
 theme_override_styles/panel = SubResource("Ribbon")
 
-[node name="LocationLabel" type="Label" parent="Column/LocationRibbon"]
+[node name="LocationLabel" type="Label" parent="Column/MainArea/TopChrome/LocationRibbon"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
 theme_override_colors/font_color = Color(0.102, 0.059, 0.063, 1)
-text = "GARAGE 1 // OXNARD, CA"
-
-[node name="ContentMargin" type="MarginContainer" parent="Column"]
-layout_mode = 2
-size_flags_vertical = 3
-theme_override_constants/margin_left = 24
-theme_override_constants/margin_top = 18
-theme_override_constants/margin_right = 24
-theme_override_constants/margin_bottom = 18
-
-[node name="ContentSlot" type="Control" parent="Column/ContentMargin"]
-unique_name_in_owner = true
-layout_mode = 2
+text = "GARAGE 1 / OXNARD, CA"
 
 [node name="BottomNavBar" type="PanelContainer" parent="Column"]
 layout_mode = 2

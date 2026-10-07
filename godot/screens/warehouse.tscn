@@ -1,7 +1,16 @@
-[gd_scene load_steps=3 format=3 uid="uid://dgjoqqwn0qtpt"]
+[gd_scene load_steps=4 format=3 uid="uid://dgjoqqwn0qtpt"]
 
 [ext_resource type="Script" uid="uid://bgt4myfh4o6nq" path="res://screens/warehouse.gd" id="1"]
-[ext_resource type="Script" path="res://widgets/pedestal.gd" id="2"]
+[ext_resource type="PackedScene" path="res://home/home_garage.tscn" id="2"]
+
+[sub_resource type="StyleBoxFlat" id="HomePanel"]
+content_margin_left = 24.0
+content_margin_top = 18.0
+content_margin_right = 24.0
+content_margin_bottom = 18.0
+bg_color = Color(0.026, 0.018, 0.019, 0.97)
+border_width_top = 2
+border_color = Color(0.839, 0.251, 0.271, 1)
 
 [node name="Warehouse" type="Control"]
 layout_mode = 3
@@ -19,73 +28,216 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 18
+theme_override_constants/separation = 0
 
-[node name="Subtitle" type="Label" parent="Column"]
-layout_mode = 2
-theme_type_variation = &"MutedLabel"
-text = "One car. One garage. This is your Civic."
-autowrap_mode = 3
-
-[node name="CarPedestal" type="SubViewportContainer" parent="Column"]
-unique_name_in_owner = true
+[node name="GarageHero" type="Control" parent="Column"]
 layout_mode = 2
 size_flags_vertical = 3
+size_flags_stretch_ratio = 1.25
+
+[node name="GarageViewport" type="SubViewportContainer" parent="Column/GarageHero"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 stretch = true
-script = ExtResource("2")
 
-[node name="Crew" type="PanelContainer" parent="Column"]
-layout_mode = 2
+[node name="GarageViewport3D" type="SubViewport" parent="Column/GarageHero/GarageViewport"]
+handle_input_locally = false
+size = Vector2i(720, 720)
+own_world_3d = true
+msaa_3d = 1
+render_target_update_mode = 4
 
-[node name="Box" type="VBoxContainer" parent="Column/Crew"]
-layout_mode = 2
-theme_override_constants/separation = 6
+[node name="HomeGarage" parent="Column/GarageHero/GarageViewport/GarageViewport3D" instance=ExtResource("2")]
 
-[node name="CrewTitle" type="Label" parent="Column/Crew/Box"]
-layout_mode = 2
+[node name="CamcorderHUD" type="Control" parent="Column/GarageHero"]
+mouse_filter = 2
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Rec" type="Label" parent="Column/GarageHero/CamcorderHUD"]
+layout_mode = 1
+offset_left = 18.0
+offset_top = 18.0
+offset_right = 102.0
+offset_bottom = 56.0
 theme_type_variation = &"HeadingLabel"
-text = "THE CIVIC"
+text = "REC ●"
 
-[node name="CrewLine" type="Label" parent="Column/Crew/Box"]
-layout_mode = 2
-text = "BUILD → SET UP → COMMIT → WATCH → ANALYZE → LEARN"
-autowrap_mode = 3
-
-[node name="Record" type="Label" parent="Column/Crew/Box"]
+[node name="TapeDate" type="Label" parent="Column/GarageHero/CamcorderHUD"]
 unique_name_in_owner = true
-layout_mode = 2
+layout_mode = 1
+offset_left = 18.0
+offset_top = 58.0
+offset_right = 270.0
+offset_bottom = 92.0
 theme_type_variation = &"MutedLabel"
-text = "Record 0 W - 0 L"
+text = "MON / WEEK 01"
 
+[node name="TapeTime" type="Label" parent="Column/GarageHero/CamcorderHUD"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 420.0
+offset_top = -48.0
+offset_right = -18.0
+offset_bottom = -14.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_type_variation = &"MutedLabel"
+text = "SP  00:00:00"
+horizontal_alignment = 2
 
-[node name="NextUp" type="PanelContainer" parent="Column"]
+[node name="Battery" type="Label" parent="Column/GarageHero/CamcorderHUD"]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -210.0
+offset_top = 18.0
+offset_right = -18.0
+offset_bottom = 52.0
+grow_horizontal = 0
+theme_type_variation = &"MutedLabel"
+text = "BATTERY [||||]"
+horizontal_alignment = 2
+
+[node name="GarageLocation" type="Label" parent="Column/GarageHero/CamcorderHUD"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 18.0
+offset_top = -50.0
+offset_right = 390.0
+offset_bottom = -12.0
+grow_vertical = 0
+theme_type_variation = &"HeadingLabel"
+text = "GARAGE 1 / OXNARD, CA"
+
+[node name="HomeInformation" type="PanelContainer" parent="Column"]
 layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 0.75
+theme_override_styles/panel = SubResource("HomePanel")
 
-[node name="Box" type="VBoxContainer" parent="Column/NextUp"]
+[node name="InformationColumn" type="VBoxContainer" parent="Column/HomeInformation"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="Kicker" type="Label" parent="Column/NextUp/Box"]
+[node name="BrandRow" type="HBoxContainer" parent="Column/HomeInformation/InformationColumn"]
+layout_mode = 2
+
+[node name="Brand" type="Label" parent="Column/HomeInformation/InformationColumn/BrandRow"]
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
-text = "NEXT UP"
+text = "contraband96"
 
-[node name="EventTitle" type="Label" parent="Column/NextUp/Box"]
+[node name="Region" type="Label" parent="Column/HomeInformation/InformationColumn/BrandRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"MutedLabel"
+text = "SOCAL"
+horizontal_alignment = 2
+
+[node name="CivicName" type="Label" parent="Column/HomeInformation/InformationColumn"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 30
-text = "FRI, WEEK 1: RACE NIGHT"
-autowrap_mode = 3
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 40
+text = "1995 CIVIC SiR-II"
 
-[node name="EventDetail" type="Label" parent="Column/NextUp/Box"]
+[node name="CivicIdentity" type="Label" parent="Column/HomeInformation/InformationColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"MutedLabel"
-text = "Event details"
+text = "CHASSIS_0001 / E-EG6"
 autowrap_mode = 3
 
-[node name="GetReady" type="Button" parent="Column/NextUp/Box"]
+[node name="GarageSnapshot" type="HBoxContainer" parent="Column/HomeInformation/InformationColumn"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="StateColumn" type="VBoxContainer" parent="Column/HomeInformation/InformationColumn/GarageSnapshot"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="Today" type="Label" parent="Column/HomeInformation/InformationColumn/GarageSnapshot/StateColumn"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_type_variation = &"AccentButton"
-text = "VIEW NEXT EVENT"
+theme_type_variation = &"HeadingLabel"
+theme_override_font_sizes/font_size = 24
+text = "MON, WEEK 1"
+
+[node name="InstalledState" type="Label" parent="Column/HomeInformation/InformationColumn/GarageSnapshot/StateColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+text = "0 AFTERMARKET COMPONENTS INSTALLED"
+
+[node name="SpareState" type="Label" parent="Column/HomeInformation/InformationColumn/GarageSnapshot"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+text = "0 OWNED SPARE PARTS"
+horizontal_alignment = 2
+
+[node name="NextCalendar" type="Label" parent="Column/HomeInformation/InformationColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+text = "NEXT CALENDAR / FRI, WEEK 1"
+autowrap_mode = 3
+
+[node name="LocalStraightButton" type="Button" parent="Column/HomeInformation/InformationColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+text = "TEST  /  LOCAL STRAIGHT"
+
+[node name="AccentRule" type="ColorRect" parent="Column/HomeInformation/InformationColumn"]
+custom_minimum_size = Vector2(0, 2)
+layout_mode = 2
+color = Color(0.839, 0.251, 0.271, 0.8)
+
+[node name="CashRow" type="HBoxContainer" parent="Column/HomeInformation/InformationColumn"]
+layout_mode = 2
+
+[node name="CashLabel" type="Label" parent="Column/HomeInformation/InformationColumn/CashRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"MutedLabel"
+text = "CASH ON HAND"
+
+[node name="CashOnHand" type="Label" parent="Column/HomeInformation/InformationColumn/CashRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HeadingLabel"
+text = "$2,500"
+horizontal_alignment = 2
+
+[node name="FollowersRow" type="HBoxContainer" parent="Column/HomeInformation/InformationColumn"]
+layout_mode = 2
+
+[node name="FollowersLabel" type="Label" parent="Column/HomeInformation/InformationColumn/FollowersRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"MutedLabel"
+text = "FOLLOWERS"
+
+[node name="Followers" type="Label" parent="Column/HomeInformation/InformationColumn/FollowersRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "0"
+horizontal_alignment = 2

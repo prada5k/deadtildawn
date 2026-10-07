@@ -49,6 +49,7 @@ var replay_path := REPLAY_PATH
 var rival_name := ""
 var rival_time := -1.0      # posted time to beat; < 0 = no rival
 var embedded := false       # inside the game: Continue button, broadcast cameras
+var status_text := ""       # optional non-race label for reused controlled-test playback
 
 var replay: Dictionary = {}
 var samples: Dictionary = {}
@@ -377,8 +378,8 @@ func update_hud() -> void:
 	hud["dash"].position = Vector2((vp.x - 720.0) / 2.0, 100)
 
 	hud["clock"].text = "%.2f" % t + (" / %.2f" % rival_time if rival_time > 0 else "")
-	var push_text := "THEORETICAL LIMIT"
-	if driver != null:
+	var push_text := status_text if status_text != "" else "THEORETICAL LIMIT"
+	if status_text == "" and driver != null:
 		push_text = "%s PUSH" % str(driver["push"]).replace("_", " ").to_upper()
 	hud["status"].text = push_text + ("   vs  %s" % rival_name.to_upper() if rival_time > 0 else "")
 

@@ -17,7 +17,9 @@ Commands:
   odds      --track FILE --posted T       win odds for every push level (dev tools only:
                                           the game shows practice runs, not odds)
   race      --track FILE --push P --seed N --out FILE.json [--parts a,b]
-                                          run the race, write the replay
+                                           run the race, write the replay
+  local_straight --out FILE.json [--parts a,b]
+                                           run the fixed controlled test, write the replay
 
 Odds and races use the SAME solver settings (GAME_DS), so the odds are honest.
 Rival times are anchored to the STOCK car: upgrades make the player faster,
@@ -45,6 +47,9 @@ REFERENCE_CAR = ROOT / "data" / "cars" / "ej6_dx_coupe_1996.json"
 GAME_CAR = ROOT / "data" / "cars" / "eg6_sir_ii_1995.json"
 ACTIVE_CAR_FILE = REFERENCE_CAR  # CLI default preserves the engineering-tool contract
 MARKET_FILE = ROOT / "data" / "parts" / "market_v01.json"
+LOCAL_STRAIGHT_FILE = ROOT / "data" / "tracks" / "local_straight.txt"
+LOCAL_STRAIGHT_ID = "LOCAL_STRAIGHT"
+QUARTER_MILE_M = 402.336
 
 
 def player_car(part_ids):
@@ -119,6 +124,67 @@ def car_stats(part_ids=()):
           balance="understeer" if limiting_axle(car) == "front" else "oversteer",
           sixty_zero_ft=round(stopping_distance(car, 60 * MPH_TO_MS) / FT_TO_M),
           redline=car.redline, drivetrain="FWD")
+
+
+def local_straight(out_file, part_ids=()):
+    """Deterministic quarter-mile test for the current player-car configuration.
+
+    Acceleration and braking use the existing validated solvers.  The replay is
+    the acceleration run; the 60-0 figure is a separate existing measurement.
+    """
+    from types import SimpleNamespace
+
+    from export_replay import build_replay
+    from sim.braking import stopping_distance
+    from sim.metrics import speed_at_distance, time_at_distance, time_to_speed
+    from sim.straight import run_straight
+    from sim.track import load_track
+    from sim.units import AMBIENT_C, FT_TO_M, MPH_TO_MS
+
+    segments = load_track(LOCAL_STRAIGHT_FILE)
+    distance = sum(segment.length for segment in segments)
+    if abs(distance - QUARTER_MILE_M) > 1e-6:
+        raise ValueError(f"{LOCAL_STRAIGHT_ID} must be {QUARTER_MILE_M} m, got {distance}")
+
+    car = player_car(part_ids)
+    telemetry = run_straight(car, distance, ds=0.1)
+    lap = SimpleNamespace(telemetry=telemetry, lap_time=telemetry.t[-1],
+                          driver=None, seed=None, corner_log=[])
+    replay_data = build_replay(car, segments, lap, LOCAL_STRAIGHT_ID)
+    out = Path(out_file)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(replay_data, separators=(",", ":")), encoding="utf-8")
+
+    zero_60 = time_to_speed(telemetry, 60 * MPH_TO_MS)
+    quarter = time_at_distance(telemetry, QUARTER_MILE_M)
+    trap = speed_at_distance(telemetry, QUARTER_MILE_M)
+    reply(
+        road_id=LOCAL_STRAIGHT_ID,
+        conditions={
+            "surface": "baseline dry",
+            "ambient_c": AMBIENT_C,
+            "start": "standing",
+            "reference_driver": "deterministic full throttle",
+            "integration_step_m": 0.1,
+        },
+        installed_definition_ids=list(part_ids),
+        vehicle_state={
+            "car_id": car.id,
+            "mass_kg": round(car.mass, 3),
+            "final_drive": round(car.final_drive, 4),
+            "shift_time_s": round(car.shift_time, 4),
+            "engine_inertia_kgm2": round(car.engine_inertia, 4),
+            "wheel_inertia_kgm2": round(car.wheel_inertia, 4),
+            "front_roll_stiffness_fraction": round(car.roll_front, 4),
+        },
+        measurements={
+            "zero_60_s": round(zero_60, 3),
+            "quarter_mile_s": round(quarter, 3),
+            "quarter_mile_trap_mph": round(trap / MPH_TO_MS, 1),
+            "sixty_zero_ft": round(stopping_distance(car, 60 * MPH_TO_MS) / FT_TO_M, 1),
+        },
+        replay=str(out),
+    )
 
 
 def part_effects(car, part):
@@ -376,7 +442,7 @@ def main():
     global ACTIVE_CAR_FILE
     ap = argparse.ArgumentParser(description="deadtildawn game bridge")
     ap.add_argument("command", choices=["parts", "shop_catalog", "pull", "car_stats", "track", "rival", "street",
-                                        "practice", "odds", "race"])
+                                        "practice", "odds", "race", "local_straight"])
     ap.add_argument("--car", choices=["reference", "game"], default="reference",
                     help="reference EJ6 for engineering tools (default), game EG6 for Godot")
     ap.add_argument("--week", type=int)
@@ -413,6 +479,8 @@ def main():
             odds(a.track, a.posted)
         elif a.command == "race":
             race(a.track, a.push, a.seed, a.out, part_ids)
+        elif a.command == "local_straight":
+            local_straight(a.out, part_ids)
     except Exception as e:                         # report, don't crash the game
         fail(f"{type(e).__name__}: {e}")
 

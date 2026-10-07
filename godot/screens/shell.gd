@@ -20,10 +20,31 @@ func _ready() -> void:
 		nav[target].pressed.connect(func(): go.emit(target))
 
 
-func set_stats(cash: int, followers: int, min_buy_in: int) -> void:
-	%Cash.text = UI.money(cash)
-	%Cash.add_theme_color_override("font_color", UI.GOOD if cash >= min_buy_in else UI.BAD)
+func set_stats(cash: int, followers: int) -> void:
+	%Cash.text = "CASH ON HAND %s" % UI.money(cash)
+	%Cash.remove_theme_color_override("font_color")
 	%Rep.text = "%d FOLLOWERS" % followers
+
+
+## HOME lets its 3D hero run behind the top metadata. Other tabs keep the
+## conventional padded shell presentation.
+func set_home_mode(enabled: bool) -> void:
+	%ContentMargin.add_theme_constant_override("margin_left", 0 if enabled else 24)
+	%ContentMargin.add_theme_constant_override("margin_top", 0 if enabled else 184)
+	%ContentMargin.add_theme_constant_override("margin_right", 0 if enabled else 24)
+	%ContentMargin.add_theme_constant_override("margin_bottom", 0 if enabled else 18)
+	%TopRail.visible = not enabled
+	%LocationRibbon.visible = not enabled
+	set_meta("home_mode", enabled)
+
+
+func is_home_mode() -> bool:
+	return bool(get_meta("home_mode", false))
+
+
+func navigation_labels() -> Array:
+	return [%CarButton.text, %CalendarButton.text, %WarehouseButton.text,
+		%ExtraNavButton.text, %ShopButton.text]
 
 
 func set_location(text: String, tab: String) -> void:

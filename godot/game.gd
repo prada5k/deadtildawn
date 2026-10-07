@@ -24,7 +24,7 @@ const CalendarScene := preload("res://screens/calendar.tscn")
 const ShopScene := preload("res://screens/shop.tscn")
 const ShellScene := preload("res://screens/shell.tscn")
 const LOCATIONS := {
-	"home": "GARAGE 1 // OXNARD, CA",
+	"home": "GARAGE 1 / OXNARD, CA",
 	"car": "THE CIVIC // CHASSIS_CONFIG",
 	"calendar": "THE CALENDAR // TIMELINE",
 	"team": "TEAM // CONTACTS",
@@ -57,6 +57,7 @@ var shell: Control         # persistent hub shell (top rail, ribbon, bottom nav)
 var hub_content: Control   # the hub screen currently inside the shell
 var footer: VBoxContainer  # pinned area at the bottom of scrolling screens
 var viewer: Node           # replay viewer while racing
+var latest_test_result := {}  # transient controlled-test snapshot; not saved yet
 var choice := {"push": "normal", "wager": MIN_BUY_IN}
 var after_car_stats := "warehouse"   # where to go once car stats arrive
 var after_catalog := "shop"          # where to go once the parts catalog arrives
@@ -283,7 +284,8 @@ func open_hub(packed: PackedScene, tab: String) -> Control:
 		add_child(shell)
 		shell.go.connect(_go)
 		screen = shell
-	shell.set_stats(int(state["cash"]), int(state["followers"]), MIN_BUY_IN)
+	shell.set_home_mode(tab == "home")
+	shell.set_stats(int(state["cash"]), int(state["followers"]))
 	shell.set_location(LOCATIONS[tab], tab)
 	hub_content = packed.instantiate()
 	hub_content.go.connect(_go)
@@ -303,6 +305,8 @@ func _go(target: String) -> void:
 			show_message("TEAM", "Contacts and relationships will grow here. For now, the garage is quiet.", "HOME", show_warehouse)
 		"shop":
 			show_shop()
+		"local_straight":
+			start_local_straight()
 		"race":
 			show_briefing()
 
@@ -368,15 +372,17 @@ func show_intro() -> void:
 
 func show_warehouse() -> void:
 	var ev := next_event()
-	var record := wins_losses()
 	var info := common_info()
-	info["event_title"] = "%s: %s" % [when(ev["week"], ev["day"]),
-		"RIVAL NIGHT" if ev["type"] == "rival" else "OPEN ROAD"]
-	info["event_detail"] = "%s. Minimum buy-in %s. Today is %s." % [
-		ev["title"], UI.money(MIN_BUY_IN), when(state["week"], state["day"]).to_lower()]
-	info["wins"] = record.x
-	info["losses"] = record.y
-	info["min_buy_in_text"] = UI.money(MIN_BUY_IN)
+	info["civic"] = state["civic"].duplicate(true)
+	var installed_uids: Array = state["civic"]["installed"].values()
+	var owned_spares := 0
+	for owned in state["inventory"]:
+		if str(owned.get("uid", "")) not in installed_uids:
+			owned_spares += 1
+	info["owned_spares"] = owned_spares
+	info["today"] = when(state["week"], state["day"])
+	info["tape_date"] = "%s / WEEK %02d" % [DAY_NAMES[int(state["day"])], int(state["week"])]
+	info["next_calendar"] = "%s / %s" % [when(ev["week"], ev["day"]), ev["title"]]
 	open_hub(WarehouseScene, "home").setup(info)
 
 
@@ -429,6 +435,41 @@ func parts_args() -> Array:
 			entries.append(inst["part"])
 	entries.sort()
 	return [] if entries.is_empty() else ["--parts", ",".join(entries)]
+
+
+func installed_configuration_snapshot() -> Array:
+	## Resolve the authoritative installed UID map into a stable run snapshot.
+	var installed := []
+	var slots: Array = state["civic"]["installed"].keys()
+	slots.sort()
+	for slot in slots:
+		var uid := str(state["civic"]["installed"][slot])
+		var owned := instance(uid)
+		if not owned.is_empty():
+			installed.append({"slot": slot, "owned_uid": uid,
+				"definition_id": str(owned["part"])})
+	return installed
+
+
+func local_test_snapshot(data: Dictionary) -> Dictionary:
+	## Complete enough to persist as a future TEST LOG entry, but kept transient
+	## in Phase 5A while the permanent log schema is still deliberately deferred.
+	return {
+		"road_id": data["road_id"],
+		"chassis_id": state["civic"]["chassis_id"],
+		"base_car_id": state["civic"]["base_car_id"],
+		"installed": installed_configuration_snapshot(),
+		"conditions": data["conditions"].duplicate(true),
+		"vehicle_state": data["vehicle_state"].duplicate(true),
+		"measurements": data["measurements"].duplicate(true),
+		"replay": data["replay"],
+	}
+
+
+func start_local_straight() -> void:
+	show_message("LOCAL STRAIGHT", "Setting up %s for a controlled quarter-mile run.\n\nFixed road. Fixed conditions. Reference driver. $0." % state["civic"]["chassis_id"])
+	var out := ProjectSettings.globalize_path("user://replays/local_straight.json")
+	bridge.request("local_straight", ["local_straight", "--out", out] + parts_args())
 
 
 func part_by_id(id: String) -> Dictionary:
@@ -770,14 +811,56 @@ func show_results(result: Dictionary) -> void:
 	UI.label(reveal, "In practice, %d of %d runs at %s push beat %s's %.2f." % [
 		result["practice_beat"], result["practice_runs"], str(result["push"]).replace("_", " "),
 		result["rival"], result["posted"]], "MutedLabel")
-	UI.button(footer, "BACK TO THE WAREHOUSE", show_warehouse, "AccentButton")
+	UI.button(footer, "BACK TO HOME", show_warehouse, "AccentButton")
+
+
+func show_local_straight_replay(result: Dictionary) -> void:
+	clear_screen()
+	viewer = Viewer.new()
+	viewer.replay_path = result["replay"]
+	viewer.embedded = true
+	viewer.status_text = "REFERENCE DRIVER"
+	viewer.finished_viewing.connect(show_test_results.bind(result))
+	add_child(viewer)
+
+
+func show_test_results(result: Dictionary) -> void:
+	var col := new_screen()
+	UI.spacer(col, false).custom_minimum_size.y = 24
+	UI.label(col, "TEST RESULTS", "TitleLabel", UI.ACCENT)
+	UI.label(col, "LOCAL STRAIGHT", "BigNumberLabel")
+	UI.label(col, "Controlled standing-start quarter mile / fixed dry baseline", "MutedLabel")
+
+	var measurements: Dictionary = result["measurements"]
+	var measured := UI.vbox(UI.panel(col), 6)
+	UI.label(measured, "MEASURED", "HeadingLabel")
+	UI.stat_row(measured, "0-60 mph", "%.3f s" % float(measurements["zero_60_s"]))
+	UI.stat_row(measured, "Quarter mile", "%.3f s" % float(measurements["quarter_mile_s"]))
+	UI.stat_row(measured, "Trap speed", "%.1f mph" % float(measurements["quarter_mile_trap_mph"]))
+	UI.stat_row(measured, "60-0 braking", "%.1f ft" % float(measurements["sixty_zero_ft"]))
+
+	var config := UI.vbox(UI.panel(col), 6)
+	UI.label(config, "CIVIC CONFIGURATION", "HeadingLabel")
+	UI.stat_row(config, "Chassis", str(result["chassis_id"]))
+	UI.stat_row(config, "Base car", str(result["base_car_id"]))
+	var installed: Array = result["installed"]
+	UI.stat_row(config, "Installed", "stock" if installed.is_empty() else "%d physical part%s" % [
+		installed.size(), "" if installed.size() == 1 else "s"])
+	for part in installed:
+		UI.label(config, "%s / %s / %s" % [part["slot"], part["owned_uid"], part["definition_id"]], "MutedLabel")
+
+	var conditions: Dictionary = result["conditions"]
+	UI.label(col, "%s / %.0f C / %s" % [
+		str(conditions["surface"]).to_upper(), float(conditions["ambient_c"]),
+		str(conditions["reference_driver"]).to_upper()], "MutedLabel")
+	UI.button(footer, "BACK TO HOME", show_warehouse, "AccentButton")
 
 
 # ------------------------------------------------------------------ bridge replies
 
 func _on_reply(tag: String, data: Dictionary) -> void:
 	if not data.get("ok", false):
-		show_message("THE SIM HIT A PROBLEM", str(data.get("error", "unknown error")), "BACK TO THE WAREHOUSE", show_warehouse)
+		show_message("THE SIM HIT A PROBLEM", str(data.get("error", "unknown error")), "BACK TO HOME", show_warehouse)
 		return
 	match tag:
 		"car_stats":
@@ -802,6 +885,9 @@ func _on_reply(tag: String, data: Dictionary) -> void:
 		"race":
 			var result := apply_result(data)
 			show_race(data["replay"], result)
+		"local_straight":
+			latest_test_result = local_test_snapshot(data)
+			show_local_straight_replay(latest_test_result)
 
 
 # ------------------------------------------------------------------ self-test
@@ -888,6 +974,16 @@ func game_test() -> void:
 		return
 	print("GAMETEST EG6 catalog: %d compatible parts, %d retail, %d used" % [
 		catalog["parts"].size(), catalog["retail_ids"].size(), state["market"]["used_listings"].size()])
+	var local_out := ProjectSettings.globalize_path("user://replays/local_straight_gametest.json")
+	bridge.request("local_straight_stock", ["local_straight", "--out", local_out])
+	r = await bridge.replied
+	if not game_test_reply_ok(r):
+		return
+	var stock_local: Dictionary = r[1]
+	if stock_local["road_id"] != "LOCAL_STRAIGHT" or stock_local["vehicle_state"]["car_id"] != "eg6_sir_ii_1995":
+		push_error("GAMETEST FAIL LOCAL STRAIGHT road or game-car identity")
+		get_tree().quit(1)
+		return
 	state["cash"] = START_CASH
 	state["rep"] = 0
 	shop_message = ""
@@ -924,6 +1020,41 @@ func game_test() -> void:
 		push_error("GAMETEST FAIL owned UID to installed definition")
 		get_tree().quit(1)
 		return
+	var before_test := {
+		"cash": state["cash"], "followers": state["followers"],
+		"history": state["history"].duplicate(true), "inventory": state["inventory"].duplicate(true),
+		"week": state["week"], "day": state["day"],
+	}
+	bridge.request("local_straight_a", ["local_straight", "--out", local_out] + parts_args())
+	r = await bridge.replied
+	if not game_test_reply_ok(r):
+		return
+	var local_a: Dictionary = r[1]
+	bridge.request("local_straight_b", ["local_straight", "--out", local_out] + parts_args())
+	r = await bridge.replied
+	if not game_test_reply_ok(r):
+		return
+	var local_b: Dictionary = r[1]
+	var local_snapshot := local_test_snapshot(local_a)
+	if local_a["measurements"] != local_b["measurements"] or local_a["vehicle_state"] != local_b["vehicle_state"]:
+		push_error("GAMETEST FAIL LOCAL STRAIGHT repeatability")
+		get_tree().quit(1)
+		return
+	if float(local_a["vehicle_state"]["front_roll_stiffness_fraction"]) == float(stock_local["vehicle_state"]["front_roll_stiffness_fraction"]):
+		push_error("GAMETEST FAIL LOCAL STRAIGHT did not receive physical part state")
+		get_tree().quit(1)
+		return
+	if local_snapshot["chassis_id"] != "CHASSIS_0001" or local_snapshot["base_car_id"] != "eg6_sir_ii_1995" or local_snapshot["installed"] != [{"slot": "rear_sway", "owned_uid": retail_uid, "definition_id": "rsb_19"}]:
+		push_error("GAMETEST FAIL LOCAL STRAIGHT ownership snapshot: %s" % local_snapshot)
+		get_tree().quit(1)
+		return
+	if state["cash"] != before_test["cash"] or state["followers"] != before_test["followers"] or state["history"] != before_test["history"] or state["inventory"] != before_test["inventory"] or state["week"] != before_test["week"] or state["day"] != before_test["day"]:
+		push_error("GAMETEST FAIL LOCAL STRAIGHT changed rewards, ownership, record, or calendar")
+		get_tree().quit(1)
+		return
+	print("GAMETEST LOCAL STRAIGHT: 0-60 %.3f s, quarter %.3f s @ %.1f mph, 60-0 %.1f ft" % [
+		local_a["measurements"]["zero_60_s"], local_a["measurements"]["quarter_mile_s"],
+		local_a["measurements"]["quarter_mile_trap_mph"], local_a["measurements"]["sixty_zero_ft"]])
 	bridge.request("car_stats", ["car_stats"] + parts_args())
 	r = await bridge.replied
 	if not game_test_reply_ok(r):
@@ -933,6 +1064,46 @@ func game_test() -> void:
 		push_error("GAMETEST FAIL installed UID did not change EG6 physical behavior")
 		get_tree().quit(1)
 		return
+	car_stats = retail_stats
+	show_warehouse()
+	var home_civic: Dictionary = hub_content.current_civic_state()
+	if not shell.is_home_mode() or shell.navigation_labels() != ["CAR", "CALENDAR", "HOME", "TEAM", "SHOP"] or home_civic != state["civic"] or hub_content.current_vehicle_visual_state() != state["civic"]:
+		push_error("GAMETEST FAIL HOME Civic state or navigation")
+		get_tree().quit(1)
+		return
+	_go("car")
+	if shell == null or shell.is_home_mode():
+		push_error("GAMETEST FAIL CAR inherited HOME overlay mode")
+		get_tree().quit(1)
+		return
+	_go("home")
+	if hub_content.current_civic_state() != home_civic:
+		push_error("GAMETEST FAIL HOME did not reapply Civic state after CAR")
+		get_tree().quit(1)
+		return
+	_go("shop")
+	if shell == null or shell.is_home_mode():
+		push_error("GAMETEST FAIL SHOP inherited HOME overlay mode")
+		get_tree().quit(1)
+		return
+	_go("home")
+	if hub_content.current_civic_state() != home_civic:
+		push_error("GAMETEST FAIL HOME did not reapply Civic state after SHOP")
+		get_tree().quit(1)
+		return
+	_go("calendar")
+	if shell == null or shell.is_home_mode():
+		push_error("GAMETEST FAIL CALENDAR inherited HOME overlay mode")
+		get_tree().quit(1)
+		return
+	_go("team")
+	if screen == null or shell != null:
+		push_error("GAMETEST FAIL TEAM placeholder navigation")
+		get_tree().quit(1)
+		return
+	show_warehouse()
+	print("GAMETEST HOME Civic: %s / %s / %s" % [
+		home_civic["chassis_id"], home_civic["base_car_id"], home_civic["installed"]])
 	install_part("rear_sway", used_uid, false)
 	if state["inventory"].size() != 2 or parts_args() != ["--parts", "rsb_19"]:
 		push_error("GAMETEST FAIL replacement duplicated/destroyed an item")
@@ -1014,6 +1185,16 @@ func game_shots(folder: String) -> void:
 	car_stats = (await bridge.replied)[1]
 	show_warehouse()
 	await snap(folder, "1_warehouse")
+	var local_out := ProjectSettings.globalize_path("user://replays/local_straight_shots.json")
+	bridge.request("local_straight", ["local_straight", "--out", local_out])
+	var local_data: Dictionary = (await bridge.replied)[1]
+	var local_result := local_test_snapshot(local_data)
+	show_local_straight_replay(local_result)
+	viewer.t = viewer.lap_time
+	await snap(folder, "1a_local_straight_finish")
+	show_test_results(local_result)
+	await snap(folder, "1b_local_straight_results")
+	show_warehouse()
 	bridge.request("parts", ["shop_catalog"])
 	accept_shop_catalog((await bridge.replied)[1])
 	var b := add_instance("rsb_19", "retail", 320)
