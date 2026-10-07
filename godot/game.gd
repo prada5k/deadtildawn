@@ -93,7 +93,7 @@ func _ready() -> void:
 
 
 func new_state() -> Dictionary:
-	return {"version": SAVE_VERSION, "cash": START_CASH, "followers": 0, "week": 1, "day": 0,
+	return {"version": SAVE_VERSION, "cash": START_CASH, "followers": 0, "rep": 0, "week": 1, "day": 0,
 		"history": [], "night": {},
 		"inventory": [], "installed": {}, "pity": {}, "next_uid": 1}
 
@@ -143,8 +143,10 @@ func migrate(data: Dictionary) -> Dictionary:
 		data["next_uid"] = n
 		v = 4
 	if v < 5:                        # v4 -> v5: CONTRABAND96 identity migration
+		# Keep legacy rep temporarily because the old wager/gacha loop still reads it.
+		# Followers are now the visible identity; rep will disappear when those systems retire.
 		data["followers"] = int(data.get("rep", 0))
-		data.erase("rep")
+		data["rep"] = int(data.get("rep", 0))
 		data.erase("intro_seen")
 		v = 5
 	data["version"] = v
@@ -271,7 +273,7 @@ func _go(target: String) -> void:
 
 
 func common_info() -> Dictionary:
-	return {"cash": int(state["cash"]), "followers": int(state["followers"]), "min_buy_in": MIN_BUY_IN}
+	return {"cash": int(state["cash"]), "followers": int(state["followers"]), "rep": int(state.get("rep", 0)), "min_buy_in": MIN_BUY_IN}
 
 
 func new_screen(scroll := true) -> VBoxContainer:
