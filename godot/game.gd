@@ -1,5 +1,5 @@
 extends Node
-## deadtildawn: game flow and state.
+## CONTRABAND96: game flow and state.
 ##
 ## Hub screens are editor scenes in screens/ (warehouse, car, calendar): their
 ## LAYOUT is edited in Godot, their scripts only fill in data and emit
@@ -24,14 +24,15 @@ const CalendarScene := preload("res://screens/calendar.tscn")
 const ShopScene := preload("res://screens/shop.tscn")
 const ShellScene := preload("res://screens/shell.tscn")
 const LOCATIONS := {
-	"warehouse": "THE WAREHOUSE // TERMINAL_01",
-	"car": "THE DX // CHASSIS_CONFIG",
+	"home": "GARAGE 1 // OXNARD, CA",
+	"car": "THE CIVIC // CHASSIS_CONFIG",
 	"calendar": "THE CALENDAR // TIMELINE",
-	"shop": "PARTS // JUNK_SWAP_COUNTER",
+	"team": "TEAM // CONTACTS",
+	"shop": "SHOP // PARTS & CLASSIFIEDS",
 }
 
 const SAVE_PATH := "user://save.json"
-const SAVE_VERSION := 4
+const SAVE_VERSION := 5
 const START_CASH := 250
 const MIN_BUY_IN := 100
 const WAGER_STEP := 10
@@ -50,7 +51,7 @@ const RARITY_COLORS := {
 const DAY_NAMES := ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
 const RACE_DAYS := [4, 5]        # Friday and Saturday nights
 
-var state := {}            # saved: cash, rep, week, day, history, night, intro_seen
+var state := {}            # saved: cash, followers, week, day, history, night
 var car_stats := {}        # bridge replies, cached for the session
 var track_info := {}
 var practice := {}
@@ -88,15 +89,12 @@ func _ready() -> void:
 	if problem != "":
 		show_message("CAN'T START THE SIM", problem)
 		return
-	if not state.get("intro_seen", false):
-		show_intro()
-	else:
-		show_warehouse()
+	show_warehouse()
 
 
 func new_state() -> Dictionary:
-	return {"version": SAVE_VERSION, "cash": START_CASH, "rep": 0, "week": 1, "day": 0,
-		"history": [], "night": {}, "intro_seen": false,
+	return {"version": SAVE_VERSION, "cash": START_CASH, "followers": 0, "week": 1, "day": 0,
+		"history": [], "night": {},
 		"inventory": [], "installed": {}, "pity": {}, "next_uid": 1}
 
 
@@ -144,6 +142,11 @@ func migrate(data: Dictionary) -> Dictionary:
 		data["pity"] = {}
 		data["next_uid"] = n
 		v = 4
+	if v < 5:                        # v4 -> v5: CONTRABAND96 identity migration
+		data["followers"] = int(data.get("rep", 0))
+		data.erase("rep")
+		data.erase("intro_seen")
+		v = 5
 	data["version"] = v
 	return data
 
@@ -243,7 +246,7 @@ func open_hub(packed: PackedScene, tab: String) -> Control:
 		add_child(shell)
 		shell.go.connect(_go)
 		screen = shell
-	shell.set_stats(int(state["cash"]), int(state["rep"]), MIN_BUY_IN)
+	shell.set_stats(int(state["cash"]), int(state["followers"]), MIN_BUY_IN)
 	shell.set_location(LOCATIONS[tab], tab)
 	hub_content = packed.instantiate()
 	hub_content.go.connect(_go)
@@ -253,14 +256,14 @@ func open_hub(packed: PackedScene, tab: String) -> Control:
 
 func _go(target: String) -> void:
 	match target:
-		"warehouse":
+		"warehouse", "home":
 			show_warehouse()
 		"car":
 			show_car()
 		"calendar":
 			show_calendar()
-		"story":
-			show_intro()
+		"team":
+			show_message("TEAM", "Contacts and relationships will grow here. For now, the garage is quiet.", "HOME", show_warehouse)
 		"shop":
 			show_shop()
 		"race":
@@ -268,7 +271,7 @@ func _go(target: String) -> void:
 
 
 func common_info() -> Dictionary:
-	return {"cash": int(state["cash"]), "rep": int(state["rep"]), "min_buy_in": MIN_BUY_IN}
+	return {"cash": int(state["cash"]), "followers": int(state["followers"]), "min_buy_in": MIN_BUY_IN}
 
 
 func new_screen(scroll := true) -> VBoxContainer:
@@ -285,11 +288,11 @@ func new_screen(scroll := true) -> VBoxContainer:
 	var page := UI.vbox(root, 18)
 
 	var header := UI.hbox(page, 16)
-	var brand := UI.label(header, "DEADTILDAWN", "HeadingLabel")
+	var brand := UI.label(header, "CONTRABAND96", "HeadingLabel")
 	brand.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	UI.label(header, UI.money(state["cash"]), "HeadingLabel",
 		UI.GOOD if state["cash"] >= MIN_BUY_IN else UI.BAD)
-	UI.label(header, "REP %d" % int(state["rep"]), "HeadingLabel", Color.WHITE)
+	UI.label(header, "%d FOLLOWERS" % int(state["followers"]), "HeadingLabel", Color.WHITE)
 
 	if not scroll:
 		return page
@@ -340,7 +343,7 @@ func show_warehouse() -> void:
 	info["wins"] = record.x
 	info["losses"] = record.y
 	info["min_buy_in_text"] = UI.money(MIN_BUY_IN)
-	open_hub(WarehouseScene, "warehouse").setup(info)
+	open_hub(WarehouseScene, "home").setup(info)
 
 
 func show_car() -> void:
