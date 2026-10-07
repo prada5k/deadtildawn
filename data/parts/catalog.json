@@ -1,5 +1,5 @@
 {
-  "notes": "Each part changes real sim inputs. Effects: torque_scale (whole curve), torque_shape (low/high = fractional change at 1000 rpm / 6800 rpm, linear between), mass_kg (added, negative = lighter), engine_inertia_scale, wheel_inertia_scale, shift_time_s (added), final_drive (set), mu_scale (tire grip at every load), load_k_scale, crr_scale, roll_front (set: front share of roll stiffness), cg_height_m (added). Prices in USD. Rarity is specialization, not strength.",
+  "notes": "Each part changes real sim inputs. Effects: torque_scale (whole curve), torque_shape (low/high = fractional change at 1000 rpm / 6800 rpm, linear between), mass_kg (added, negative = lighter), engine_inertia_scale, wheel_inertia_scale, shift_time_s (added), final_drive (set), mu_scale (tire grip at every load), load_k_scale, crr_scale, roll_front (set: front share of roll stiffness), cg_height_m (added). Prices in USD. Rarity is legacy prototype metadata and is not used by the CONTRABAND96 shop. EG6 compatibility entries are provisional game fitment selections, not factory claims; absent compatibility means not offered for the EG6.",
   "slots": {
     "intake": "Intake", "header": "Header", "cams": "Cams", "ecu": "ECU",
     "flywheel": "Flywheel", "shifter": "Shifter", "final_drive": "Final drive",
@@ -26,12 +26,12 @@
     {"id": "ecu_street_tune", "slot": "ecu", "name": "Street tune", "rarity": "rare", "price": 520,
      "effects": {"torque_scale": 1.035}, "blurb": "Fuel and timing, dialed in."},
 
-    {"id": "flywheel_light", "slot": "flywheel", "name": "Lightweight flywheel", "rarity": "common", "price": 550,
+    {"id": "flywheel_light", "slot": "flywheel", "name": "Lightweight flywheel", "rarity": "common", "price": 550, "compatible_base_car_ids": ["eg6_sir_ii_1995"],
      "effects": {"engine_inertia_scale": 0.65, "mass_kg": -3}, "blurb": "Revs faster, accelerates the car more in low gears."},
 
-    {"id": "shifter_short", "slot": "shifter", "name": "Short shifter", "rarity": "common", "price": 300,
+    {"id": "shifter_short", "slot": "shifter", "name": "Short shifter", "rarity": "common", "price": 300, "compatible_base_car_ids": ["eg6_sir_ii_1995"],
      "effects": {"shift_time_s": -0.08}, "blurb": "Shorter throws, quicker shifts."},
-    {"id": "shifter_race", "slot": "shifter", "name": "Race shifter + bushings", "rarity": "rare", "price": 420,
+    {"id": "shifter_race", "slot": "shifter", "name": "Race shifter + bushings", "rarity": "rare", "price": 420, "compatible_base_car_ids": ["eg6_sir_ii_1995"],
      "effects": {"shift_time_s": -0.15}, "blurb": "Tight, notchy, fast."},
 
     {"id": "fd_44", "slot": "final_drive", "name": "4.4 final drive", "rarity": "rare", "price": 750,
@@ -51,14 +51,14 @@
     {"id": "wheels_forged", "slot": "wheels", "name": "Forged 15s", "rarity": "epic", "price": 2200,
      "effects": {"wheel_inertia_scale": 0.6, "mass_kg": -10}, "blurb": "As light as it gets."},
 
-    {"id": "rsb_19", "slot": "rear_sway", "name": "Rear sway bar 19 mm", "rarity": "common", "price": 320,
+    {"id": "rsb_19", "slot": "rear_sway", "name": "Rear sway bar 19 mm", "rarity": "common", "price": 320, "compatible_base_car_ids": ["eg6_sir_ii_1995"],
      "effects": {"roll_front": 0.48}, "blurb": "Shifts roll stiffness rearward. Less understeer."},
-    {"id": "rsb_24", "slot": "rear_sway", "name": "Rear sway bar 24 mm", "rarity": "rare", "price": 260,
+    {"id": "rsb_24", "slot": "rear_sway", "name": "Rear sway bar 24 mm", "rarity": "rare", "price": 260, "compatible_base_car_ids": ["eg6_sir_ii_1995"],
      "effects": {"roll_front": 0.33}, "blurb": "A lot more rear bar. Rotates hard. Maybe too hard."},
 
-    {"id": "springs_lowering", "slot": "springs", "name": "Lowering springs", "rarity": "common", "price": 500,
+    {"id": "springs_lowering", "slot": "springs", "name": "Lowering springs", "rarity": "common", "price": 500, "compatible_base_car_ids": ["eg6_sir_ii_1995"],
      "effects": {"cg_height_m": -0.025}, "blurb": "About an inch lower. Less weight transfer."},
-    {"id": "coilovers_street", "slot": "springs", "name": "Street coilovers", "rarity": "rare", "price": 1100,
+    {"id": "coilovers_street", "slot": "springs", "name": "Street coilovers", "rarity": "rare", "price": 1100, "compatible_base_car_ids": ["eg6_sir_ii_1995"],
      "effects": {"cg_height_m": -0.04, "mass_kg": -2}, "blurb": "Lower and tighter."},
 
     {"id": "interior_strip", "slot": "interior", "name": "Strip the interior", "rarity": "legendary", "price": 1400,

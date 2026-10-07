@@ -44,23 +44,28 @@ CACHE_DIR = ROOT / "runs" / "cache"
 REFERENCE_CAR = ROOT / "data" / "cars" / "ej6_dx_coupe_1996.json"
 GAME_CAR = ROOT / "data" / "cars" / "eg6_sir_ii_1995.json"
 ACTIVE_CAR_FILE = REFERENCE_CAR  # CLI default preserves the engineering-tool contract
+MARKET_FILE = ROOT / "data" / "parts" / "market_v01.json"
 
 
 def player_car(part_ids):
     """The selected car with these parts installed (stock if none). Entries are part ids,
     optionally with a quality roll: "cams_race@0.83" (default 0.5 = catalog)."""
     from sim.car import load_car
-    from sim.gacha import instance_part
     from sim.parts import apply_parts, parts_by_ids
     car = load_car(ACTIVE_CAR_FILE)
     if not part_ids:
         return car
-    ids, qs = [], []
+    ids, qualities = [], []
     for entry in part_ids:
         pid, _, q = entry.partition("@")
         ids.append(pid)
-        qs.append(float(q) if q else 0.5)
-    return apply_parts(car, [instance_part(t, q) for t, q in zip(parts_by_ids(ids), qs)])
+        qualities.append(float(q) if q else None)
+    selected = parts_by_ids(ids)
+    if any(q is not None for q in qualities):
+        from sim.gacha import instance_part  # legacy CLI compatibility only
+        selected = [instance_part(t, q) if q is not None else t
+                    for t, q in zip(selected, qualities)]
+    return apply_parts(car, selected)
 
 
 def parse_parts(text):
@@ -166,6 +171,30 @@ def parts_catalog():
                for k, s in load_pulls().items() if not s.get("hidden")}
     reply(slots=slots, sources=sources,
           parts=[{**p, "effects_text": part_effects(car, p)} for p in parts.values()])
+
+
+def shop_catalog():
+    """Fixed-spec EG6 definitions and curated offers; no pull-data dependency."""
+    from sim.car import load_car
+    from sim.parts import load_catalog
+
+    slots, parts = load_catalog()
+    market = json.loads(MARKET_FILE.read_text(encoding="utf-8"))
+    car = load_car(GAME_CAR)
+    eligible = {pid: p for pid, p in parts.items()
+                if car.id in p.get("compatible_base_car_ids", [])}
+    retail = market["retail_ids"]
+    used = market["initial_used"]
+    if len(retail) != len(set(retail)) or any(pid not in eligible for pid in retail):
+        raise ValueError("retail contains duplicate or EG6-incompatible definitions")
+    listing_ids = [listing["listing_id"] for listing in used]
+    if len(listing_ids) != len(set(listing_ids)):
+        raise ValueError("duplicate used listing IDs")
+    if any(listing["part"] not in eligible or listing["price"] <= 0 for listing in used):
+        raise ValueError("used listing has incompatible part or invalid price")
+    reply(slots=slots, retail_ids=retail, initial_used=used,
+          parts=[{**{k: v for k, v in p.items() if k != "rarity"},
+                  "effects_text": part_effects(car, p)} for p in eligible.values()])
 
 
 def do_pull(source, pity_json, seed):
@@ -346,7 +375,7 @@ def race(track_file, push, seed, out_file, part_ids=()):
 def main():
     global ACTIVE_CAR_FILE
     ap = argparse.ArgumentParser(description="deadtildawn game bridge")
-    ap.add_argument("command", choices=["parts", "pull", "car_stats", "track", "rival", "street",
+    ap.add_argument("command", choices=["parts", "shop_catalog", "pull", "car_stats", "track", "rival", "street",
                                         "practice", "odds", "race"])
     ap.add_argument("--car", choices=["reference", "game"], default="reference",
                     help="reference EJ6 for engineering tools (default), game EG6 for Godot")
@@ -366,6 +395,8 @@ def main():
         part_ids = parse_parts(a.parts)
         if a.command == "parts":
             parts_catalog()
+        elif a.command == "shop_catalog":
+            shop_catalog()
         elif a.command == "pull":
             do_pull(a.source, a.pity, a.seed)
         elif a.command == "car_stats":

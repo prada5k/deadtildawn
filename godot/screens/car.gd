@@ -1,5 +1,5 @@
 extends Control
-## The car: dyno chart, stat sheet, parts (coming with the loot system).
+## The car: dyno chart, stat sheet, and physical parts installation.
 ## LAYOUT lives in car.tscn; this script fills in data. Stat rows are added
 ## in code (one per stat) using the theme, so they restyle with it.
 

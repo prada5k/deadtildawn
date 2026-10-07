@@ -1,0 +1,9 @@
+{
+  "notes": "Curated v0.1 EG6 offerings. Retail price is the physical catalog definition price. Used listings are one-off objects seeded once into the save, without rolled quality or condition-based physics.",
+  "retail_ids": ["flywheel_light", "shifter_short", "rsb_19", "springs_lowering", "coilovers_street"],
+  "initial_used": [
+    {"listing_id": "USED_0001", "part": "shifter_race", "seller_id": "SELLER_0001", "seller_name": "Local seller", "price": 315, "note": "Used shifter and bushings."},
+    {"listing_id": "USED_0002", "part": "rsb_24", "seller_id": "SELLER_0002", "seller_name": "Local seller", "price": 195, "note": "Used rear sway bar."},
+    {"listing_id": "USED_0003", "part": "rsb_19", "seller_id": "SELLER_0003", "seller_name": "Local seller", "price": 240, "note": "Used rear sway bar."}
+  ]
+}

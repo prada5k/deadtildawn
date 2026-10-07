@@ -32,20 +32,14 @@ const LOCATIONS := {
 }
 
 const SAVE_PATH := "user://save.json"
-const SAVE_VERSION := 6
-const START_CASH := 250
+const SAVE_VERSION := 7
+const START_CASH := 2500
 const MIN_BUY_IN := 100
 const WAGER_STEP := 10
 const REP_WIN := 10
 const SKIP_REP_COST := 5 * REP_WIN   # chicken-out fee: five wins' worth of rep
-const LOOT_CHANCE := 0.05            # chance a win also drops an unopened part ("loot" pull)
-const SCRAP_RATE := 0.25             # selling a spare: price x rate x (0.5 + quality)
-const NEW_QUALITY := 0.5             # shop parts are new in box: exactly the catalog spec
 const RIVAL_FILE := "data/rivals/zed_280z.json"
 const PUSH_ORDER := ["safe", "normal", "hard", "flat_out"]
-const RARITY_COLORS := {
-	"common": Color(0.75, 0.76, 0.8), "rare": Color(0.35, 0.6, 1.0),
-	"epic": Color(0.72, 0.42, 1.0), "legendary": Color(1.0, 0.78, 0.25)}
 
 # Calendar: a week is 7 days; race nights fall on these days (0 = Monday)
 const DAY_NAMES := ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
@@ -57,7 +51,6 @@ var track_info := {}
 var practice := {}
 var catalog := {}          # bridge "parts" reply (slots + parts with exact effects)
 var shop_message := ""
-var pending_race := {}     # race reply + result, held while a loot pull resolves
 var bridge: Node
 var screen: Control        # current UI screen (the shell while in the hub)
 var shell: Control         # persistent hub shell (top rail, ribbon, bottom nav)
@@ -94,9 +87,10 @@ func _ready() -> void:
 
 func new_state() -> Dictionary:
 	return {"version": SAVE_VERSION, "cash": START_CASH, "followers": 0, "rep": 0, "week": 1, "day": 0,
-		"civic": {"chassis_id": "CHASSIS_0001", "base_car_id": "eg6_sir_ii_1995"},
+		"civic": {"chassis_id": "CHASSIS_0001", "base_car_id": "eg6_sir_ii_1995", "installed": {}},
 		"history": [], "night": {},
-		"inventory": [], "installed": {}, "pity": {}, "next_uid": 1}
+		"inventory": [], "next_uid": 1,
+		"market": {"seeded": false, "used_listings": []}}
 
 
 func load_game() -> void:
@@ -129,7 +123,7 @@ func migrate(data: Dictionary) -> Dictionary:
 		for id in data.get("owned_parts", []):
 			var uid := "p%d" % n
 			n += 1
-			inv.append({"uid": uid, "part": id, "quality": NEW_QUALITY, "revealed": true,
+			inv.append({"uid": uid, "part": id, "quality": 0.5, "revealed": true,
 				"source": "shop"})
 			uid_of[id] = uid
 		var installed := {}
@@ -159,6 +153,36 @@ func migrate(data: Dictionary) -> Dictionary:
 		civic["chassis_id"] = "CHASSIS_0001"
 	if not civic.has("base_car_id"):
 		civic["base_car_id"] = "eg6_sir_ii_1995"
+	if v < 7:                        # v6 -> v7: fixed-spec physical ownership
+		var owned := []
+		var known_uids := {}
+		var next_uid := maxi(1, int(data.get("next_uid", 1)))
+		for old in data.get("inventory", []):
+			if typeof(old) != TYPE_DICTIONARY:
+				continue
+			var uid := str(old.get("uid", ""))
+			var part := str(old.get("part", ""))
+			if uid == "" or part == "" or known_uids.has(uid):
+				continue
+			known_uids[uid] = true
+			owned.append({"uid": uid, "part": part, "source": "legacy",
+				"acquired_price": 0, "acquired_week": 0, "acquired_day": 0})
+			if uid.begins_with("p") and uid.substr(1).is_valid_int():
+				next_uid = maxi(next_uid, int(uid.substr(1)) + 1)
+		var installed := {}
+		for slot in data.get("installed", {}):
+			var uid := str(data["installed"][slot])
+			if known_uids.has(uid):
+				installed[slot] = uid
+		civic["installed"] = installed
+		data["inventory"] = owned
+		data["next_uid"] = next_uid
+		data["market"] = {"seeded": false, "used_listings": []}
+		data.erase("installed")
+		data.erase("pity")
+		v = 7
+	if not civic.has("installed"):
+		civic["installed"] = {}
 	data["civic"] = civic
 	data["version"] = v
 	return data
@@ -343,9 +367,6 @@ func show_intro() -> void:
 
 
 func show_warehouse() -> void:
-	if state["cash"] < MIN_BUY_IN:
-		show_broke()
-		return
 	var ev := next_event()
 	var record := wins_losses()
 	var info := common_info()
@@ -363,52 +384,49 @@ func show_car() -> void:
 	if catalog.is_empty():
 		show_message("THE CAR", "Checking the parts shelf...")
 		after_catalog = "car"
-		bridge.request("parts", ["parts"])
+		bridge.request("parts", ["shop_catalog"])
 		return
 	if car_stats.is_empty():
 		show_message("THE CAR", "Strapping the EG6 to the dyno...")
 		after_car_stats = "car"
 		bridge.request("car_stats", ["car_stats"] + parts_args())
 		return
-	# Dropdown options per slot: every revealed part you own, with its quality
+	# Dropdown options per slot: every compatible physical part you own.
 	var options := {}
 	for inst in state["inventory"]:
-		if not inst["revealed"]:
-			continue
 		var p := part_by_id(inst["part"])
+		if p.is_empty():
+			continue
 		if not options.has(p["slot"]):
 			options[p["slot"]] = []
-		options[p["slot"]].append([inst["uid"], "%s  (Q %d%%)" % [p["name"], quality_pct(inst)]])
+		options[p["slot"]].append([inst["uid"], p["name"]])
 	var car: Control = open_hub(CarScene, "car")
 	car.part_changed.connect(install_part)
 	car.setup(common_info(), car_stats,
-		{"slots": catalog["slots"], "options": options, "installed": state["installed"]})
+		{"slots": catalog["slots"], "options": options, "installed": state["civic"]["installed"]})
 
 
 func show_shop() -> void:
 	if catalog.is_empty():
 		show_message("PARTS", "Checking the parts shelf...")
 		after_catalog = "shop"
-		bridge.request("parts", ["parts"])
+		bridge.request("parts", ["shop_catalog"])
 		return
 	var shop: Control = open_hub(ShopScene, "shop")
-	shop.buy.connect(buy_part)
-	shop.pull.connect(do_pull)
-	shop.sell.connect(sell_instance)
-	shop.reveal.connect(func(uid): show_reveal(instance(uid)))
-	shop.setup(common_info(), catalog, state["inventory"], state["installed"],
-		state["pity"], shop_message)
+	shop.buy_retail.connect(buy_retail)
+	shop.buy_used.connect(buy_used)
+	shop.setup(common_info(), catalog, state["inventory"], state["civic"]["installed"],
+		state["market"]["used_listings"], shop_message)
 	shop_message = ""
 
 
-## Installed parts for every sim call, as id@quality: the car being simulated
-## is the exact car in the warehouse, rolls included.
+## Installed fixed-spec definitions for every sim call.
 func parts_args() -> Array:
 	var entries := []
-	for slot in state["installed"]:
-		var inst := instance(state["installed"][slot])
+	for slot in state["civic"]["installed"]:
+		var inst := instance(state["civic"]["installed"][slot])
 		if not inst.is_empty():
-			entries.append("%s@%.4f" % [inst["part"], float(inst["quality"])])
+			entries.append(inst["part"])
 	entries.sort()
 	return [] if entries.is_empty() else ["--parts", ",".join(entries)]
 
@@ -427,128 +445,105 @@ func instance(uid: String) -> Dictionary:
 	return {}
 
 
-func quality_pct(inst: Dictionary) -> int:
-	return int(round(float(inst["quality"]) * 100))
+func accept_shop_catalog(data: Dictionary) -> void:
+	catalog = data
+	var market: Dictionary = state["market"]
+	var changed := false
+	if not market.get("seeded", false):
+		market["used_listings"] = data["initial_used"].duplicate(true)
+		market["seeded"] = true
+		changed = true
+	var valid_inventory := []
+	var by_uid := {}
+	for inst in state["inventory"]:
+		if typeof(inst) != TYPE_DICTIONARY or not inst.has("uid") or not inst.has("part"):
+			continue
+		var p := part_by_id(str(inst["part"]))
+		var uid := str(inst["uid"])
+		if p.is_empty() or uid == "" or by_uid.has(uid):
+			continue
+		by_uid[uid] = p
+		valid_inventory.append(inst)
+	if valid_inventory.size() != state["inventory"].size():
+		state["inventory"] = valid_inventory
+		changed = true
+	var valid_installed := {}
+	for slot in state["civic"]["installed"]:
+		var uid := str(state["civic"]["installed"][slot])
+		if by_uid.has(uid) and by_uid[uid]["slot"] == slot and not uid in valid_installed.values():
+			valid_installed[slot] = uid
+	if valid_installed != state["civic"]["installed"]:
+		state["civic"]["installed"] = valid_installed
+		changed = true
+	if changed:
+		save_game()
 
 
-func add_instance(part_id: String, quality: float, revealed: bool, source: String,
-		effects_text := []) -> Dictionary:
-	var inst := {"uid": "p%d" % int(state["next_uid"]), "part": part_id, "quality": quality,
-		"revealed": revealed, "source": source, "effects_text": effects_text}
+func add_instance(part_id: String, source: String, price: int,
+		seller_id := "", listing_id := "") -> Dictionary:
+	var uid := "p%d" % int(state["next_uid"])
+	while not instance(uid).is_empty():
+		state["next_uid"] = int(state["next_uid"]) + 1
+		uid = "p%d" % int(state["next_uid"])
+	var inst := {"uid": uid, "part": part_id, "source": source,
+		"acquired_price": price, "acquired_week": int(state["week"]),
+		"acquired_day": int(state["day"])}
+	if seller_id != "":
+		inst["seller_id"] = seller_id
+		inst["listing_id"] = listing_id
 	state["next_uid"] = int(state["next_uid"]) + 1
 	state["inventory"].append(inst)
 	return inst
 
 
-func can_spend(amount: int) -> bool:
-	## The game never lets you spend below the race buy-in (soft-lock guard).
-	return int(state["cash"]) - amount >= MIN_BUY_IN
-
-
-## The counter sells commons, new in box (exactly the catalog spec).
-func buy_part(id: String) -> void:
-	var p := part_by_id(id)
-	if p.is_empty() or p["rarity"] != "common":
+func buy_retail(id: String) -> void:
+	if not id in catalog["retail_ids"]:
 		return
-	if not can_spend(int(p["price"])):
-		shop_message = "Can't: that would leave less than the %s buy-in." % UI.money(MIN_BUY_IN)
+	var p := part_by_id(id)
+	if p.is_empty() or int(state["cash"]) < int(p["price"]):
+		shop_message = "Not enough cash for that part."
 		show_shop()
 		return
 	state["cash"] = int(state["cash"]) - int(p["price"])
-	var inst := add_instance(id, NEW_QUALITY, true, "shop", p["effects_text"])
-	shop_message = "Bought and installed: %s." % p["name"]
-	install_part(p["slot"], inst["uid"], false)
+	add_instance(id, "retail", int(p["price"]))
+	save_game()
+	shop_message = "Bought %s. Find it under CAR to install." % p["name"]
 	show_shop()
 
 
-## Pull from an in-world source: rep gate, cash, then the bridge rolls it.
-func do_pull(source: String) -> void:
-	var src: Dictionary = catalog["sources"][source]
-	if int(state["rep"]) < int(src["rep_required"]):
-		shop_message = "%s needs %d rep." % [src["name"], int(src["rep_required"])]
-		show_shop()
-		return
-	if not can_spend(int(src["price"])):
-		shop_message = "Can't: that would leave less than the %s buy-in." % UI.money(MIN_BUY_IN)
-		show_shop()
-		return
-	state["cash"] = int(state["cash"]) - int(src["price"])
-	save_game()                                   # paid: a crash or quit can't refund it
-	show_message("PULLING", "%s..." % src["name"])
-	bridge.request("pull", ["pull", "--source", source, "--seed", str(randi() % 1000000),
-		"--pity", JSON.stringify(state["pity"])])
-
-
-func on_pulled(data: Dictionary) -> void:
-	state["pity"] = data["pity"]
-	var inst := add_instance(data["part"], float(data["quality"]), false, data["source"],
-		data["effects_text"])
-	save_game()
-	show_reveal(inst)
-
-
-## The dyno reveal: rarity and name first, numbers hidden until you dyno it.
-func show_reveal(inst: Dictionary, revealed := false) -> void:
-	var p := part_by_id(inst["part"])
-	var col := new_screen()
-	var src_name: String = catalog["sources"].get(inst["source"], {}).get("name", "Loot drop") \
-		if inst["source"] != "shop" else "Parts counter"
-	UI.label(col, "FROM: %s" % src_name.to_upper(), "HeadingLabel")
-	UI.spacer(col, false).custom_minimum_size.y = 20
-	var rarity := UI.label(col, str(p["rarity"]).to_upper(), "TitleLabel", RARITY_COLORS[p["rarity"]])
-	rarity.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var name := UI.label(col, p["name"], "BigNumberLabel")
-	name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	UI.label(col, str(catalog["slots"][p["slot"]]), "MutedLabel").horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var box := UI.vbox(UI.panel(col), 6)
-	if revealed or inst["revealed"]:
-		inst["revealed"] = true
+func buy_used(listing_id: String) -> void:
+	var listings: Array = state["market"]["used_listings"]
+	for i in listings.size():
+		var listing: Dictionary = listings[i]
+		if listing["listing_id"] != listing_id:
+			continue
+		var p := part_by_id(listing["part"])
+		if p.is_empty() or int(state["cash"]) < int(listing["price"]):
+			shop_message = "Not enough cash for that listing."
+			show_shop()
+			return
+		state["cash"] = int(state["cash"]) - int(listing["price"])
+		add_instance(listing["part"], "used", int(listing["price"]),
+			listing["seller_id"], listing_id)
+		listings.remove_at(i)
 		save_game()
-		var q := UI.label(box, "QUALITY %d%%" % quality_pct(inst), "TitleLabel",
-			UI.GOOD if float(inst["quality"]) >= 0.5 else UI.BAD)
-		q.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		for line in inst["effects_text"]:
-			UI.label(box, line).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		UI.label(box, p["blurb"], "MutedLabel").horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		var fade := create_tween()
-		box.modulate.a = 0.0
-		fade.tween_property(box, "modulate:a", 1.0, 0.6)
-		var row := UI.hbox(footer, 10)
-		UI.button(row, "Keep as spare", show_shop)
-		var inst_btn := UI.button(row, "INSTALL", func():
-			install_part(p["slot"], inst["uid"], false)
-			shop_message = "Installed: %s (Q %d%%)." % [p["name"], quality_pct(inst)]
-			show_shop(), "AccentButton")
-		inst_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	else:
-		var hidden := UI.label(box, "? ? ?", "TitleLabel")
-		hidden.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		UI.label(box, "Quality and exact specs unknown until it's on the dyno.", "MutedLabel")
-		UI.button(footer, "DYNO IT", func(): show_reveal(inst, true), "DangerButton")
-		UI.button(footer, "Later", show_shop)
-
-
-## Sell a spare for scrap. Installed parts must be swapped out first.
-func sell_instance(uid: String) -> void:
-	var inst := instance(uid)
-	if inst.is_empty() or uid in state["installed"].values():
+		shop_message = "Bought %s. Find it under CAR to install." % p["name"]
+		show_shop()
 		return
-	var p := part_by_id(inst["part"])
-	var value := int(round(float(p["price"]) * SCRAP_RATE * (0.5 + float(inst["quality"]))))
-	state["cash"] = int(state["cash"]) + value
-	state["inventory"].erase(inst)
-	save_game()
-	shop_message = "Sold %s for %s." % [p["name"], UI.money(value)]
-	show_shop()
 
 
 ## Swap what's in a slot ("" = back to stock). The car changed, so its stats
 ## and practice runs are stale.
 func install_part(slot: String, uid: String, refresh := true) -> void:
 	if uid == "":
-		state["installed"].erase(slot)
+		state["civic"]["installed"].erase(slot)
 	else:
-		state["installed"][slot] = uid
+		var inst := instance(uid)
+		if inst.is_empty() or part_by_id(inst["part"]).get("slot", "") != slot:
+			return
+		if uid in state["civic"]["installed"].values() and state["civic"]["installed"].get(slot, "") != uid:
+			return
+		state["civic"]["installed"][slot] = uid
 	car_stats = {}
 	practice = {}
 	save_game()
@@ -596,6 +591,10 @@ func wins_losses() -> Vector2i:
 
 
 func show_briefing() -> void:
+	if int(state["cash"]) < MIN_BUY_IN:
+		show_message("RACE NIGHT", "The current wager needs %s. Your Civic and garage remain available." % UI.money(MIN_BUY_IN),
+			"BACK TO HOME", show_warehouse)
+		return
 	var ev := next_event()
 	# A saved night belongs to one calendar event; a stale one gets redrawn
 	if not state["night"].is_empty() and state["night"].get("event") != event_key(ev):
@@ -613,13 +612,13 @@ func show_briefing() -> void:
 		show_message("SCOUTING", "Driving the road in daylight.")
 		bridge.request("track", ["track", "--track", state["night"]["track"]])
 		return
+	if catalog.is_empty():
+		after_catalog = "race"
+		bridge.request("parts", ["shop_catalog"])
+		return
 	if practice.is_empty():
 		show_message("PRACTICE", "Faba's running the road at every push level.")
 		bridge.request("practice", ["practice", "--track", state["night"]["track"]] + parts_args())
-		return
-	if catalog.is_empty():
-		after_catalog = "race"
-		bridge.request("parts", ["parts"])
 		return
 	show_meeting()
 
@@ -728,7 +727,7 @@ func apply_result(r: Dictionary) -> Dictionary:
 		"wager": wager, "cash_change": wager if won else -wager,
 		"rep_change": REP_WIN if won else 0, "mistakes": r["mistakes"],
 		"practice_beat": beat.x, "practice_runs": beat.y,
-		"parts": parts_args(), "loot": ""}
+		"parts": parts_args()}
 	state["cash"] = int(state["cash"]) + int(result["cash_change"])
 	state["rep"] = int(state["rep"]) + int(result["rep_change"])
 	state["followers"] = int(state["rep"])
@@ -771,21 +770,7 @@ func show_results(result: Dictionary) -> void:
 	UI.label(reveal, "In practice, %d of %d runs at %s push beat %s's %.2f." % [
 		result["practice_beat"], result["practice_runs"], str(result["push"]).replace("_", " "),
 		result["rival"], result["posted"]], "MutedLabel")
-	if result.get("loot", "") != "":
-		var loot := UI.vbox(UI.panel(col), 4)
-		UI.label(loot, "LOOT", "HeadingLabel")
-		var lp := part_by_id(result["loot"])
-		UI.label(loot, "%s paid up with more than cash: an unopened %s %s. Dyno it in Parts." % [
-			result["rival"], str(lp.get("rarity", "")), lp.get("name", result["loot"])])
 	UI.button(footer, "BACK TO THE WAREHOUSE", show_warehouse, "AccentButton")
-
-
-func show_broke() -> void:
-	var record := wins_losses()
-	show_message("BROKE",
-		"%s left. You can't cover the %s buy-in.\n\nRecord %d W - %d L, rep %d.\n\nThe warehouse goes quiet. (Pink slips come later.)" % [
-			UI.money(state["cash"]), UI.money(MIN_BUY_IN), record.x, record.y, int(state["rep"])],
-		"START OVER", reset_game)
 
 
 # ------------------------------------------------------------------ bridge replies
@@ -799,7 +784,7 @@ func _on_reply(tag: String, data: Dictionary) -> void:
 			car_stats = data
 			_go(after_car_stats)
 		"parts":
-			catalog = data
+			accept_shop_catalog(data)
 			_go(after_catalog)
 		"night":
 			data["event"] = event_key(next_event())
@@ -808,16 +793,6 @@ func _on_reply(tag: String, data: Dictionary) -> void:
 			track_info = {}            # a new night can be a new road:
 			practice = {}              # drop the old road's map and practice runs
 			show_briefing()
-		"pull":
-			on_pulled(data)
-		"loot":
-			var r: Dictionary = pending_race["result"]
-			var inst := add_instance(data["part"], float(data["quality"]), false, "loot",
-				data["effects_text"])
-			r["loot"] = inst["part"]
-			state["history"][-1]["loot"] = inst["part"]
-			save_game()
-			show_race(pending_race["replay"], r)
 		"track":
 			track_info = data
 			show_briefing()
@@ -826,12 +801,7 @@ func _on_reply(tag: String, data: Dictionary) -> void:
 			show_briefing()
 		"race":
 			var result := apply_result(data)
-			if result["won"] and randf() < LOOT_CHANCE:
-				# The rival paid up in parts too: roll it before the replay starts
-				pending_race = {"replay": data["replay"], "result": result}
-				bridge.request("loot", ["pull", "--source", "loot", "--seed", str(randi() % 1000000)])
-			else:
-				show_race(data["replay"], result)
+			show_race(data["replay"], result)
 
 
 # ------------------------------------------------------------------ self-test
@@ -879,6 +849,7 @@ func game_test() -> void:
 	if not game_test_reply_ok(r):
 		return
 	print("GAMETEST car: %s, %d hp, dyno points %d" % [r[1]["name"], r[1]["hp"], r[1]["dyno"].size()])
+	var stock_skidpad_g := float(r[1]["skidpad_g"])
 	bridge.request("rival", ["rival", "--rival", RIVAL_FILE, "--seed", "42"])
 	r = await bridge.replied
 	if not game_test_reply_ok(r):
@@ -906,45 +877,99 @@ func game_test() -> void:
 		result["time"], result["posted"], "WIN" if result["won"] else "LOSS", state["cash"],
 		result["practice_beat"], result["practice_runs"]])
 	print("GAMETEST calendar after race: %s" % when(state["week"], state["day"]))
-	bridge.request("parts", ["parts"])
+	bridge.request("parts", ["shop_catalog"])
 	r = await bridge.replied
 	if not game_test_reply_ok(r):
 		return
-	catalog = r[1]
-	print("GAMETEST catalog: %d parts in %d slots" % [catalog["parts"].size(), catalog["slots"].size()])
-	state["cash"] = 1000
-	state["rep"] = 0
-	shop_message = ""
-	buy_part("rsb_19")
-	buy_part("cams_race")                    # not a common: the counter won't sell it
-	if state["inventory"].size() != 1 or not state["installed"].has("rear_sway"):
-		push_error("GAMETEST FAIL common part purchase/install")
+	accept_shop_catalog(r[1])
+	if catalog.has("sources") or catalog["parts"].any(func(p): return p.has("rarity")):
+		push_error("GAMETEST FAIL active shop exposes gacha data")
 		get_tree().quit(1)
 		return
-	print("GAMETEST bought: %s, installed %s, cash %d" % [
-		state["inventory"].map(func(i): return i["part"]), state["installed"], state["cash"]])
-	state["cash"] = 1000
-	do_pull("crate")                         # needs 100 rep: refused
-	print("GAMETEST crate at 0 rep refused: cash still %d" % state["cash"])
-	bridge.request("pull", ["pull", "--source", "junkyard", "--seed", "3", "--pity", "{}"])
-	r = await bridge.replied
-	if not game_test_reply_ok(r):
+	print("GAMETEST EG6 catalog: %d compatible parts, %d retail, %d used" % [
+		catalog["parts"].size(), catalog["retail_ids"].size(), state["market"]["used_listings"].size()])
+	state["cash"] = START_CASH
+	state["rep"] = 0
+	shop_message = ""
+	buy_retail("rsb_19")
+	if state["cash"] != START_CASH - 320 or state["inventory"].size() != 1 or not state["civic"]["installed"].is_empty():
+		push_error("GAMETEST FAIL retail cash, instance, or spare state")
+		get_tree().quit(1)
 		return
-	var pr: Dictionary = r[1]
-	state["pity"] = pr["pity"]
-	var inst := add_instance(pr["part"], float(pr["quality"]), false, "junkyard", pr["effects_text"])
-	print("GAMETEST pulled: %s (%s), quality %.2f, pity %s" % [pr["name"], pr["rarity"], pr["quality"], pr["pity"]])
-	install_part(pr["slot"], inst["uid"], false)
-	print("GAMETEST parts args: %s" % [parts_args()])
+	var retail_uid: String = state["inventory"][0]["uid"]
+	if state["inventory"][0]["part"] != "rsb_19" or state["inventory"][0].has("quality") or state.has("pity"):
+		push_error("GAMETEST FAIL retail definition or gacha fields")
+		get_tree().quit(1)
+		return
+	var listings_before: int = state["market"]["used_listings"].size()
+	buy_used("USED_0003")
+	if state["cash"] != START_CASH - 320 - 240 or state["inventory"].size() != 2 or state["market"]["used_listings"].size() != listings_before - 1:
+		push_error("GAMETEST FAIL used purchase transaction")
+		get_tree().quit(1)
+		return
+	var used_uid: String = state["inventory"][1]["uid"]
+	if used_uid == retail_uid or state["inventory"][1]["part"] != "rsb_19" or state["inventory"][1]["listing_id"] != "USED_0003":
+		push_error("GAMETEST FAIL used instance identity/provenance")
+		get_tree().quit(1)
+		return
+	var cash_after_used := int(state["cash"])
+	buy_used("USED_0003")
+	accept_shop_catalog(catalog)
+	if state["cash"] != cash_after_used or state["inventory"].size() != 2 or state["market"]["used_listings"].size() != listings_before - 1:
+		push_error("GAMETEST FAIL purchased used listing reappeared")
+		get_tree().quit(1)
+		return
+	install_part("rear_sway", retail_uid, false)
+	if state["civic"]["installed"].get("rear_sway", "") != retail_uid or parts_args() != ["--parts", "rsb_19"]:
+		push_error("GAMETEST FAIL owned UID to installed definition")
+		get_tree().quit(1)
+		return
 	bridge.request("car_stats", ["car_stats"] + parts_args())
 	r = await bridge.replied
 	if not game_test_reply_ok(r):
 		return
-	print("GAMETEST car with parts: %d kg" % r[1]["weight_kg"])
-	install_part(pr["slot"], "", false)
-	var cash_before := int(state["cash"])
-	sell_instance(inst["uid"])
-	print("GAMETEST sold spare: +%d cash" % (int(state["cash"]) - cash_before))
+	var retail_stats: Dictionary = r[1]
+	if float(retail_stats["skidpad_g"]) <= stock_skidpad_g:
+		push_error("GAMETEST FAIL installed UID did not change EG6 physical behavior")
+		get_tree().quit(1)
+		return
+	install_part("rear_sway", used_uid, false)
+	if state["inventory"].size() != 2 or parts_args() != ["--parts", "rsb_19"]:
+		push_error("GAMETEST FAIL replacement duplicated/destroyed an item")
+		get_tree().quit(1)
+		return
+	bridge.request("car_stats", ["car_stats"] + parts_args())
+	r = await bridge.replied
+	if not game_test_reply_ok(r):
+		return
+	if r[1]["skidpad_g"] != retail_stats["skidpad_g"] or r[1]["zero_60_s"] != retail_stats["zero_60_s"]:
+		push_error("GAMETEST FAIL source/history altered fixed-spec physics")
+		get_tree().quit(1)
+		return
+	install_part("rear_sway", "", false)
+	if state["inventory"].size() != 2 or not state["civic"]["installed"].is_empty():
+		push_error("GAMETEST FAIL uninstall destroyed an owned item")
+		get_tree().quit(1)
+		return
+	install_part("rear_sway", used_uid, false)
+	print("GAMETEST physical parts: retail %s, used %s, installed %s, cash %d" % [
+		retail_uid, used_uid, state["civic"]["installed"], state["cash"]])
+	var old_save := migrate({"version": 6, "cash": 400, "rep": 0, "week": 2, "day": 1,
+		"inventory": [{"uid": "p44", "part": "rsb_19", "quality": 0.99, "revealed": false,
+			"source": "crate"}, {"uid": "p45", "part": "fd_44", "quality": 0.2}],
+		"installed": {"rear_sway": "p44", "final_drive": "missing"}, "next_uid": 2})
+	if old_save["inventory"].size() != 2 or old_save["inventory"][0].has("quality") or old_save["next_uid"] != 46:
+		push_error("GAMETEST FAIL legacy inventory normalization")
+		get_tree().quit(1)
+		return
+	var live_state := state
+	state = old_save
+	accept_shop_catalog(catalog)
+	if state["inventory"].size() != 1 or state["inventory"][0]["uid"] != "p44" or state["civic"]["installed"] != {"rear_sway": "p44"} or parts_args() != ["--parts", "rsb_19"]:
+		push_error("GAMETEST FAIL incompatible/dangling legacy installation cleanup")
+		get_tree().quit(1)
+		return
+	state = live_state
 	print("GAMETEST migrate v3: %s" % [migrate({"version": 3, "cash": 1, "rep": 0, "week": 1, "day": 0,
 		"history": [], "night": {}, "owned_parts": ["rsb_19"], "installed": {"rear_sway": "rsb_19"}})])
 	bridge.request("night", ["street", "--week", "3", "--seed", "8"])
@@ -965,8 +990,8 @@ func game_test() -> void:
 	print("GAMETEST skip with 60 rep: rep %d, %s" % [state["rep"], when(state["week"], state["day"])])
 	save_game()
 	load_game()
-	if state["civic"]["chassis_id"] != "CHASSIS_0001" or state["civic"]["base_car_id"] != "eg6_sir_ii_1995":
-		push_error("GAMETEST FAIL Civic identity lost on save/reload")
+	if state["civic"]["chassis_id"] != "CHASSIS_0001" or state["civic"]["base_car_id"] != "eg6_sir_ii_1995" or state["civic"]["installed"].get("rear_sway", "") != used_uid or state["inventory"].size() != 2 or state["inventory"][0]["uid"] != retail_uid or state["inventory"][1]["uid"] != used_uid or state["market"]["used_listings"].size() != listings_before - 1 or state["market"]["used_listings"].any(func(listing): return listing["listing_id"] == "USED_0003"):
+		push_error("GAMETEST FAIL Civic parts/listings lost on save/reload")
 		get_tree().quit(1)
 		return
 	print("GAMETEST Civic identity: %s / %s (new, migrated, reloaded)" % [state["civic"]["chassis_id"], state["civic"]["base_car_id"]])
@@ -989,16 +1014,12 @@ func game_shots(folder: String) -> void:
 	car_stats = (await bridge.replied)[1]
 	show_warehouse()
 	await snap(folder, "1_warehouse")
-	bridge.request("parts", ["parts"])
-	catalog = (await bridge.replied)[1]
-	state["cash"] = 900
-	state["rep"] = 40
-	var a := add_instance("interior_strip", 0.5, true, "shop", part_by_id("interior_strip")["effects_text"])
-	var b := add_instance("rsb_19", 0.5, true, "shop", part_by_id("rsb_19")["effects_text"])
-	add_instance("shifter_short", 0.71, true, "junkyard", ["shift time 0.40 s -> 0.31 s"])
-	add_instance("cams_street", 0.62, false, "swap_meet", ["+5.9 hp peak"])
-	state["installed"] = {"interior": a["uid"], "rear_sway": b["uid"]}
-	shop_message = "Bought and installed: Rear sway bar 19 mm."
+	bridge.request("parts", ["shop_catalog"])
+	accept_shop_catalog((await bridge.replied)[1])
+	var b := add_instance("rsb_19", "retail", 320)
+	add_instance("shifter_short", "retail", 300)
+	state["civic"]["installed"] = {"rear_sway": b["uid"]}
+	shop_message = "Bought Rear sway bar 19 mm."
 	show_shop()
 	await snap(folder, "1a_shop")
 	bridge.request("car_stats", ["car_stats"] + parts_args())
@@ -1007,18 +1028,10 @@ func game_shots(folder: String) -> void:
 	await snap(folder, "1b_car")
 	hub_content.get_node("%Scroll").scroll_vertical = 900
 	await snap(folder, "1b_car_parts")
-	bridge.request("pull", ["pull", "--source", "swap_meet", "--seed", "4", "--pity", "{}"])
-	var pr: Dictionary = (await bridge.replied)[1]
-	var pulled := add_instance(pr["part"], float(pr["quality"]), false, "swap_meet", pr["effects_text"])
-	show_reveal(pulled)
-	await snap(folder, "1d_pull")
-	show_reveal(pulled, true)
-	await get_tree().create_timer(0.8).timeout
-	await snap(folder, "1e_dyno_reveal")
-	state["cash"] = 250
+	state["cash"] = START_CASH
 	state["rep"] = 0
 	state["inventory"] = []
-	state["installed"] = {}
+	state["civic"]["installed"] = {}
 	state["history"] = [{"when": "FRI, WEEK 1", "rival": "Zed", "won": true, "cash_change": 150},
 		{"when": "SAT, WEEK 1", "rival": "Zed", "won": false, "cash_change": -100}]
 	state["week"] = 2
