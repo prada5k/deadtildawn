@@ -30,7 +30,6 @@ const SHOTS := {"warehouse": "home", "car": "car", "bodyshop": "bodyshop", "shop
 	"calendar": "phone", "team": "team"}
 
 var lot: Control              # the stage (stage())
-const VF_ABOVE_NAV := 120.0
 var stickers := {}            # tab -> its sticker (empty: the drawers)
 var open_tab := ""
 var taps := 0
@@ -170,8 +169,12 @@ func stage() -> Control:
 		var vf: Control = Viewfinder.new()
 		vf.theme_type_variation = "Viewfinder"
 		vf.set_anchors_preset(Control.PRESET_FULL_RECT)
-		vf.offset_bottom = -VF_ABOVE_NAV                  # its date stamp sits above the nav stickers
 		%Backdrop.add_child(vf)
+		# Its bottom brackets sit just above the nav, in the gap under the
+		# content (ContentMargin's bottom margin), so no button lands on them
+		var fit := func(): vf.offset_bottom = -%BottomNavBar.size.y
+		%BottomNavBar.resized.connect(fit)
+		fit.call()
 	return lot
 
 

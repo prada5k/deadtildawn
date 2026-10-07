@@ -71,7 +71,7 @@ theme_override_constants/separation = 0
 [node name="TopRail" type="MarginContainer" parent="Column"]
 layout_mode = 2
 theme_override_constants/margin_left = 24
-theme_override_constants/margin_top = 40
+theme_override_constants/margin_top = 74
 theme_override_constants/margin_right = 24
 theme_override_constants/margin_bottom = 6
 
@@ -166,7 +166,7 @@ size_flags_vertical = 3
 theme_override_constants/margin_left = 24
 theme_override_constants/margin_top = 14
 theme_override_constants/margin_right = 24
-theme_override_constants/margin_bottom = 14
+theme_override_constants/margin_bottom = 34
 
 [node name="ContentSlot" type="Control" parent="Column/ContentMargin"]
 unique_name_in_owner = true

@@ -46,23 +46,23 @@ const PULL_BLURBS := {
 
 # Dyno sheet margin note (quality %); nothing in between
 const DYNO_GREAT := "yoooooo wtf!!"
-const DYNO_GREAT_AT := 80
+const DYNO_GREAT_AT := 85
 const DYNO_JUNK := "mannnnn i guess ill take it"
-const DYNO_JUNK_BELOW := 25
+const DYNO_JUNK_BELOW := 20
 
 # Whiteboard: who the middle finger is for; a skipped night on the race list
 const BOARD_RIVAL := "zed"
 const BOARD_SKIPPED := "bitched tf out"
 
 # BROKE screen title
-const BROKE := "you fucked up pa"
+const BROKE := "pockets empty pa"
 
 
 # ---------------------------------------------------------------- Faba
 # Faba talks at the turnout (race night). Speech bubbles, his words.
 
 # Meeting: what he says when you pull up
-const FABA_RIVAL_NIGHT := "he doesnt want it like that"
+const FABA_RIVAL_NIGHT := "he doesnt the smoke"
 const FABA_OPEN_NIGHT := "can we go get food after i win"
 
 # Meeting: his take on each push level (the risk is printed under it)
@@ -79,7 +79,7 @@ const FABA_BIG_BET := "damnnnn mr deep pockets over here"
 const BIG_BET_SHARE := 0.75
 
 # Results
-const FABA_WON := "did you expect anything else"
+const FABA_WON := "light work"
 const FABA_LOST := "fuck that foo"
 const FABA_CRASHED := "brah fuckkkkk we might be cooked"
 const FABA_NO_CONTEST := "come on son"
@@ -118,7 +118,7 @@ const BODYSHOP_NOTE := "Looks only. The sim doesn't care what color it is. Faba 
 # The Japanese under it: 環状族 (kanjo-zoku, "loop tribe", what the Osaka loop
 # crews are called). DRAFTS by Claude -- Spire names the crew. Have a Japanese
 # speaker check any Japanese before it's anywhere permanent.
-const CREW_NAME := "DEADTILDAWN"
+const CREW_NAME := "contraband96"
 const CREW_SUB := "環状族  ·  SOCAL"
 const BANNER_TEXT := CREW_NAME
 # The results hanko (red seal): win, loss (a crash too), no contest
@@ -129,7 +129,7 @@ const HANKO := {"win": "勝", "loss": "負", "no_contest": "引"}
 const COPS_TITLE := "CITATION"
 const COPS_CHARGES := ["SPEEDING  (CVC 22350)", "RECKLESS DRIVING  (CVC 23103)"]
 const COPS_SEIZED := "the winnings went in an evidence bag"
-const FABA_COPS := "CHP was sitting at the bottom of the hill bro"
+const FABA_COPS := "spotter didnt do his job bruh chp got us"
 
 # Jorge mode (code "jorge", Spire): you win, he doesn't pay. What he says, and
 # the receipt's note
@@ -209,23 +209,21 @@ const STORY_TAPE := [
 # ["faba", text] or ["me", text] is a message.
 const STORY_TEXTS := [
 	["when", "MAR 2021"],
-	["faba", "u up?"],
-	["me", "cant sleep"],
-	["faba", "im outside. bringing food"],
+	["faba", "race?"],
+	["me", "been done with that..."],
+	["faba", "damn alr"],
 	["when", "AUG 2023"],
-	["faba", "u ever think about going back up the mountain"],
-	["me", "no"],
+	["faba", "u ever gonna run it again?"],
+	["me", "nah cant drive"],
 	["when", "OCT 2026"],
-	["faba", "i quit my job lol"],
-	["me", "????"],
-	["faba", "and i bought a civic"],
+	["faba", "i just got laid off"],
 	["me", "bro what"],
-	["faba", "96 DX. 5 speed. stock as hell"],
-	["faba", "and a warehouse"],
-	["faba", "you build it. i drive it"],
-	["me", "the 370 still running the mountain?"],
-	["faba", "every friday"],
-	["me", "send me the address"],
+	["me", "whats the move"],
+	["faba", "96 5speed civic"],
+	["faba", "lets run it back"],
+	["me", "i cant drive tho"],
+	["faba", "i can"],
+	["me", "alr then"],
 ]
 const STORY_FA5 := "2009 Honda Civic Si (FA5)"
 const STORY_BOSS := "2009 Nissan 370Z"

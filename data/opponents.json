@@ -2,7 +2,7 @@
   "notes": "Opponents: game-tuned cars defined as CHANGES to the base car (data/cars/ej6_dx_coupe_1996.json), using the same effects as parts, plus drivetrain and weight_front. `condition` scales the engine's output (a tired engine on the street): it is calibrated by tools/calibrate_opponents.py so a STOCK DX at its best push level has `target_odds` against them on `calibrate_on` (or the street reference road). The stat card shows the resulting horsepower truthfully. Drivers are authored personalities: push level, consistency (sigma), skill. Oct 2026 (Spire: 'opponents have greater sigma too'): every driver's sigma +0.008 and skill moved halfway to 1.0 (skill shrinks the push target, which made low-skill drivers safe instead of sloppy), so opponents make mistakes and crash like real people. In the game, street racers are re-tuned every night (sim/matchmaking.py) and rivals after you beat them; the condition here is the starting point (rivals) and the default (no --tune).",
   "opponents": {
     "zed_280z": {
-      "name": "Zed",
+      "name": "LJ",
       "car": "1977 Nissan 280Z",
       "drivetrain": "RWD",
       "weight_front": 0.53,
@@ -39,7 +39,7 @@
       "condition": 0.7515
     },
     "bree_miata": {
-      "name": "Bree",
+      "name": "Hussein",
       "car": "1994 Mazda MX-5 Miata",
       "drivetrain": "RWD",
       "weight_front": 0.52,
@@ -57,7 +57,7 @@
       "condition": 0.6521
     },
     "dez_ae86": {
-      "name": "Dez",
+      "name": "Dom",
       "car": "1989 Toyota Corolla GT-S (AE86)",
       "drivetrain": "RWD",
       "weight_front": 0.53,
@@ -74,7 +74,7 @@
       "condition": 0.9048
     },
     "monk_integra": {
-      "name": "Monk",
+      "name": "diggy",
       "car": "1997 Acura Integra GS-R",
       "drivetrain": "FWD",
       "weight_front": 0.62,
@@ -92,7 +92,7 @@
       "condition": 0.7214
     },
     "tavo_mustang": {
-      "name": "Tavo",
+      "name": "Lupe",
       "car": "1993 Ford Mustang LX 5.0",
       "drivetrain": "RWD",
       "weight_front": 0.56,
@@ -110,7 +110,7 @@
       "condition": 0.9033
     },
     "kiki_rsx": {
-      "name": "Kiki",
+      "name": "Sam",
       "car": "2002 Acura RSX Type-S",
       "drivetrain": "FWD",
       "weight_front": 0.62,
@@ -162,7 +162,7 @@
       "condition": 0.9064
     },
     "junebug_mr2": {
-      "name": "Junebug",
+      "name": "Guppely",
       "car": "1990 Toyota MR2",
       "drivetrain": "RWD",
       "weight_front": 0.43,

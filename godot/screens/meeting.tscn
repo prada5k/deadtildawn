@@ -331,7 +331,7 @@ theme_override_constants/margin_bottom = 0
 [node name="FullSheet" type="PanelContainer" parent="MapFull"]
 layout_mode = 2
 mouse_filter = 1
-theme_type_variation = &"PaperPanel"
+theme_type_variation = &"SolidPanel"
 
 [node name="FullBox" type="VBoxContainer" parent="MapFull/FullSheet"]
 layout_mode = 2
