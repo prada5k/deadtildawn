@@ -54,7 +54,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(64, 64)
 layout_mode = 2
 theme_type_variation = &"TitleLabel"
-text = "F"
+text = "C96"
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -67,12 +67,12 @@ alignment = 1
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
-text = "FABA"
+text = "GARAGE 1"
 
 [node name="CrewName" type="Label" parent="Column/TopRail/RailRow/NameBox"]
 layout_mode = 2
 theme_type_variation = &"MutedLabel"
-text = "DEADTILDAWN"
+text = "CONTRABAND96 // SOCAL"
 
 [node name="StatsBox" type="VBoxContainer" parent="Column/TopRail/RailRow"]
 layout_mode = 2
@@ -88,7 +88,7 @@ horizontal_alignment = 2
 [node name="Rep" type="Label" parent="Column/TopRail/RailRow/StatsBox"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "REP 0"
+text = "0 FOLLOWERS"
 horizontal_alignment = 2
 
 [node name="LocationRibbon" type="PanelContainer" parent="Column"]
@@ -100,7 +100,7 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
 theme_override_colors/font_color = Color(0.102, 0.059, 0.063, 1)
-text = "THE WAREHOUSE // TERMINAL_01"
+text = "GARAGE 1 // OXNARD, CA"
 
 [node name="ContentMargin" type="MarginContainer" parent="Column"]
 layout_mode = 2
@@ -122,33 +122,32 @@ theme_override_styles/panel = SubResource("NavBar")
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="ShopButton" type="Button" parent="Column/BottomNavBar/IconBarRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-text = "$"
-
 [node name="CarButton" type="Button" parent="Column/BottomNavBar/IconBarRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "CAR"
 
-[node name="WarehouseButton" type="Button" parent="Column/BottomNavBar/IconBarRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-text = "WHSE"
-
 [node name="CalendarButton" type="Button" parent="Column/BottomNavBar/IconBarRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-text = "CAL"
+text = "CALENDAR"
+
+[node name="WarehouseButton" type="Button" parent="Column/BottomNavBar/IconBarRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "HOME"
 
 [node name="ExtraNavButton" type="Button" parent="Column/BottomNavBar/IconBarRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-disabled = true
-text = "XTR"
+text = "TEAM"
+
+[node name="ShopButton" type="Button" parent="Column/BottomNavBar/IconBarRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "SHOP"
