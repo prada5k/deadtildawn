@@ -1,0 +1,2 @@
+# Open road 8: balanced (sim/trackgen.py seed 1008)
+S 205, L8 20, R6 85, L6 85, S 103, L2 140, R1 155, L5 115, S 115, R2 125, S 62, L6 115, S 127, R2 180, S 119, L5 55, S 116, R6 50, S 218

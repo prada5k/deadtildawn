@@ -1,0 +1,2 @@
+# Open road 7: technical (sim/trackgen.py seed 1007)
+S 161, L5 85, L5 65, S 32, R4 80, S 63, L4 90, S 20, R3 55, S 50, L3 70, L3 60, R8 50, L6 75, R5 65, L4 120, R3 100, S 179

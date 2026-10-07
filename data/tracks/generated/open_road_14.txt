@@ -1,0 +1,2 @@
+# Open road 14: balanced (sim/trackgen.py seed 1014)
+S 151, L4 100, R4 55, S 33, R6 120, S 128, L4 65, S 86, R7 50, S 84, L4 55, R9 45, R6 85, S 145

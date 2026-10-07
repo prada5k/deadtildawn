@@ -49,7 +49,8 @@ func setup(info: Dictionary, catalog: Dictionary, inventory: Array, installed: D
 		var n := UI.label(top, src["name"])
 		n.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		UI.label(top, UI.money(src["price"]), "HeadingLabel")
-		UI.label(card, src["blurb"], "MutedLabel")
+		if src.has("blurb"):
+			UI.label(card, src["blurb"], "MutedLabel")
 		var p: Dictionary = src["pity"]
 		UI.label(card, "Guaranteed %s or better within %d pulls (%d so far)" % [
 			p["rarity"], int(p["within"]), int(pity.get(id, 0))], "MutedLabel")

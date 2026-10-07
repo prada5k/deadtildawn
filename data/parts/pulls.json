@@ -1,0 +1,101 @@
+{
+  "notes": "In-world pulls. rarity_weights are relative. quality = range a pull's hidden quality roll is drawn from (0-1, uniform). pity: a pull of `rarity` or better is guaranteed within `within` pulls of this source. Price in USD (same cash as wagers). rep_required: rep needed to use the source. hidden sources aren't shown in the game (used for loot drops). Flyer lines (blurb + Sharpie note) live in godot/voice.gd (Spire's words). Oct 2026 (Spire): junkyard $150, used marketplace $500 / 50 rep, crate $1250 / 125 rep, import $3000 / 300 rep.",
+  "sources": {
+    "junkyard": {
+      "name": "Junkyard run",
+      "price": 150,
+      "rarity_weights": {
+        "common": 80,
+        "rare": 18,
+        "epic": 2,
+        "legendary": 0
+      },
+      "quality": [
+        0.0,
+        0.7
+      ],
+      "pity": {
+        "rarity": "rare",
+        "within": 8
+      },
+      "rep_required": 0
+    },
+    "swap_meet": {
+      "name": "Used marketplace",
+      "price": 500,
+      "rarity_weights": {
+        "common": 50,
+        "rare": 38,
+        "epic": 10,
+        "legendary": 2
+      },
+      "quality": [
+        0.15,
+        0.9
+      ],
+      "pity": {
+        "rarity": "epic",
+        "within": 15
+      },
+      "rep_required": 50
+    },
+    "crate": {
+      "name": "Sealed crate",
+      "price": 1250,
+      "rarity_weights": {
+        "common": 0,
+        "rare": 60,
+        "epic": 32,
+        "legendary": 8
+      },
+      "quality": [
+        0.4,
+        1.0
+      ],
+      "pity": {
+        "rarity": "legendary",
+        "within": 25
+      },
+      "rep_required": 125
+    },
+    "import": {
+      "name": "Import",
+      "price": 3000,
+      "rarity_weights": {
+        "common": 0,
+        "rare": 25,
+        "epic": 50,
+        "legendary": 25
+      },
+      "quality": [
+        0.55,
+        1.0
+      ],
+      "pity": {
+        "rarity": "legendary",
+        "within": 8
+      },
+      "rep_required": 300
+    },
+    "loot": {
+      "name": "Loot drop",
+      "price": 0,
+      "hidden": true,
+      "rep_required": 0,
+      "rarity_weights": {
+        "common": 50,
+        "rare": 30,
+        "epic": 15,
+        "legendary": 5
+      },
+      "quality": [
+        0.2,
+        0.9
+      ],
+      "pity": {
+        "rarity": "common",
+        "within": 1000000
+      }
+    }
+  }
+}

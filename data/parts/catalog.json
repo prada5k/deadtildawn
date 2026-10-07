@@ -1,0 +1,71 @@
+{
+  "notes": "Each part changes real sim inputs. Effects: torque_scale (whole curve), torque_shape (low/high = fractional change at 1000 rpm / 6800 rpm, linear between), mass_kg (added, negative = lighter), engine_inertia_scale, wheel_inertia_scale, shift_time_s (added), final_drive (set), mu_scale (tire grip at every load), load_k_scale, crr_scale, roll_front (set: front share of roll stiffness), cg_height_m (added). Prices in USD. Rarity is specialization, not strength.",
+  "slots": {
+    "intake": "Intake", "header": "Header", "cams": "Cams", "ecu": "ECU",
+    "flywheel": "Flywheel", "shifter": "Shifter", "final_drive": "Final drive",
+    "tires": "Tires", "wheels": "Wheels",
+    "rear_sway": "Rear sway bar", "springs": "Springs / coilovers",
+    "interior": "Interior", "hood": "Hood", "seats": "Seats"
+  },
+  "parts": [
+    {"id": "intake_short_ram", "slot": "intake", "name": "Short ram intake", "rarity": "common", "price": 300,
+     "effects": {"torque_shape": {"low": 0.015, "high": 0.015}}, "blurb": "A little everywhere. Hot air under the hood holds it back."},
+    {"id": "intake_cold_air", "slot": "intake", "name": "Cold air intake", "rarity": "common", "price": 450,
+     "effects": {"torque_shape": {"low": 0.0, "high": 0.03}}, "blurb": "Cooler, denser air. Helps up top."},
+
+    {"id": "header_421", "slot": "header", "name": "4-2-1 header", "rarity": "rare", "price": 380,
+     "effects": {"torque_shape": {"low": -0.01, "high": 0.045}, "mass_kg": -2}, "blurb": "Street header. Mostly top end."},
+    {"id": "header_41_race", "slot": "header", "name": "4-1 race header", "rarity": "epic", "price": 680,
+     "effects": {"torque_shape": {"low": -0.06, "high": 0.085}, "mass_kg": -3}, "blurb": "Screams up top, soft down low. Hairpins will feel it."},
+
+    {"id": "cams_street", "slot": "cams", "name": "Street cams", "rarity": "rare", "price": 620,
+     "effects": {"torque_shape": {"low": -0.02, "high": 0.06}}, "blurb": "Mild lift and duration. Livable."},
+    {"id": "cams_race", "slot": "cams", "name": "High-rpm race cams", "rarity": "legendary", "price": 1800,
+     "effects": {"torque_shape": {"low": -0.13, "high": 0.16}}, "blurb": "Monster top end, soft below 4000. Best on fast roads."},
+
+    {"id": "ecu_street_tune", "slot": "ecu", "name": "Street tune", "rarity": "rare", "price": 520,
+     "effects": {"torque_scale": 1.035}, "blurb": "Fuel and timing, dialed in."},
+
+    {"id": "flywheel_light", "slot": "flywheel", "name": "Lightweight flywheel", "rarity": "common", "price": 550,
+     "effects": {"engine_inertia_scale": 0.65, "mass_kg": -3}, "blurb": "Revs faster, accelerates the car more in low gears."},
+
+    {"id": "shifter_short", "slot": "shifter", "name": "Short shifter", "rarity": "common", "price": 300,
+     "effects": {"shift_time_s": -0.08}, "blurb": "Shorter throws, quicker shifts."},
+    {"id": "shifter_race", "slot": "shifter", "name": "Race shifter + bushings", "rarity": "rare", "price": 420,
+     "effects": {"shift_time_s": -0.15}, "blurb": "Tight, notchy, fast."},
+
+    {"id": "fd_44", "slot": "final_drive", "name": "4.4 final drive", "rarity": "rare", "price": 750,
+     "effects": {"final_drive": 4.4}, "blurb": "Shorter gearing: pulls harder, tops out sooner."},
+    {"id": "fd_49", "slot": "final_drive", "name": "4.9 final drive", "rarity": "epic", "price": 950,
+     "effects": {"final_drive": 4.9}, "blurb": "Very short. Tight roads only."},
+
+    {"id": "tires_300tw", "slot": "tires", "name": "Performance street tires (300TW)", "rarity": "common", "price": 900,
+     "effects": {"mu_scale": 1.05, "crr_scale": 1.05}, "blurb": "Real grip upgrade over the all-seasons."},
+    {"id": "tires_200tw", "slot": "tires", "name": "Extreme summer tires (200TW)", "rarity": "rare", "price": 820,
+     "effects": {"mu_scale": 1.1, "crr_scale": 1.1, "load_k_scale": 1.05}, "blurb": "Sticky. A bit more rolling drag."},
+    {"id": "tires_r_comp", "slot": "tires", "name": "R-compound (100TW)", "rarity": "legendary", "price": 1600,
+     "effects": {"mu_scale": 1.18, "crr_scale": 1.25, "load_k_scale": 1.15}, "blurb": "Race rubber. Huge grip, heavy rolling drag, more load sensitive."},
+
+    {"id": "wheels_light", "slot": "wheels", "name": "Lightweight 15s", "rarity": "rare", "price": 900,
+     "effects": {"wheel_inertia_scale": 0.75, "mass_kg": -6}, "blurb": "Less mass where it counts double: at the rim."},
+    {"id": "wheels_forged", "slot": "wheels", "name": "Forged 15s", "rarity": "epic", "price": 2200,
+     "effects": {"wheel_inertia_scale": 0.6, "mass_kg": -10}, "blurb": "As light as it gets."},
+
+    {"id": "rsb_19", "slot": "rear_sway", "name": "Rear sway bar 19 mm", "rarity": "common", "price": 320,
+     "effects": {"roll_front": 0.48}, "blurb": "Shifts roll stiffness rearward. Less understeer."},
+    {"id": "rsb_24", "slot": "rear_sway", "name": "Rear sway bar 24 mm", "rarity": "rare", "price": 260,
+     "effects": {"roll_front": 0.33}, "blurb": "A lot more rear bar. Rotates hard. Maybe too hard."},
+
+    {"id": "springs_lowering", "slot": "springs", "name": "Lowering springs", "rarity": "common", "price": 500,
+     "effects": {"cg_height_m": -0.025}, "blurb": "About an inch lower. Less weight transfer."},
+    {"id": "coilovers_street", "slot": "springs", "name": "Street coilovers", "rarity": "rare", "price": 1100,
+     "effects": {"cg_height_m": -0.04, "mass_kg": -2}, "blurb": "Lower and tighter."},
+
+    {"id": "interior_strip", "slot": "interior", "name": "Strip the interior", "rarity": "legendary", "price": 1400,
+     "effects": {"mass_kg": -40}, "blurb": "Rear seats, carpet, trim, sound deadening. Gone."},
+    {"id": "hood_carbon", "slot": "hood", "name": "Carbon hood", "rarity": "rare", "price": 520,
+     "effects": {"mass_kg": -8}, "blurb": "Light, and it looks the part."},
+    {"id": "seats_buckets", "slot": "seats", "name": "Fixed-back buckets", "rarity": "rare", "price": 650,
+     "effects": {"mass_kg": -14}, "blurb": "Lighter, and Faba stays planted."}
+  ]
+}

@@ -149,6 +149,8 @@ func migrate(data: Dictionary) -> Dictionary:
 		data["rep"] = int(data.get("rep", 0))
 		data.erase("intro_seen")
 		v = 5
+	if not data.has("rep"):
+		data["rep"] = int(data.get("followers", 0))
 	data["version"] = v
 	return data
 
@@ -674,6 +676,7 @@ func skip_night() -> void:
 	if int(state["rep"]) < SKIP_REP_COST:
 		return
 	state["rep"] = int(state["rep"]) - SKIP_REP_COST
+	state["followers"] = int(state["rep"])
 	var ev := next_event()
 	state["history"].append({"when": when(ev["week"], ev["day"]), "rival": state["night"].get("name", "Zed"),
 		"won": false, "skipped": true, "cash_change": 0, "rep_change": -SKIP_REP_COST})
@@ -719,6 +722,7 @@ func apply_result(r: Dictionary) -> Dictionary:
 		"parts": parts_args(), "loot": ""}
 	state["cash"] = int(state["cash"]) + int(result["cash_change"])
 	state["rep"] = int(state["rep"]) + int(result["rep_change"])
+	state["followers"] = int(state["rep"])
 	state["history"].append(result)
 	state["night"] = {}
 	advance_past(ev)
@@ -823,49 +827,87 @@ func _on_reply(tag: String, data: Dictionary) -> void:
 
 # ------------------------------------------------------------------ self-test
 
+func game_test_reply_ok(reply: Array) -> bool:
+	if reply[1].get("ok", false):
+		return true
+	var message := "GAMETEST FAIL %s: %s" % [reply[0], reply[1].get("error", "unknown bridge error")]
+	push_error(message)
+	print(message)
+	get_tree().quit(1)
+	return false
+
+
 func game_test() -> void:
 	## Headless end-to-end check: one full race night, printed. Run with
 	##   godot --headless --path godot -- --gametest
 	state = new_state()
 	print("GAMETEST bridge: ", bridge.ready_to_use() if bridge.ready_to_use() != "" else "ok")
 	print("GAMETEST migrate v1: ", migrate({"version": 1, "cash": 300, "rep": 5, "history": [], "night": {"x": 1}}))
+	var v5 := migrate({"version": 5, "followers": 17})
+	if int(v5["followers"]) != 17 or int(v5["rep"]) != 17:
+		push_error("GAMETEST FAIL v5 rep recovery: %s" % v5)
+		get_tree().quit(1)
+		return
+	print("GAMETEST migrate v5: followers %d, rep %d" % [v5["followers"], v5["rep"]])
 	var ev := next_event()
 	print("GAMETEST next event: %s, %s" % [when(ev["week"], ev["day"]), ev["title"]])
 	bridge.request("car_stats", ["car_stats"])
 	var r: Array = await bridge.replied
+	if not game_test_reply_ok(r):
+		return
 	print("GAMETEST car: %s, %d hp, dyno points %d" % [r[1]["name"], r[1]["hp"], r[1]["dyno"].size()])
 	bridge.request("rival", ["rival", "--rival", RIVAL_FILE, "--seed", "42"])
 	r = await bridge.replied
+	if not game_test_reply_ok(r):
+		return
 	state["night"] = r[1]
 	print("GAMETEST rival: %s (%s), posted %.3f s" % [r[1]["name"], r[1]["car"], r[1]["posted_time"]])
 	bridge.request("practice", ["practice", "--track", r[1]["track"]])
 	r = await bridge.replied
+	if not game_test_reply_ok(r):
+		return
 	practice = r[1]
 	print("GAMETEST practice runs: %d per push level" % practice["runs"])
 	choice = {"push": "hard", "wager": 100}
 	var out := ProjectSettings.globalize_path("user://replays/race.json")
 	bridge.request("race", ["race", "--track", state["night"]["track"], "--push", "hard", "--seed", "9", "--out", out])
 	r = await bridge.replied
+	if not game_test_reply_ok(r):
+		return
 	var result := apply_result(r[1])
+	if int(state["followers"]) != int(state["rep"]):
+		push_error("GAMETEST FAIL race followers/rep synchronization")
+		get_tree().quit(1)
+		return
 	print("GAMETEST race: %.3f s vs %.3f s -> %s, cash %d, practice %d/%d" % [
 		result["time"], result["posted"], "WIN" if result["won"] else "LOSS", state["cash"],
 		result["practice_beat"], result["practice_runs"]])
 	print("GAMETEST calendar after race: %s" % when(state["week"], state["day"]))
 	bridge.request("parts", ["parts"])
-	catalog = (await bridge.replied)[1]
+	r = await bridge.replied
+	if not game_test_reply_ok(r):
+		return
+	catalog = r[1]
 	print("GAMETEST catalog: %d parts in %d slots" % [catalog["parts"].size(), catalog["slots"].size()])
 	state["cash"] = 1000
 	state["rep"] = 0
 	shop_message = ""
-	buy_part("interior_strip")
+	buy_part("rsb_19")
 	buy_part("cams_race")                    # not a common: the counter won't sell it
+	if state["inventory"].size() != 1 or not state["installed"].has("rear_sway"):
+		push_error("GAMETEST FAIL common part purchase/install")
+		get_tree().quit(1)
+		return
 	print("GAMETEST bought: %s, installed %s, cash %d" % [
 		state["inventory"].map(func(i): return i["part"]), state["installed"], state["cash"]])
 	state["cash"] = 1000
 	do_pull("crate")                         # needs 100 rep: refused
 	print("GAMETEST crate at 0 rep refused: cash still %d" % state["cash"])
 	bridge.request("pull", ["pull", "--source", "junkyard", "--seed", "3", "--pity", "{}"])
-	var pr: Dictionary = (await bridge.replied)[1]
+	r = await bridge.replied
+	if not game_test_reply_ok(r):
+		return
+	var pr: Dictionary = r[1]
 	state["pity"] = pr["pity"]
 	var inst := add_instance(pr["part"], float(pr["quality"]), false, "junkyard", pr["effects_text"])
 	print("GAMETEST pulled: %s (%s), quality %.2f, pity %s" % [pr["name"], pr["rarity"], pr["quality"], pr["pity"]])
@@ -873,6 +915,8 @@ func game_test() -> void:
 	print("GAMETEST parts args: %s" % [parts_args()])
 	bridge.request("car_stats", ["car_stats"] + parts_args())
 	r = await bridge.replied
+	if not game_test_reply_ok(r):
+		return
 	print("GAMETEST car with parts: %d kg (stock 1112)" % r[1]["weight_kg"])
 	install_part(pr["slot"], "", false)
 	var cash_before := int(state["cash"])
@@ -882,6 +926,8 @@ func game_test() -> void:
 		"history": [], "night": {}, "owned_parts": ["rsb_19"], "installed": {"rear_sway": "rsb_19"}})])
 	bridge.request("night", ["street", "--week", "3", "--seed", "8"])
 	r = await bridge.replied
+	if not game_test_reply_ok(r):
+		return
 	print("GAMETEST open road week 3: %s in a %s on %s, posted %.2f" % [r[1]["name"], r[1]["car"], r[1]["style"], r[1]["posted_time"]])
 	print("GAMETEST migrate v2: %s" % [migrate({"version": 2, "cash": 1, "rep": 0, "week": 1, "day": 0, "history": [], "night": {}}).keys()])
 	state["rep"] = 10
@@ -889,6 +935,10 @@ func game_test() -> void:
 	print("GAMETEST skip with 10 rep: rep %d, %s (blocked)" % [state["rep"], when(state["week"], state["day"])])
 	state["rep"] = 60
 	skip_night()
+	if int(state["followers"]) != int(state["rep"]):
+		push_error("GAMETEST FAIL skip followers/rep synchronization")
+		get_tree().quit(1)
+		return
 	print("GAMETEST skip with 60 rep: rep %d, %s" % [state["rep"], when(state["week"], state["day"])])
 	print("GAMETEST OK")
 	get_tree().quit()

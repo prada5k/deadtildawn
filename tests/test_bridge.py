@@ -148,6 +148,6 @@ def test_street_contract_and_reproducible():
 
 def test_sources_listed_with_rep_gates_and_loot_hidden():
     r = call("parts")
-    assert r["sources"]["swap_meet"]["rep_required"] == 30
-    assert r["sources"]["crate"]["rep_required"] == 100
+    assert r["sources"]["swap_meet"]["rep_required"] == 50
+    assert r["sources"]["crate"]["rep_required"] == 125
     assert "loot" not in r["sources"]

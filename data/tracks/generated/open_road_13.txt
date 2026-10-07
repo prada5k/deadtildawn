@@ -1,0 +1,2 @@
+# Open road 13: technical (sim/trackgen.py seed 1013)
+S 151, L1 165, S 56, R4 70, S 38, R2 145, L6 90, S 55, L3 80, R2 155, S 60, L1 155, S 19, R3 80, S 20, L6 65, S 45, R8 30, S 24, L2 145, S 48, R2 170, S 66, L4 110, S 61

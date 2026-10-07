@@ -1,0 +1,2 @@
+# Open road 18: flowing (sim/trackgen.py seed 1018)
+S 185, R4 70, S 156, R8 25, S 85, L2 140, S 125, L6 90, S 121, R9 25, S 182, R5 60, L10 60, S 143, L5 90, S 113, L5 110, S 213
