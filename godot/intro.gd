@@ -23,7 +23,7 @@ const SLIDES := [
 	{"kicker": "", "body": "You should have died.\n\nThe FA5 burned. Your right leg never came back the same."},
 	{"kicker": "AFTER", "body": "Faba got you back on your feet.\n\nYou walked away from the scene. You didn't look back."},
 	{"kicker": "SIX YEARS LATER",
-	 "body": "Faba quits his corporate job.\n\nBuys a bone-stock '96 Civic DX coupe. Five-speed."},
+	 "body": "Faba quits his corporate job.\n\nBuys a bone-stock '95 Civic SiR-II hatch. Five-speed."},
 	{"kicker": "THE WAREHOUSE",
 	 "body": "He spends his savings on a warehouse. Home, garage, headquarters.\n\n\"You build it. I drive it.\""},
 	{"kicker": "", "body": "DEADTILDAWN", "title": true},

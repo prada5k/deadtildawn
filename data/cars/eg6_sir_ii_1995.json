@@ -1,0 +1,93 @@
+{
+  "id": "eg6_sir_ii_1995",
+  "name": "1995 Honda Civic SiR-II Hatch (EG6)",
+  "chassis": "E-EG6",
+  "trim": "SiR-II",
+  "model_year": 1995,
+  "source_urls": {
+    "Honda 1995 SiR-II archive": "https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html",
+    "Honda 1992 Civic factbook": "https://www.honda.co.jp/factbook/auto/CIVIC/19920700/cv20-044.html"
+  },
+  "notes": "1995 E-EG6 SiR-II 5MT, operated in the game's 1996 setting. Factory figures describe the power-steering, no-A/C, no-sunroof, no-ABS 1050 kg variant. Simulation assumptions below are provisional and are not Honda specifications. Values used by the physics loader are SI.",
+  "engine": {
+    "code": "B16A",
+    "code_source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html",
+    "code_confidence": "factory",
+    "displacement_cc": {"value": 1595, "unit": "cm^3", "source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html", "confidence": "factory"},
+    "bore_stroke_mm": {"value": [81.0, 77.4], "unit": "mm", "source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html", "confidence": "factory"},
+    "compression_ratio": {"value": 10.4, "unit": "-", "source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html", "confidence": "factory"},
+    "peak_torque": {"value": 156.9064, "unit": "N*m", "rpm": 7300, "original": "16.0 kgf*m", "source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html", "confidence": "factory-converted"},
+    "peak_power": {"value": 125.0347875, "unit": "kW", "rpm": 7800, "original": "170 PS", "source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html", "confidence": "factory-converted"},
+    "redline": {"value": 8000, "unit": "rpm", "source": "Provisional driver shift point; Honda peak-power RPM is 7800, but redline is not given in the cited specifications", "confidence": "model-assumption"},
+    "fuel_cut": {"value": 8300, "unit": "rpm", "source": "Provisional ECU cutoff; not specified by the cited Honda source", "confidence": "model-assumption"},
+    "torque_curve": {
+      "unit_rpm": "rpm",
+      "unit_torque": "N*m",
+      "points": [[1000, 65], [2000, 90], [3000, 110], [4000, 126], [5000, 136], [6000, 145], [7000, 154], [7300, 156.9064], [7800, 153.0762], [8000, 149], [8200, 142]],
+      "source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html; factory peak torque at 7300 rpm and peak power at 7800 rpm; all other points are a provisional interpolation/shape assumption, not a measured dyno curve",
+      "confidence": "model-assumption",
+      "notes": "7800-rpm torque is calculated from 170 PS using P=T*omega. The other points, including low-RPM/VTEC behavior, require measured data before engineering claims. Do not tune this shape to a desired lap or acceleration time."
+    }
+  },
+  "transmission": {
+    "gear_ratios": {"value": [3.230, 2.105, 1.458, 1.107, 0.848], "unit": "-", "source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html, 5-speed manual", "confidence": "factory"},
+    "final_drive": {"value": 4.400, "unit": "-", "source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html", "confidence": "factory"},
+    "efficiency": {"value": 0.88, "unit": "-", "source": "Provisional FWD drivetrain-loss assumption retained from the EJ6 reference model; not an EG6 measurement", "confidence": "model-assumption"},
+    "shift_time": {"value": 0.4, "unit": "s", "source": "Provisional driver behavior retained from the EJ6 reference model; not a factory vehicle property", "confidence": "model-assumption"},
+    "launch_rpm": {"value": 3000, "unit": "rpm", "source": "Provisional driver launch behavior retained from the EJ6 reference model; not a factory vehicle property", "confidence": "model-assumption"},
+    "engine_inertia": {"value": 0.12, "unit": "kg*m^2", "source": "Provisional rotational-inertia assumption retained from the EJ6 reference model; B16A-specific measurement unavailable", "confidence": "model-assumption"}
+  },
+  "drivetrain": "FWD",
+  "drivetrain_source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html: transverse engine, front-wheel drivetrain",
+  "drivetrain_confidence": "factory",
+  "suspension": {
+    "front": {"value": "double wishbone", "source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html", "confidence": "factory"},
+    "rear": {"value": "double wishbone", "source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html", "confidence": "factory"}
+  },
+  "mass": {
+    "curb": {"value": 1050, "unit": "kg", "source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html, 5MT power-steering configuration without listed A/C/sunroof/ABS options", "confidence": "factory"},
+    "driver": {"value": 70, "unit": "kg", "source": "Reference-simulation driver-mass convention; not Honda curb weight", "confidence": "model-assumption"},
+    "fuel": {"value": 16.65, "unit": "kg", "source": "Derived from Honda 45 L tank capacity (https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html) with assumed half tank and 0.74 kg/L fuel density", "confidence": "model-assumption"}
+  },
+  "geometry": {
+    "length": {"value": 4.070, "unit": "m", "source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html", "confidence": "factory"},
+    "width": {"value": 1.695, "unit": "m", "source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html", "confidence": "factory"},
+    "height": {"value": 1.350, "unit": "m", "source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html", "confidence": "factory"},
+    "wheelbase": {"value": 2.570, "unit": "m", "source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html", "confidence": "factory"},
+    "track_front": {"value": 1.475, "unit": "m", "source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html", "confidence": "factory"},
+    "track_rear": {"value": 1.465, "unit": "m", "source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html", "confidence": "factory"},
+    "weight_front_fraction": {"value": 0.61, "unit": "-", "source": "Provisional static front-weight assumption retained from the EJ6 reference model; EG6 corner weights unavailable", "confidence": "model-assumption"},
+    "cg_height": {"value": 0.50, "unit": "m", "source": "Provisional compact-car CG-height assumption retained from the EJ6 reference model; EG6 measurement unavailable", "confidence": "model-assumption"},
+    "roll_stiffness_front": {"value": 0.60, "unit": "-", "source": "Provisional front roll-stiffness share retained from the EJ6 reference model; not inferred from Honda double-wishbone layout", "confidence": "model-assumption"}
+  },
+  "tires": {
+    "size": "195/55R15 83V",
+    "size_source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html",
+    "size_confidence": "factory",
+    "radius": {"value": 0.29775, "unit": "m", "source": "Calculated unloaded radius from Honda 195/55R15 tire marking (https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html): (15*25.4/2 + 195*0.55)/1000", "confidence": "derived"},
+    "mu_0": {"value": 1.05, "unit": "-", "source": "Provisional tire-grip coefficient retained from EJ6 reference model; no EG6 tire test or compound specified", "confidence": "model-assumption"},
+    "load_sensitivity_k": {"value": 0.05, "unit": "1/kN", "source": "Provisional tire load-sensitivity assumption retained from EJ6 reference model", "confidence": "model-assumption"},
+    "rolling_resistance": {"value": 0.015, "unit": "-", "source": "Provisional passenger-tire rolling-resistance assumption retained from EJ6 reference model", "confidence": "model-assumption"},
+    "wheel_inertia": {"value": 0.8, "unit": "kg*m^2", "source": "Provisional wheel/tire inertia retained from EJ6 reference model; 15-inch EG6 wheel and tire mass not measured", "confidence": "model-assumption"}
+  },
+  "aero": {
+    "cd": {"value": 0.32, "unit": "-", "source": "Provisional drag coefficient retained from EJ6 reference model; EG6 hatch Cd unavailable", "confidence": "model-assumption"},
+    "frontal_area": {"value": 1.945, "unit": "m^2", "source": "Derived from Honda width 1.695 m and height 1.350 m (https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html) using assumed 0.85 frontal fill factor", "confidence": "model-assumption"},
+    "cla": {"value": 0.0, "unit": "m^2", "source": "Neutral aero placeholder retained from EJ6 reference model; not a measured EG6 lift/downforce value", "confidence": "model-assumption"}
+  },
+  "brakes": {
+    "front_type": {"value": "ventilated disc", "source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html", "confidence": "factory"},
+    "rear_type": {"value": "disc", "source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html", "confidence": "factory"},
+    "abs": {"value": false, "source": "Honda Civic SiR-II (E-EG6) specifications (1995-08), https://www.honda.co.jp/auto-archive/civic/2-3door/3door-1995/sir2_sy.html lists ABS as an option; baseline selects the non-ABS configuration", "confidence": "factory"},
+    "bias": {"value": "ideal", "source": "Existing simulation's ideal-bias simplification; not Honda brake-proportioning data", "confidence": "model-assumption"},
+    "front_rotor_mass": {"value": 5.0, "unit": "kg", "source": "Provisional rotor-mass assumption retained from EJ6 reference model; EG6 front rotor mass unavailable", "confidence": "model-assumption"},
+    "rotor_specific_heat": {"value": 460, "unit": "J/(kg*K)", "source": "Cast-iron material-property estimate retained from EJ6 reference model", "confidence": "model-assumption"},
+    "pad_mu": {"value": 0.4, "unit": "-", "source": "Provisional OEM street-pad coefficient retained from EJ6 reference model", "confidence": "model-assumption"},
+    "pad_fade_temp": {"value": 350, "unit": "C", "source": "Provisional brake-pad fade onset retained from EJ6 reference model", "confidence": "model-assumption"},
+    "pad_fade_rate": {"value": 0.001, "unit": "1/C", "source": "Provisional brake-pad fade slope retained from EJ6 reference model", "confidence": "model-assumption"},
+    "pad_mu_min": {"value": 0.1, "unit": "-", "source": "Existing simulation's cooked-pad friction floor; not Honda data", "confidence": "model-assumption"},
+    "capacity_ratio": {"value": 1.3, "unit": "-", "source": "Provisional front-brake capacity relative to tire grip retained from EJ6 reference model", "confidence": "model-assumption"},
+    "cooling_h0": {"value": 4.0, "unit": "W/K", "source": "Provisional still-air rotor cooling retained from EJ6 reference model", "confidence": "model-assumption"},
+    "cooling_h1": {"value": 1.15, "unit": "W/K per m/s", "source": "Provisional speed-dependent rotor cooling retained from EJ6 reference model", "confidence": "model-assumption"}
+  }
+}

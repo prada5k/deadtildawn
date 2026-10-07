@@ -1,11 +1,11 @@
 extends SubViewportContainer
-## Hero pedestal: a low-poly '96 Civic DX coupe on a slow turntable.
-## Built from primitive meshes (real dimensions: 4.45 m long, 1.70 m wide,
-## 2.62 m wheelbase). Placeholder art: swap in a real model later by replacing
+## Hero pedestal: a low-poly 1995 Civic EG6 hatch on a slow turntable.
+## Built from primitive meshes (factory dimensions: 4.070 m long, 1.695 m wide,
+## 2.570 m wheelbase). Placeholder art: swap in a real model later by replacing
 ## build_car() with an imported scene (.glb) under `turntable`.
 
 const SPIN_DEG_PER_S := 14.0
-const BODY := Color(0.62, 0.07, 0.09)          # red DX
+const BODY := Color(0.62, 0.07, 0.09)
 const GLASS := Color(0.06, 0.07, 0.09)
 const TIRE := Color(0.05, 0.05, 0.05)
 const RIM := Color(0.55, 0.56, 0.6)
@@ -104,17 +104,17 @@ func build_platform() -> void:
 
 func build_car() -> void:
 	# x = length (front is +x), z = width, y = up
-	part(box(Vector3(4.45, 0.5, 1.7)), BODY, Vector3(0, 0.55, 0))           # lower body
-	part(box(Vector3(1.25, 0.12, 1.62)), BODY, Vector3(1.55, 0.86, 0), Vector3(0, 0, -4))  # hood
-	part(box(Vector3(0.75, 0.1, 1.62)), BODY, Vector3(-1.85, 0.84, 0))      # trunk lid
-	part(box(Vector3(2.05, 0.46, 1.48)), GLASS, Vector3(-0.15, 1.02, 0))     # glass house
-	part(box(Vector3(1.55, 0.06, 1.46)), BODY, Vector3(-0.25, 1.27, 0))     # roof
-	part(box(Vector3(0.08, 0.44, 1.5)), BODY, Vector3(-1.13, 1.03, 0))      # C-pillar line
-	part(box(Vector3(0.06, 0.12, 0.42)), Color(1, 0.96, 0.88), Vector3(2.23, 0.68, 0.55), Vector3.ZERO, true)
-	part(box(Vector3(0.06, 0.12, 0.42)), Color(1, 0.96, 0.88), Vector3(2.23, 0.68, -0.55), Vector3.ZERO, true)
-	part(box(Vector3(0.06, 0.1, 0.5)), Color(0.9, 0.08, 0.08), Vector3(-2.23, 0.7, 0.52), Vector3.ZERO, true)
-	part(box(Vector3(0.06, 0.1, 0.5)), Color(0.9, 0.08, 0.08), Vector3(-2.23, 0.7, -0.52), Vector3.ZERO, true)
-	for x in [1.31, -1.31]:                       # wheelbase 2.62 m
+	part(box(Vector3(4.070, 0.5, 1.695)), BODY, Vector3(0, 0.55, 0))
+	part(box(Vector3(1.1, 0.12, 1.62)), BODY, Vector3(1.42, 0.86, 0), Vector3(0, 0, -4))
+	part(box(Vector3(0.32, 0.1, 1.62)), BODY, Vector3(-1.87, 0.84, 0))      # short hatch tail
+	part(box(Vector3(2.25, 0.46, 1.48)), GLASS, Vector3(-0.3, 1.02, 0))
+	part(box(Vector3(1.5, 0.06, 1.46)), BODY, Vector3(-0.36, 1.27, 0))
+	part(box(Vector3(0.08, 0.44, 1.5)), BODY, Vector3(-1.52, 1.03, 0))
+	part(box(Vector3(0.06, 0.12, 0.42)), Color(1, 0.96, 0.88), Vector3(2.01, 0.68, 0.55), Vector3.ZERO, true)
+	part(box(Vector3(0.06, 0.12, 0.42)), Color(1, 0.96, 0.88), Vector3(2.01, 0.68, -0.55), Vector3.ZERO, true)
+	part(box(Vector3(0.06, 0.1, 0.5)), Color(0.9, 0.08, 0.08), Vector3(-2.01, 0.7, 0.52), Vector3.ZERO, true)
+	part(box(Vector3(0.06, 0.1, 0.5)), Color(0.9, 0.08, 0.08), Vector3(-2.01, 0.7, -0.52), Vector3.ZERO, true)
+	for x in [1.285, -1.285]:                   # wheelbase 2.570 m
 		for z in [0.76, -0.76]:
 			var t := CylinderMesh.new()
 			t.top_radius = 0.3

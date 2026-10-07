@@ -24,8 +24,8 @@ const PX_PER_M := 4.0            # world scale: 1 m = 4 px
 const ROAD_WIDTH_M := 8.0        # two-lane mountain road (two 4 m lanes)
 const LANE_OFFSET_M := 2.0       # car drives the center of the right-hand lane
 const RoadScript := preload("res://widgets/road.gd")
-const CAR_LENGTH_M := 4.45       # 6th-gen Civic coupe, roughly
-const CAR_WIDTH_M := 1.70
+const CAR_LENGTH_M := 4.070      # 1995 EG6 factory length
+const CAR_WIDTH_M := 1.695      # 1995 EG6 factory width
 const FOLLOW_VIEW_M := 140.0     # meters of road across the screen in follow mode
 const TRACKSIDE_LEAD_M := 150.0  # cut to a corner's camera this far before its entry
 const TRACKSIDE_TRAIL_M := 60.0  # ...and keep it this far past the exit

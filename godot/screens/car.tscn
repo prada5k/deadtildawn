@@ -31,7 +31,7 @@ theme_override_constants/separation = 16
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
-text = "1996 Honda Civic DX Coupe"
+text = "1995 Honda Civic SiR-II Hatch (EG6)"
 autowrap_mode = 3
 
 [node name="DynoPanel" type="PanelContainer" parent="Scroll/Column"]

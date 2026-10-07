@@ -46,7 +46,7 @@ func request(tag: String, args: Array) -> void:
 
 func _run(tag: String, args: Array) -> void:
 	var output := []
-	var code := OS.execute(python, [bridge] + args, output, false)
+	var code := OS.execute(python, [bridge] + args + ["--car", "game"], output, false)
 	var text := "" if output.is_empty() else str(output[0]).strip_edges()
 	var data = JSON.parse_string(text.get_slice("\n", text.get_slice_count("\n") - 1))
 	if typeof(data) != TYPE_DICTIONARY:

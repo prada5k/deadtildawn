@@ -41,16 +41,18 @@ CACHE_FORMAT = 2       # bump when the cached JSON layout changes (sim changes a
 GAME_DS = 0.5          # m; odds and races must match
 ODDS_RUNS = 60         # Monte Carlo runs per push level
 CACHE_DIR = ROOT / "runs" / "cache"
-CAR_FILE = ROOT / "data" / "cars" / "ej6_dx_coupe_1996.json"
+REFERENCE_CAR = ROOT / "data" / "cars" / "ej6_dx_coupe_1996.json"
+GAME_CAR = ROOT / "data" / "cars" / "eg6_sir_ii_1995.json"
+ACTIVE_CAR_FILE = REFERENCE_CAR  # CLI default preserves the engineering-tool contract
 
 
 def player_car(part_ids):
-    """The DX with these parts installed (stock if none). Entries are part ids,
+    """The selected car with these parts installed (stock if none). Entries are part ids,
     optionally with a quality roll: "cams_race@0.83" (default 0.5 = catalog)."""
     from sim.car import load_car
     from sim.gacha import instance_part
     from sim.parts import apply_parts, parts_by_ids
-    car = load_car(CAR_FILE)
+    car = load_car(ACTIVE_CAR_FILE)
     if not part_ids:
         return car
     ids, qs = [], []
@@ -123,7 +125,7 @@ def part_effects(car, part):
     mod = apply_parts(car, [part])
 
     def peak_hp(c):
-        return max(torque_at(c, r) * r * RPM_TO_RADS for r in range(1000, 6800, 25)) / HP_TO_W
+        return max(torque_at(c, r) * r * RPM_TO_RADS for r in range(1000, int(c.fuel_cut), 25)) / HP_TO_W
     out = []
     e = part["effects"]
     if "torque_scale" in e or "torque_shape" in e:
@@ -158,7 +160,7 @@ def parts_catalog():
     from sim.car import load_car
     from sim.parts import load_catalog
     slots, parts = load_catalog()
-    car = load_car(CAR_FILE)
+    car = load_car(ACTIVE_CAR_FILE)
     from sim.gacha import load_pulls
     sources = {k: {kk: v for kk, v in s.items() if kk in ("name", "price", "blurb", "rep_required", "pity")}
                for k, s in load_pulls().items() if not s.get("hidden")}
@@ -179,7 +181,7 @@ def do_pull(source, pity_json, seed):
     _, parts = load_catalog()
     pity = json.loads(pity_json or "{}")
     pid, q, new_pity = pull(source, sources, parts, pity, random.Random(seed))
-    car = load_car(CAR_FILE)
+    car = load_car(ACTIVE_CAR_FILE)
     reply(source=source, price=sources[source]["price"], part=pid, quality=q,
           rarity=parts[pid]["rarity"], name=parts[pid]["name"], slot=parts[pid]["slot"],
           effects_text=part_effects(car, instance_part(parts[pid], q)), pity=new_pity)
@@ -224,7 +226,7 @@ def distributions(track_file, part_ids=()):
     # hand-bumped version number only works if someone remembers to bump it).
     track_path = resolve(track_file)
     sim_code = "".join(p.read_text(encoding="utf-8") for p in sorted((ROOT / "sim").glob("*.py")))
-    key = hashlib.sha256((CAR_FILE.read_text(encoding="utf-8") + track_path.read_text(encoding="utf-8")
+    key = hashlib.sha256((ACTIVE_CAR_FILE.read_text(encoding="utf-8") + track_path.read_text(encoding="utf-8")
                           + sim_code + CATALOG_FILE.read_text(encoding="utf-8") + ",".join(part_ids)
                           + f"{GAME_DS}|{ODDS_RUNS}|{Driver().sigma}|fmt{CACHE_FORMAT}").encode()).hexdigest()[:16]
     cache = CACHE_DIR / f"{track_path.stem}_{key}.json"
@@ -342,9 +344,12 @@ def race(track_file, push, seed, out_file, part_ids=()):
 
 
 def main():
+    global ACTIVE_CAR_FILE
     ap = argparse.ArgumentParser(description="deadtildawn game bridge")
     ap.add_argument("command", choices=["parts", "pull", "car_stats", "track", "rival", "street",
                                         "practice", "odds", "race"])
+    ap.add_argument("--car", choices=["reference", "game"], default="reference",
+                    help="reference EJ6 for engineering tools (default), game EG6 for Godot")
     ap.add_argument("--week", type=int)
     ap.add_argument("--source")
     ap.add_argument("--pity", default="{}")
@@ -356,6 +361,7 @@ def main():
     ap.add_argument("--seed", type=int)
     ap.add_argument("--out")
     a = ap.parse_args()
+    ACTIVE_CAR_FILE = GAME_CAR if a.car == "game" else REFERENCE_CAR
     try:
         part_ids = parse_parts(a.parts)
         if a.command == "parts":

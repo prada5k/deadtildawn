@@ -32,7 +32,7 @@ const LOCATIONS := {
 }
 
 const SAVE_PATH := "user://save.json"
-const SAVE_VERSION := 5
+const SAVE_VERSION := 6
 const START_CASH := 250
 const MIN_BUY_IN := 100
 const WAGER_STEP := 10
@@ -94,6 +94,7 @@ func _ready() -> void:
 
 func new_state() -> Dictionary:
 	return {"version": SAVE_VERSION, "cash": START_CASH, "followers": 0, "rep": 0, "week": 1, "day": 0,
+		"civic": {"chassis_id": "CHASSIS_0001", "base_car_id": "eg6_sir_ii_1995"},
 		"history": [], "night": {},
 		"inventory": [], "installed": {}, "pity": {}, "next_uid": 1}
 
@@ -151,6 +152,14 @@ func migrate(data: Dictionary) -> Dictionary:
 		v = 5
 	if not data.has("rep"):
 		data["rep"] = int(data.get("followers", 0))
+	if v < 6:                        # v5 -> v6: permanent player Civic identity
+		v = 6
+	var civic: Dictionary = data.get("civic", {})
+	if not civic.has("chassis_id"):
+		civic["chassis_id"] = "CHASSIS_0001"
+	if not civic.has("base_car_id"):
+		civic["base_car_id"] = "eg6_sir_ii_1995"
+	data["civic"] = civic
 	data["version"] = v
 	return data
 
@@ -357,7 +366,7 @@ func show_car() -> void:
 		bridge.request("parts", ["parts"])
 		return
 	if car_stats.is_empty():
-		show_message("THE CAR", "Strapping the DX to the dyno...")
+		show_message("THE CAR", "Strapping the EG6 to the dyno...")
 		after_car_stats = "car"
 		bridge.request("car_stats", ["car_stats"] + parts_args())
 		return
@@ -687,7 +696,7 @@ func skip_night() -> void:
 
 
 func send_it() -> void:
-	show_message("LIGHTS OUT", "Faba lines up the DX.\n%s on the line, %s push." % [
+	show_message("LIGHTS OUT", "Faba lines up the EG6.\n%s on the line, %s push." % [
 		UI.money(choice["wager"]), str(choice["push"]).replace("_", " ")])
 	var out := ProjectSettings.globalize_path("user://replays/race.json")
 	bridge.request("race", ["race", "--track", state["night"]["track"], "--push", choice["push"],
@@ -841,11 +850,25 @@ func game_test() -> void:
 	## Headless end-to-end check: one full race night, printed. Run with
 	##   godot --headless --path godot -- --gametest
 	state = new_state()
+	if state["civic"]["chassis_id"] != "CHASSIS_0001" or state["civic"]["base_car_id"] != "eg6_sir_ii_1995":
+		push_error("GAMETEST FAIL new Civic identity")
+		get_tree().quit(1)
+		return
 	print("GAMETEST bridge: ", bridge.ready_to_use() if bridge.ready_to_use() != "" else "ok")
 	print("GAMETEST migrate v1: ", migrate({"version": 1, "cash": 300, "rep": 5, "history": [], "night": {"x": 1}}))
 	var v5 := migrate({"version": 5, "followers": 17})
-	if int(v5["followers"]) != 17 or int(v5["rep"]) != 17:
-		push_error("GAMETEST FAIL v5 rep recovery: %s" % v5)
+	if int(v5["followers"]) != 17 or int(v5["rep"]) != 17 or v5["civic"]["chassis_id"] != "CHASSIS_0001" or v5["civic"]["base_car_id"] != "eg6_sir_ii_1995":
+		push_error("GAMETEST FAIL v5 Civic/rep recovery: %s" % v5)
+		get_tree().quit(1)
+		return
+	var assigned := migrate({"version": 5, "rep": 3, "civic": {"chassis_id": "CHASSIS_0042", "base_car_id": "existing_car"}})
+	if assigned["civic"]["chassis_id"] != "CHASSIS_0042" or assigned["civic"]["base_car_id"] != "existing_car":
+		push_error("GAMETEST FAIL existing Civic identity preservation")
+		get_tree().quit(1)
+		return
+	var v6 := migrate({"version": 6, "civic": {"chassis_id": "CHASSIS_0043"}})
+	if v6["civic"]["chassis_id"] != "CHASSIS_0043" or v6["civic"]["base_car_id"] != "eg6_sir_ii_1995":
+		push_error("GAMETEST FAIL v6 base car repair")
 		get_tree().quit(1)
 		return
 	print("GAMETEST migrate v5: followers %d, rep %d" % [v5["followers"], v5["rep"]])
@@ -917,7 +940,7 @@ func game_test() -> void:
 	r = await bridge.replied
 	if not game_test_reply_ok(r):
 		return
-	print("GAMETEST car with parts: %d kg (stock 1112)" % r[1]["weight_kg"])
+	print("GAMETEST car with parts: %d kg" % r[1]["weight_kg"])
 	install_part(pr["slot"], "", false)
 	var cash_before := int(state["cash"])
 	sell_instance(inst["uid"])
@@ -940,6 +963,13 @@ func game_test() -> void:
 		get_tree().quit(1)
 		return
 	print("GAMETEST skip with 60 rep: rep %d, %s" % [state["rep"], when(state["week"], state["day"])])
+	save_game()
+	load_game()
+	if state["civic"]["chassis_id"] != "CHASSIS_0001" or state["civic"]["base_car_id"] != "eg6_sir_ii_1995":
+		push_error("GAMETEST FAIL Civic identity lost on save/reload")
+		get_tree().quit(1)
+		return
+	print("GAMETEST Civic identity: %s / %s (new, migrated, reloaded)" % [state["civic"]["chassis_id"], state["civic"]["base_car_id"]])
 	print("GAMETEST OK")
 	get_tree().quit()
 
