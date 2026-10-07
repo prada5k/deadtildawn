@@ -200,11 +200,28 @@ theme_type_variation = &"MutedLabel"
 text = "NEXT CALENDAR / FRI, WEEK 1"
 autowrap_mode = 3
 
-[node name="LocalStraightButton" type="Button" parent="Column/HomeInformation/InformationColumn"]
+[node name="TestLabel" type="Label" parent="Column/HomeInformation/InformationColumn"]
+layout_mode = 2
+theme_type_variation = &"HeadingLabel"
+text = "TEST"
+
+[node name="TestButtons" type="HBoxContainer" parent="Column/HomeInformation/InformationColumn"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="LocalStraightButton" type="Button" parent="Column/HomeInformation/InformationColumn/TestButtons"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
-text = "TEST  /  LOCAL STRAIGHT"
+size_flags_horizontal = 3
+text = "LOCAL STRAIGHT"
+
+[node name="LocalCurvesButton" type="Button" parent="Column/HomeInformation/InformationColumn/TestButtons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "LOCAL CURVES"
 
 [node name="AccentRule" type="ColorRect" parent="Column/HomeInformation/InformationColumn"]
 custom_minimum_size = Vector2(0, 2)

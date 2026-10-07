@@ -1,0 +1,3 @@
+# LOCAL_CURVES: permanent compact handling test road (flat, 870.43 m).
+# Slow and medium corners, multiple direction changes, short braking/exit straights.
+S 140, L3 90, S 55, R5 75, S 70, R2 120, S 45, L6 70, S 65, R4 90, S 100

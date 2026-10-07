@@ -20,6 +20,8 @@ Commands:
                                            run the race, write the replay
   local_straight --out FILE.json [--parts a,b]
                                            run the fixed controlled test, write the replay
+  local_curves --out FILE.json [--parts a,b]
+                                           run the fixed handling test, write the replay
 
 Odds and races use the SAME solver settings (GAME_DS), so the odds are honest.
 Rival times are anchored to the STOCK car: upgrades make the player faster,
@@ -50,6 +52,9 @@ MARKET_FILE = ROOT / "data" / "parts" / "market_v01.json"
 LOCAL_STRAIGHT_FILE = ROOT / "data" / "tracks" / "local_straight.txt"
 LOCAL_STRAIGHT_ID = "LOCAL_STRAIGHT"
 QUARTER_MILE_M = 402.336
+LOCAL_CURVES_FILE = ROOT / "data" / "tracks" / "local_curves.txt"
+LOCAL_CURVES_ID = "LOCAL_CURVES"
+LOCAL_CURVES_SEED = 9605
 
 
 def player_car(part_ids):
@@ -75,6 +80,20 @@ def player_car(part_ids):
 
 def parse_parts(text):
     return sorted(p for p in (text or "").split(",") if p)
+
+
+def physical_vehicle_state(car):
+    """Small physical snapshot shared by controlled tests."""
+    return {
+        "car_id": car.id,
+        "mass_kg": round(car.mass, 3),
+        "final_drive": round(car.final_drive, 4),
+        "shift_time_s": round(car.shift_time, 4),
+        "engine_inertia_kgm2": round(car.engine_inertia, 4),
+        "wheel_inertia_kgm2": round(car.wheel_inertia, 4),
+        "cg_height_m": round(car.cg_height, 4),
+        "front_roll_stiffness_fraction": round(car.roll_front, 4),
+    }
 
 
 def reply(**data):
@@ -168,20 +187,95 @@ def local_straight(out_file, part_ids=()):
             "integration_step_m": 0.1,
         },
         installed_definition_ids=list(part_ids),
-        vehicle_state={
-            "car_id": car.id,
-            "mass_kg": round(car.mass, 3),
-            "final_drive": round(car.final_drive, 4),
-            "shift_time_s": round(car.shift_time, 4),
-            "engine_inertia_kgm2": round(car.engine_inertia, 4),
-            "wheel_inertia_kgm2": round(car.wheel_inertia, 4),
-            "front_roll_stiffness_fraction": round(car.roll_front, 4),
-        },
+        vehicle_state=physical_vehicle_state(car),
         measurements={
             "zero_60_s": round(zero_60, 3),
             "quarter_mile_s": round(quarter, 3),
             "quarter_mile_trap_mph": round(trap / MPH_TO_MS, 1),
             "sixty_zero_ft": round(stopping_distance(car, 60 * MPH_TO_MS) / FT_TO_M, 1),
+        },
+        replay=str(out),
+    )
+
+
+def local_curves(out_file, part_ids=()):
+    """Fixed handling route with a deterministic, non-random reference driver."""
+    from export_replay import build_replay
+    from sim.driver import Driver
+    from sim.lap import run_lap
+    from sim.metrics import speed_at_distance, time_at_distance
+    from sim.track import discretize, load_track
+    from sim.units import AMBIENT_C, MPH_TO_MS
+
+    segments = load_track(LOCAL_CURVES_FILE)
+    car = player_car(part_ids)
+    driver = Driver(name="Reference", push="normal", sigma=0.0)
+    lap = run_lap(car, discretize(segments, GAME_DS), driver=driver,
+                  seed=LOCAL_CURVES_SEED)
+    telemetry = lap.telemetry
+    replay_data = build_replay(car, segments, lap, LOCAL_CURVES_ID)
+    out = Path(out_file)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(replay_data, separators=(",", ":")), encoding="utf-8")
+
+    corners = []
+    start = 0.0
+    for segment in segments:
+        end = start + segment.length
+        if segment.is_corner:
+            entry = speed_at_distance(telemetry, start)
+            exit_speed = speed_at_distance(telemetry, end)
+            samples = [entry, exit_speed] + [
+                v for s, v in zip(telemetry.s, telemetry.v) if start < s < end
+            ]
+            corners.append({
+                "index": len(corners) + 1,
+                "pace_note": segment.text,
+                "direction": segment.direction,
+                "severity": segment.severity,
+                "start_m": round(start, 1),
+                "end_m": round(end, 1),
+                "time_s": round(time_at_distance(telemetry, end)
+                                - time_at_distance(telemetry, start), 3),
+                "entry_mph": round(entry / MPH_TO_MS, 1),
+                "minimum_mph": round(min(samples) / MPH_TO_MS, 1),
+                "exit_mph": round(exit_speed / MPH_TO_MS, 1),
+            })
+        start = end
+
+    braking_distance = sum(
+        telemetry.s[i + 1] - telemetry.s[i]
+        for i in range(len(telemetry.s) - 1) if telemetry.brake[i] > 0
+    )
+    braking_time = sum(
+        telemetry.t[i + 1] - telemetry.t[i]
+        for i in range(len(telemetry.t) - 1) if telemetry.brake[i] > 0
+    )
+    braking_zones = sum(
+        1 for i, brake in enumerate(telemetry.brake[:-1])
+        if brake > 0 and (i == 0 or telemetry.brake[i - 1] == 0)
+    )
+    reply(
+        road_id=LOCAL_CURVES_ID,
+        conditions={
+            "surface": "baseline dry",
+            "ambient_c": AMBIENT_C,
+            "start": "standing",
+            "reference_driver": "fixed normal profile",
+            "driver_sigma": 0.0,
+            "driver_seed": LOCAL_CURVES_SEED,
+            "integration_step_m": GAME_DS,
+        },
+        installed_definition_ids=list(part_ids),
+        vehicle_state=physical_vehicle_state(car),
+        measurements={
+            "total_time_s": round(lap.lap_time, 3),
+            "peak_speed_mph": round(max(telemetry.v) / MPH_TO_MS, 1),
+            "braking_zones": braking_zones,
+            "braking_distance_m": round(braking_distance, 1),
+            "braking_time_s": round(braking_time, 3),
+            "peak_brake": round(max(telemetry.brake), 3),
+            "corners": corners,
         },
         replay=str(out),
     )
@@ -442,7 +536,7 @@ def main():
     global ACTIVE_CAR_FILE
     ap = argparse.ArgumentParser(description="deadtildawn game bridge")
     ap.add_argument("command", choices=["parts", "shop_catalog", "pull", "car_stats", "track", "rival", "street",
-                                        "practice", "odds", "race", "local_straight"])
+                                        "practice", "odds", "race", "local_straight", "local_curves"])
     ap.add_argument("--car", choices=["reference", "game"], default="reference",
                     help="reference EJ6 for engineering tools (default), game EG6 for Godot")
     ap.add_argument("--week", type=int)
@@ -481,6 +575,8 @@ def main():
             race(a.track, a.push, a.seed, a.out, part_ids)
         elif a.command == "local_straight":
             local_straight(a.out, part_ids)
+        elif a.command == "local_curves":
+            local_curves(a.out, part_ids)
     except Exception as e:                         # report, don't crash the game
         fail(f"{type(e).__name__}: {e}")
 

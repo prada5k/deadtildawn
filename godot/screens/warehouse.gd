@@ -9,6 +9,7 @@ signal go(target: String)
 
 func _ready() -> void:
 	%LocalStraightButton.pressed.connect(func(): go.emit("local_straight"))
+	%LocalCurvesButton.pressed.connect(func(): go.emit("local_curves"))
 
 
 ## Called by game.gd after the screen is added.

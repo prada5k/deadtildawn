@@ -307,6 +307,8 @@ func _go(target: String) -> void:
 			show_shop()
 		"local_straight":
 			start_local_straight()
+		"local_curves":
+			start_local_curves()
 		"race":
 			show_briefing()
 
@@ -470,6 +472,12 @@ func start_local_straight() -> void:
 	show_message("LOCAL STRAIGHT", "Setting up %s for a controlled quarter-mile run.\n\nFixed road. Fixed conditions. Reference driver. $0." % state["civic"]["chassis_id"])
 	var out := ProjectSettings.globalize_path("user://replays/local_straight.json")
 	bridge.request("local_straight", ["local_straight", "--out", out] + parts_args())
+
+
+func start_local_curves() -> void:
+	show_message("LOCAL CURVES", "Setting up %s for a controlled handling run.\n\nFixed road. Fixed conditions. Reference driver. $0." % state["civic"]["chassis_id"])
+	var out := ProjectSettings.globalize_path("user://replays/local_curves.json")
+	bridge.request("local_curves", ["local_curves", "--out", out] + parts_args())
 
 
 func part_by_id(id: String) -> Dictionary:
@@ -856,6 +864,58 @@ func show_test_results(result: Dictionary) -> void:
 	UI.button(footer, "BACK TO HOME", show_warehouse, "AccentButton")
 
 
+func show_local_curves_replay(result: Dictionary) -> void:
+	clear_screen()
+	viewer = Viewer.new()
+	viewer.replay_path = result["replay"]
+	viewer.embedded = true
+	viewer.status_text = "REFERENCE DRIVER"
+	viewer.finished_viewing.connect(show_curves_results.bind(result))
+	add_child(viewer)
+
+
+func show_curves_results(result: Dictionary) -> void:
+	var col := new_screen()
+	UI.spacer(col, false).custom_minimum_size.y = 24
+	UI.label(col, "TEST RESULTS", "TitleLabel", UI.ACCENT)
+	UI.label(col, "LOCAL CURVES", "BigNumberLabel")
+	UI.label(col, "Controlled handling route / fixed dry baseline", "MutedLabel")
+
+	var measurements: Dictionary = result["measurements"]
+	var measured := UI.vbox(UI.panel(col), 6)
+	UI.label(measured, "MEASURED", "HeadingLabel")
+	UI.stat_row(measured, "Total", "%.3f s" % float(measurements["total_time_s"]))
+	UI.stat_row(measured, "Peak speed", "%.1f mph" % float(measurements["peak_speed_mph"]))
+	UI.stat_row(measured, "Braking", "%d zones / %.1f m / %.3f s" % [
+		int(measurements["braking_zones"]), float(measurements["braking_distance_m"]),
+		float(measurements["braking_time_s"])])
+	UI.stat_row(measured, "Peak brake", "%.1f%%" % (float(measurements["peak_brake"]) * 100.0))
+
+	for corner in measurements["corners"]:
+		var panel := UI.vbox(UI.panel(col), 4)
+		UI.label(panel, "CORNER %d / %s" % [int(corner["index"]), corner["pace_note"]], "HeadingLabel")
+		UI.stat_row(panel, "Time", "%.3f s" % float(corner["time_s"]))
+		UI.stat_row(panel, "Entry", "%.1f mph" % float(corner["entry_mph"]))
+		UI.stat_row(panel, "Minimum", "%.1f mph" % float(corner["minimum_mph"]))
+		UI.stat_row(panel, "Exit", "%.1f mph" % float(corner["exit_mph"]))
+
+	var config := UI.vbox(UI.panel(col), 6)
+	UI.label(config, "CIVIC CONFIGURATION", "HeadingLabel")
+	UI.stat_row(config, "Chassis", str(result["chassis_id"]))
+	UI.stat_row(config, "Base car", str(result["base_car_id"]))
+	var installed: Array = result["installed"]
+	UI.stat_row(config, "Installed", "stock" if installed.is_empty() else "%d physical part%s" % [
+		installed.size(), "" if installed.size() == 1 else "s"])
+	for part in installed:
+		UI.label(config, "%s / %s / %s" % [part["slot"], part["owned_uid"], part["definition_id"]], "MutedLabel")
+
+	var conditions: Dictionary = result["conditions"]
+	UI.label(col, "%s / %.0f C / %s / SEED %d" % [
+		str(conditions["surface"]).to_upper(), float(conditions["ambient_c"]),
+		str(conditions["reference_driver"]).to_upper(), int(conditions["driver_seed"])], "MutedLabel")
+	UI.button(footer, "BACK TO HOME", show_warehouse, "AccentButton")
+
+
 # ------------------------------------------------------------------ bridge replies
 
 func _on_reply(tag: String, data: Dictionary) -> void:
@@ -888,6 +948,9 @@ func _on_reply(tag: String, data: Dictionary) -> void:
 		"local_straight":
 			latest_test_result = local_test_snapshot(data)
 			show_local_straight_replay(latest_test_result)
+		"local_curves":
+			latest_test_result = local_test_snapshot(data)
+			show_local_curves_replay(latest_test_result)
 
 
 # ------------------------------------------------------------------ self-test
@@ -984,6 +1047,16 @@ func game_test() -> void:
 		push_error("GAMETEST FAIL LOCAL STRAIGHT road or game-car identity")
 		get_tree().quit(1)
 		return
+	var curves_out := ProjectSettings.globalize_path("user://replays/local_curves_gametest.json")
+	bridge.request("local_curves_stock", ["local_curves", "--out", curves_out])
+	r = await bridge.replied
+	if not game_test_reply_ok(r):
+		return
+	var stock_curves: Dictionary = r[1]
+	if stock_curves["road_id"] != "LOCAL_CURVES" or stock_curves["vehicle_state"]["car_id"] != "eg6_sir_ii_1995":
+		push_error("GAMETEST FAIL LOCAL CURVES road or game-car identity")
+		get_tree().quit(1)
+		return
 	state["cash"] = START_CASH
 	state["rep"] = 0
 	shop_message = ""
@@ -1048,13 +1121,40 @@ func game_test() -> void:
 		push_error("GAMETEST FAIL LOCAL STRAIGHT ownership snapshot: %s" % local_snapshot)
 		get_tree().quit(1)
 		return
+	bridge.request("local_curves_a", ["local_curves", "--out", curves_out] + parts_args())
+	r = await bridge.replied
+	if not game_test_reply_ok(r):
+		return
+	var curves_a: Dictionary = r[1]
+	bridge.request("local_curves_b", ["local_curves", "--out", curves_out] + parts_args())
+	r = await bridge.replied
+	if not game_test_reply_ok(r):
+		return
+	var curves_b: Dictionary = r[1]
+	var curves_snapshot := local_test_snapshot(curves_a)
+	if curves_a["measurements"] != curves_b["measurements"] or curves_a["vehicle_state"] != curves_b["vehicle_state"]:
+		push_error("GAMETEST FAIL LOCAL CURVES repeatability")
+		get_tree().quit(1)
+		return
+	if float(stock_curves["vehicle_state"]["front_roll_stiffness_fraction"]) != 0.60 or float(curves_a["vehicle_state"]["front_roll_stiffness_fraction"]) != 0.48:
+		push_error("GAMETEST FAIL LOCAL CURVES rear sway physical state")
+		get_tree().quit(1)
+		return
+	if curves_snapshot["chassis_id"] != "CHASSIS_0001" or curves_snapshot["base_car_id"] != "eg6_sir_ii_1995" or curves_snapshot["installed"] != [{"slot": "rear_sway", "owned_uid": retail_uid, "definition_id": "rsb_19"}]:
+		push_error("GAMETEST FAIL LOCAL CURVES ownership snapshot: %s" % curves_snapshot)
+		get_tree().quit(1)
+		return
 	if state["cash"] != before_test["cash"] or state["followers"] != before_test["followers"] or state["history"] != before_test["history"] or state["inventory"] != before_test["inventory"] or state["week"] != before_test["week"] or state["day"] != before_test["day"]:
-		push_error("GAMETEST FAIL LOCAL STRAIGHT changed rewards, ownership, record, or calendar")
+		push_error("GAMETEST FAIL local testing changed rewards, ownership, record, or calendar")
 		get_tree().quit(1)
 		return
 	print("GAMETEST LOCAL STRAIGHT: 0-60 %.3f s, quarter %.3f s @ %.1f mph, 60-0 %.1f ft" % [
 		local_a["measurements"]["zero_60_s"], local_a["measurements"]["quarter_mile_s"],
 		local_a["measurements"]["quarter_mile_trap_mph"], local_a["measurements"]["sixty_zero_ft"]])
+	print("GAMETEST LOCAL CURVES: stock %.3f s, rsb_19 %.3f s, roll %.2f -> %.2f" % [
+		stock_curves["measurements"]["total_time_s"], curves_a["measurements"]["total_time_s"],
+		stock_curves["vehicle_state"]["front_roll_stiffness_fraction"],
+		curves_a["vehicle_state"]["front_roll_stiffness_fraction"]])
 	bridge.request("car_stats", ["car_stats"] + parts_args())
 	r = await bridge.replied
 	if not game_test_reply_ok(r):
@@ -1067,7 +1167,7 @@ func game_test() -> void:
 	car_stats = retail_stats
 	show_warehouse()
 	var home_civic: Dictionary = hub_content.current_civic_state()
-	if not shell.is_home_mode() or shell.navigation_labels() != ["CAR", "CALENDAR", "HOME", "TEAM", "SHOP"] or home_civic != state["civic"] or hub_content.current_vehicle_visual_state() != state["civic"]:
+	if not shell.is_home_mode() or shell.navigation_labels() != ["CAR", "CALENDAR", "HOME", "TEAM", "SHOP"] or not hub_content.has_node("%LocalStraightButton") or not hub_content.has_node("%LocalCurvesButton") or home_civic != state["civic"] or hub_content.current_vehicle_visual_state() != state["civic"]:
 		push_error("GAMETEST FAIL HOME Civic state or navigation")
 		get_tree().quit(1)
 		return
@@ -1194,6 +1294,16 @@ func game_shots(folder: String) -> void:
 	await snap(folder, "1a_local_straight_finish")
 	show_test_results(local_result)
 	await snap(folder, "1b_local_straight_results")
+	show_warehouse()
+	var curves_out := ProjectSettings.globalize_path("user://replays/local_curves_shots.json")
+	bridge.request("local_curves", ["local_curves", "--out", curves_out])
+	var curves_data: Dictionary = (await bridge.replied)[1]
+	var curves_result := local_test_snapshot(curves_data)
+	show_local_curves_replay(curves_result)
+	viewer.t = viewer.lap_time
+	await snap(folder, "1c_local_curves_finish")
+	show_curves_results(curves_result)
+	await snap(folder, "1d_local_curves_results")
 	show_warehouse()
 	bridge.request("parts", ["shop_catalog"])
 	accept_shop_catalog((await bridge.replied)[1])
