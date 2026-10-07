@@ -24,7 +24,7 @@ theme_override_constants/separation = 18
 [node name="Subtitle" type="Label" parent="Column"]
 layout_mode = 2
 theme_type_variation = &"MutedLabel"
-text = "Home. Garage. HQ. Faba's savings, your tools."
+text = "One car. One garage. This is your Civic."
 autowrap_mode = 3
 
 [node name="CarPedestal" type="SubViewportContainer" parent="Column"]
@@ -44,11 +44,11 @@ theme_override_constants/separation = 6
 [node name="CrewTitle" type="Label" parent="Column/Crew/Box"]
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
-text = "THE CREW"
+text = "THE CIVIC"
 
 [node name="CrewLine" type="Label" parent="Column/Crew/Box"]
 layout_mode = 2
-text = "Faba drives. You build."
+text = "BUILD → SET UP → COMMIT → WATCH → ANALYZE → LEARN"
 autowrap_mode = 3
 
 [node name="Record" type="Label" parent="Column/Crew/Box"]
@@ -57,10 +57,6 @@ layout_mode = 2
 theme_type_variation = &"MutedLabel"
 text = "Record 0 W - 0 L"
 
-[node name="StoryButton" type="Button" parent="Column/Crew/Box"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Replay the story"
 
 [node name="NextUp" type="PanelContainer" parent="Column"]
 layout_mode = 2
@@ -92,4 +88,4 @@ autowrap_mode = 3
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"AccentButton"
-text = "GET READY"
+text = "VIEW NEXT EVENT"
