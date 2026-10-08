@@ -10,6 +10,15 @@
     "definition_path": "data/cars/ej6_dx_coupe_1996.json",
     "configuration": "stock; no aftermarket parts"
   },
+  "vehicle_visual": {
+    "visual_id": "eg9_ferio_temp_proxy",
+    "role": "temporary_visual_proxy",
+    "asset_path": "res://../art/models/cars/eg9.glb",
+    "asset_label": "TEMPORARY VISUAL PROXY / HONDA CIVIC EG9 FERIO SEDAN",
+    "represents": "Rafa's simulated 1996 EJ6 Civic DX Coupe",
+    "accuracy": "not_visually_accurate",
+    "notice": "This EG9 Ferio sedan model is only a temporary replay visual. The simulated and saved rival vehicle remains the EJ6 Civic DX Coupe. Do not relabel this asset as an EJ6 or claim it is visually accurate."
+  },
   "driver": {
     "name": "Rafa Morales",
     "push": "normal",

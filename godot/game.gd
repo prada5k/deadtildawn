@@ -601,6 +601,12 @@ func show_race_event_detail(event_id: String) -> void:
 			UI.button(footer, "WATCH EVENT REPLAY", watch_race_event.bind(str(result["result_id"])), "AccentButton")
 		else:
 			UI.label(footer, "EVENT REPLAY FILE UNAVAILABLE / RESULT SNAPSHOT PRESERVED", "MutedLabel")
+		var competition: Dictionary = result.get("competition", {})
+		if not competition.is_empty():
+			if test_replay_available({"replay": str(competition.get("replay", ""))}):
+				UI.button(footer, "WATCH RIVAL REPLAY", watch_rival_event_replay.bind(str(result["result_id"])))
+			else:
+				UI.label(footer, "RIVAL REPLAY UNAVAILABLE / PHYSICS RESULT PRESERVED", "MutedLabel")
 	else:
 		var eligibility := race_event_eligibility(event)
 		if eligibility.begins_with("ELIGIBLE."):
@@ -675,6 +681,12 @@ func show_race_event_result(result_id: String) -> void:
 		UI.button(footer, "WATCH EVENT REPLAY", watch_race_event.bind(result_id), "AccentButton")
 	else:
 		UI.label(footer, "EVENT REPLAY FILE UNAVAILABLE / RESULT SNAPSHOT PRESERVED", "MutedLabel")
+	var competition: Dictionary = result.get("competition", {})
+	if not competition.is_empty():
+		if test_replay_available({"replay": str(competition.get("replay", ""))}):
+			UI.button(footer, "WATCH RIVAL REPLAY", watch_rival_event_replay.bind(result_id))
+		else:
+			UI.label(footer, "RIVAL REPLAY UNAVAILABLE / PHYSICS RESULT PRESERVED", "MutedLabel")
 	UI.button(footer, "BACK TO CALENDAR", show_calendar)
 
 
@@ -690,6 +702,26 @@ func watch_race_event(result_id: String) -> void:
 		viewer.replay_path = str(result["replay"])
 		viewer.embedded = true
 		viewer.status_text = "COMPETITIVE TIME ATTACK / LOCAL CURVES"
+		viewer.finished_viewing.connect(show_race_event_result.bind(result_id))
+		add_child(viewer)
+		return
+	show_calendar()
+
+
+func watch_rival_event_replay(result_id: String) -> void:
+	for result in state.get("race_results", {}).get("results", []):
+		if str(result.get("result_id", "")) != result_id:
+			continue
+		var competition: Dictionary = result.get("competition", {})
+		var replay_ref := str(competition.get("replay", ""))
+		if replay_ref == "" or not test_replay_available({"replay": replay_ref}):
+			show_race_event_result(result_id)
+			return
+		clear_screen()
+		viewer = Viewer.new()
+		viewer.replay_path = replay_ref
+		viewer.embedded = true
+		viewer.status_text = "RIVAL RUN / TEMPORARY VISUAL PROXY"
 		viewer.finished_viewing.connect(show_race_event_result.bind(result_id))
 		add_child(viewer)
 		return
@@ -2630,6 +2662,10 @@ func race_event_test(rival_only := false) -> void:
 		race_event_test_fail("race history or TEST LOG changed across reload")
 		return
 	var stored := race_result_for_event("C96_TA_LOCAL_CURVES_001")
+	show_race_event_detail("C96_TA_LOCAL_CURVES_001")
+	if not test_screen_has_button("WATCH RIVAL REPLAY"):
+		race_event_test_fail("event result does not expose the persisted rival replay")
+		return
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(replay_ref))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(rival_replay_ref))
 	if test_replay_available(stored) or not stored.has("measurements") or int(stored["measurements"].get("total_time_s", 0)) <= 0 or float(stored.get("competition", {}).get("measurements", {}).get("total_time_s", 0)) <= 0:

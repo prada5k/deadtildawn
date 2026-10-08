@@ -42,3 +42,16 @@ def test_authored_rival_is_independent_deterministic_physics_run(tmp_path):
     assert json.loads(player_replay.read_text(encoding="utf-8"))["lap_time"] == first["player"]["measurements"]["total_time_s"]
     assert json.loads(rival_replay.read_text(encoding="utf-8"))["lap_time"] == first["rival"]["measurements"]["total_time_s"]
 
+
+def test_rival_replay_selects_eg9_only_as_disclaimed_visual_proxy(tmp_path):
+    result, _, rival_replay = run_pair(tmp_path, "visual")
+    profile = json.loads((ROOT / PROFILE).read_text(encoding="utf-8"))
+    visual = json.loads(rival_replay.read_text(encoding="utf-8"))["vehicle_visual"]
+
+    assert profile["vehicle"]["definition_id"] == "ej6_dx_coupe_1996"
+    assert visual["visual_id"] == "eg9_ferio_temp_proxy"
+    assert visual["role"] == "temporary_visual_proxy"
+    assert visual["accuracy"] == "not_visually_accurate"
+    assert "Do not relabel this asset as an EJ6" in visual["notice"]
+    assert visual["asset_path"] == "res://../art/models/cars/eg9.glb"
+    assert result["rival"]["vehicle_configuration"]["definition_id"] == "ej6_dx_coupe_1996"

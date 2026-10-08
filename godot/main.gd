@@ -50,6 +50,7 @@ var rival_name := ""
 var rival_time := -1.0      # posted time to beat; < 0 = no rival
 var embedded := false       # inside the game: Continue button, broadcast cameras
 var status_text := ""       # optional non-race label for reused controlled-test playback
+var vehicle_visual_status := ""
 
 var replay: Dictionary = {}
 var samples: Dictionary = {}
@@ -78,6 +79,10 @@ var marker: Node2D
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(Color(0.16, 0.2, 0.15))   # grass
+	var args := OS.get_cmdline_user_args()
+	for arg in args:
+		if arg.begins_with("--replay="):
+			replay_path = arg.trim_prefix("--replay=")
 	var err := load_replay(replay_path)
 	if err != "":
 		show_message(err)
@@ -87,7 +92,6 @@ func _ready() -> void:
 	build_camera()
 	build_hud()
 	set_cam_mode(CamMode.TRACKSIDE if embedded else CamMode.OVERVIEW)
-	var args := OS.get_cmdline_user_args()
 	if "--selftest" in args:
 		self_test()
 	for a in args:
@@ -197,28 +201,10 @@ func rect_poly(x: float, y: float, w: float, h: float) -> PackedVector2Array:
 
 
 func build_car() -> void:
-	# Top-down Civic: +x is the front of the car
-	var l := CAR_LENGTH_M * PX_PER_M
-	var w := CAR_WIDTH_M * PX_PER_M
 	car = Node2D.new()
 	car.z_index = 10
-
-	var body := Polygon2D.new()
-	body.polygon = PackedVector2Array([
-		Vector2(-l / 2, -w / 2), Vector2(l * 0.38, -w / 2), Vector2(l / 2, -w * 0.3),
-		Vector2(l / 2, w * 0.3), Vector2(l * 0.38, w / 2), Vector2(-l / 2, w / 2)])
-	body.color = Color(0.86, 0.1, 0.12)
-	car.add_child(body)
-
-	var cabin := Polygon2D.new()
-	cabin.polygon = rect_poly(-l * 0.22, -w * 0.38, l * 0.42, w * 0.76)
-	cabin.color = Color(0.1, 0.1, 0.14)
-	car.add_child(cabin)
-
-	brake_lights = Polygon2D.new()
-	brake_lights.polygon = rect_poly(-l / 2, -w / 2, l * 0.05, w)
-	brake_lights.color = Color(0.35, 0.0, 0.0)
-	car.add_child(brake_lights)
+	if not add_selected_vehicle_visual(car):
+		build_generic_replay_marker(car)
 
 	add_child(car)
 
@@ -234,6 +220,114 @@ func build_car() -> void:
 	ring.default_color = Color(1.0, 0.85, 0.2)
 	marker.add_child(ring)
 	add_child(marker)
+
+
+func build_generic_replay_marker(parent: Node2D) -> void:
+	# Fallback marker for runs without a selected 3D replay visual.
+	var l := CAR_LENGTH_M * PX_PER_M
+	var w := CAR_WIDTH_M * PX_PER_M
+	var body := Polygon2D.new()
+	body.polygon = PackedVector2Array([
+		Vector2(-l / 2, -w / 2), Vector2(l * 0.38, -w / 2), Vector2(l / 2, -w * 0.3),
+		Vector2(l / 2, w * 0.3), Vector2(l * 0.38, w / 2), Vector2(-l / 2, w / 2)])
+	body.color = Color(0.86, 0.1, 0.12)
+	parent.add_child(body)
+	var cabin := Polygon2D.new()
+	cabin.polygon = rect_poly(-l * 0.22, -w * 0.38, l * 0.42, w * 0.76)
+	cabin.color = Color(0.1, 0.1, 0.14)
+	parent.add_child(cabin)
+	brake_lights = Polygon2D.new()
+	brake_lights.polygon = rect_poly(-l / 2, -w / 2, l * 0.05, w)
+	brake_lights.color = Color(0.35, 0.0, 0.0)
+	parent.add_child(brake_lights)
+
+
+func add_selected_vehicle_visual(parent: Node2D) -> bool:
+	## Visual choice belongs to replay metadata. It never changes vehicle identity,
+	## simulation inputs, or the persistent race result.
+	var selection: Dictionary = replay.get("vehicle_visual", {})
+	if selection.is_empty() or str(selection.get("role", "")) != "temporary_visual_proxy":
+		return false
+	var asset_path := str(selection.get("asset_path", ""))
+	var absolute_path := ProjectSettings.globalize_path(asset_path)
+	if asset_path == "" or not FileAccess.file_exists(absolute_path):
+		vehicle_visual_status = "TEMPORARY VISUAL PROXY MISSING / GENERIC MARKER SHOWN"
+		return false
+	var document := GLTFDocument.new()
+	var gltf_state := GLTFState.new()
+	var error := document.append_from_file(absolute_path, gltf_state)
+	if error != OK:
+		vehicle_visual_status = "TEMPORARY VISUAL PROXY FAILED TO LOAD / GENERIC MARKER SHOWN"
+		push_warning("Could not load replay visual proxy %s (error %d)" % [asset_path, error])
+		return false
+	var model := document.generate_scene(gltf_state)
+	if model == null:
+		vehicle_visual_status = "TEMPORARY VISUAL PROXY FAILED TO BUILD / GENERIC MARKER SHOWN"
+		return false
+
+	var viewport := SubViewport.new()
+	viewport.name = "ReplayVehicleVisualViewport"
+	viewport.size = Vector2i(256, 144)
+	viewport.own_world_3d = true
+	viewport.transparent_bg = true
+	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(viewport)
+	var stage := Node3D.new()
+	stage.name = "ReplayVehicleVisualStage"
+	viewport.add_child(stage)
+	var world := WorldEnvironment.new()
+	world.environment = Environment.new()
+	world.environment.background_mode = Environment.BG_COLOR
+	world.environment.background_color = Color(0, 0, 0, 0)
+	viewport.add_child(world)
+	var light := DirectionalLight3D.new()
+	light.rotation_degrees = Vector3(-45, 35, 0)
+	light.light_energy = 1.4
+	stage.add_child(light)
+	stage.add_child(model)
+	var bounds := [false, AABB()]
+	collect_vehicle_visual_bounds(model, Transform3D.IDENTITY, bounds)
+	if not bounds[0]:
+		viewport.queue_free()
+		vehicle_visual_status = "TEMPORARY VISUAL PROXY HAS NO MESH / GENERIC MARKER SHOWN"
+		return false
+	var model_bounds: AABB = bounds[1]
+	var center := model_bounds.position + model_bounds.size * 0.5
+	var largest_dimension := maxf(model_bounds.size.x, maxf(model_bounds.size.y, model_bounds.size.z))
+	if largest_dimension <= 0.0:
+		viewport.queue_free()
+		return false
+	var fit_scale := CAR_LENGTH_M / largest_dimension
+	model.scale = Vector3.ONE * fit_scale
+	model.position = -center * fit_scale
+	var camera := Camera3D.new()
+	camera.position = Vector3(3.8, 2.8, 4.8)
+	camera.fov = 38.0
+	stage.add_child(camera)
+	camera.look_at(Vector3.ZERO, Vector3.UP)
+	var sprite := Sprite2D.new()
+	sprite.texture = viewport.get_texture()
+	sprite.scale = Vector2(0.075, 0.075)
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	parent.add_child(sprite)
+	vehicle_visual_status = str(selection.get("asset_label", "TEMPORARY VISUAL PROXY"))
+	return true
+
+
+func collect_vehicle_visual_bounds(node: Node, parent_transform: Transform3D, bounds: Array) -> void:
+	var node_transform := parent_transform
+	if node is Node3D:
+		node_transform = parent_transform * (node as Node3D).transform
+	if node is VisualInstance3D:
+		var transformed: AABB = node_transform * (node as VisualInstance3D).get_aabb()
+		if bounds[0]:
+			var old_bounds: AABB = bounds[1]
+			bounds[1] = old_bounds.merge(transformed)
+		else:
+			bounds[0] = true
+			bounds[1] = transformed
+	for child in node.get_children():
+		collect_vehicle_visual_bounds(child, node_transform, bounds)
 
 
 func build_camera() -> void:
@@ -285,6 +379,11 @@ func build_hud() -> void:
 	hud["title"] = add_label(top, Vector2(30, 112), 22, Color(0.7, 0.71, 0.75))
 	hud["title"].text = "%s  /  %s" % [replay["car"]["name"], str(replay["track"]["name"]).get_basename().replace("_", " ")]
 	hud["status"] = add_label(top, Vector2(30, 142), 24, Color(1.0, 0.55, 0.1))
+	hud["visual_notice"] = add_label(top, Vector2(30, 170), 14, Color(0.92, 0.78, 0.47))
+	var visual_selection: Dictionary = replay.get("vehicle_visual", {})
+	hud["visual_notice"].text = "%s / SIM / %s" % [
+		str(visual_selection.get("asset_label", vehicle_visual_status)), str(replay["car"].get("name", "UNKNOWN VEHICLE"))]
+	hud["visual_notice"].visible = not visual_selection.is_empty() or vehicle_visual_status != ""
 
 	# Bottom: camera + playback buttons, then the dash
 	var bottom := ColorRect.new()
@@ -494,7 +593,8 @@ func update_car() -> void:
 		value_at("y") - cos(h) * LANE_OFFSET_M)
 	car.rotation = -h                                 # flip: Godot rotates clockwise
 	var braking := value_at("brake") > 0.0
-	brake_lights.color = Color(1.0, 0.1, 0.1) if braking else Color(0.35, 0.0, 0.0)
+	if is_instance_valid(brake_lights):
+		brake_lights.color = Color(1.0, 0.1, 0.1) if braking else Color(0.35, 0.0, 0.0)
 
 
 # ------------------------------------------------------------------ cameras
@@ -643,6 +743,8 @@ func show_message(text: String) -> void:
 ## the viewer sees, then quit. Run with:  godot --headless -- --selftest
 func self_test() -> void:
 	print("SELFTEST samples=%d lap_time=%.2f corners=%d" % [samples["t"].size(), lap_time, corners.size()])
+	if not vehicle_visual_status.is_empty():
+		print("SELFTEST vehicle visual: %s" % vehicle_visual_status)
 	for check_t in [0.0, lap_time * 0.25, lap_time * 0.5, lap_time * 0.75, lap_time]:
 		t = check_t
 		update_car()

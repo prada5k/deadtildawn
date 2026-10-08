@@ -216,7 +216,7 @@ def local_straight(out_file, part_ids=()):
 
 def local_curves_result(out_file, part_ids=(), car=None, driver_name="Reference",
                         driver_push="normal", driver_sigma=0.0, driver_seed=LOCAL_CURVES_SEED,
-                        definition_path=None):
+                        definition_path=None, vehicle_visual=None):
     """Run fixed LOCAL CURVES and return its complete physical/result snapshot."""
     from export_replay import build_replay
     from sim.driver import Driver
@@ -233,6 +233,8 @@ def local_curves_result(out_file, part_ids=(), car=None, driver_name="Reference"
                   seed=driver_seed)
     telemetry = lap.telemetry
     replay_data = build_replay(car, segments, lap, LOCAL_CURVES_ID)
+    if vehicle_visual:
+        replay_data["vehicle_visual"] = dict(vehicle_visual)
     out = Path(out_file)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(replay_data, separators=(",", ":")), encoding="utf-8")
@@ -333,7 +335,7 @@ def time_attack(player_out, rival_out, part_ids=(), rival_file=LOCAL_RIVAL_FILE)
     rival = local_curves_result(rival_out, (), car=load_car(rival_path),
         driver_name=str(driver["name"]), driver_push=str(driver["push"]),
         driver_sigma=float(driver["sigma"]), driver_seed=int(driver["seed"]),
-        definition_path=rival_path)
+        definition_path=rival_path, vehicle_visual=profile.get("vehicle_visual", {}))
     if player["road"] != rival["road"]:
         raise ValueError("Player and rival road snapshots differ")
     conditions_match = {k: v for k, v in player["conditions"].items() if k != "reference_driver"}
