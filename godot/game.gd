@@ -32,7 +32,7 @@ const LOCATIONS := {
 }
 
 const SAVE_PATH := "user://save.json"
-const SAVE_VERSION := 11
+const SAVE_VERSION := 12
 const START_CASH := 2500
 const MIN_BUY_IN := 100
 const WAGER_STEP := 10
@@ -63,6 +63,10 @@ var footer: VBoxContainer  # pinned area at the bottom of scrolling screens
 var viewer: Node           # replay viewer while racing
 var latest_test_result := {}
 var pending_test := {}
+var pending_race_event := {}
+var race_event_test_save_exists := false
+var race_event_test_save_backup := PackedByteArray()
+var race_event_test_outputs: Array[String] = []
 var choice := {"push": "normal", "wager": MIN_BUY_IN}
 var after_car_stats := "warehouse"   # where to go once car stats arrive
 var after_catalog := "shop"          # where to go once the parts catalog arrives
@@ -91,6 +95,9 @@ func _ready() -> void:
 	if "--deliverytest" in args:
 		delivery_test()
 		return
+	if "--raceeventtest" in args:
+		race_event_test()
+		return
 	for a in args:
 		if a.begins_with("--gameshots="):
 			game_shots(a.trim_prefix("--gameshots="))
@@ -112,7 +119,8 @@ func new_state() -> Dictionary:
 		"deliveries": {"next_delivery_id": 1, "orders": []},
 		"calendar": initial_calendar(1, 0),
 		"garage_work": {"next_work_id": 1, "orders": []},
-		"test_log": {"next_id": 1, "runs": []}}
+		"test_log": {"next_id": 1, "runs": []},
+		"race_results": {"next_result_id": 1, "results": []}}
 
 
 func load_game() -> void:
@@ -270,6 +278,18 @@ func migrate(data: Dictionary) -> Dictionary:
 		if delivery_id.begins_with("DELIVERY_") and delivery_id.trim_prefix("DELIVERY_").is_valid_int():
 			next_delivery_id = maxi(next_delivery_id, int(delivery_id.trim_prefix("DELIVERY_")) + 1)
 	data["deliveries"] = {"next_delivery_id": next_delivery_id, "orders": delivery_orders}
+	if v < 12:                       # v11 -> v12: first authored competitive time attack
+		data["race_results"] = {"next_result_id": 1, "results": []}
+		data["calendar"] = ensure_time_attack_event(data["calendar"], int(data["week"]), int(data["day"]))
+		v = 12
+	var race_results: Dictionary = data.get("race_results", {})
+	var saved_results: Array = race_results.get("results", [])
+	var next_result_id := maxi(1, int(race_results.get("next_result_id", 1)))
+	for result in saved_results:
+		var result_id := str(result.get("result_id", ""))
+		if result_id.begins_with("RACE_") and result_id.trim_prefix("RACE_").is_valid_int():
+			next_result_id = maxi(next_result_id, int(result_id.trim_prefix("RACE_")) + 1)
+	data["race_results"] = {"next_result_id": next_result_id, "results": saved_results}
 	data["civic"] = civic
 	data["version"] = v
 	return data
@@ -306,7 +326,8 @@ func initial_calendar(week: int, day: int) -> Dictionary:
 	## They communicate world texture only; neither event grants an action or reward.
 	var garage_date := calendar_date_after(week, day, 1)
 	var meet_date := calendar_date_after(week, day, 3)
-	return {"next_event_id": 3, "events": [
+	var event_date := calendar_date_after(week, day, 5)
+	return {"next_event_id": 4, "events": [
 		{"event_id": "EVENT_000001", "type": "garage", "title": "GARAGE NIGHT",
 			"scheduled_week": garage_date["week"], "scheduled_day": garage_date["day"],
 			"location_id": "GARAGE_1", "road_id": "", "status": "upcoming",
@@ -315,7 +336,33 @@ func initial_calendar(week: int, day: int) -> Dictionary:
 			"scheduled_week": meet_date["week"], "scheduled_day": meet_date["day"],
 			"location_id": "OXNARD_MEET", "road_id": "", "status": "upcoming",
 			"description": "A local meet notice. No competition is scheduled."},
+		{"event_id": "C96_TA_LOCAL_CURVES_001", "type": "time_attack",
+			"title": "LOCAL CURVES TIME ATTACK",
+			"scheduled_week": event_date["week"], "scheduled_day": event_date["day"],
+			"location_id": "LOCAL_CURVES", "road_id": "LOCAL_CURVES",
+			"status": "upcoming", "entry_conditions": {"base_car_id": "eg6_sir_ii_1995",
+				"permanent_chassis": true, "garage_work_clear": true},
+			"description": "A solo timed entry on the established LOCAL CURVES route. Available only on its scheduled day; no fee or reward."},
 	]}
+
+
+func ensure_time_attack_event(calendar: Dictionary, week: int, day: int) -> Dictionary:
+	var out: Dictionary = calendar.duplicate(true)
+	var events: Array = out.get("events", []).duplicate(true)
+	if not events.any(func(event): return str(event.get("event_id", "")) == "C96_TA_LOCAL_CURVES_001"):
+		# Existing v11 saves receive one chance three days after migration. The
+		# stable ID and persisted date prevent menu entry/reload duplication.
+		var event_date := calendar_date_after(week, day, 3)
+		events.append({"event_id": "C96_TA_LOCAL_CURVES_001", "type": "time_attack",
+			"title": "LOCAL CURVES TIME ATTACK", "scheduled_week": event_date["week"],
+			"scheduled_day": event_date["day"], "location_id": "LOCAL_CURVES",
+			"road_id": "LOCAL_CURVES", "status": "upcoming",
+			"entry_conditions": {"base_car_id": "eg6_sir_ii_1995",
+				"permanent_chassis": true, "garage_work_clear": true},
+			"description": "A solo timed entry on the established LOCAL CURVES route. Available only on its scheduled day; no fee or reward."})
+		out["next_event_id"] = maxi(int(out.get("next_event_id", 1)), 4)
+	out["events"] = events
+	return out
 
 
 func calendar_status_for_date(event: Dictionary, week: int, day: int) -> String:
@@ -392,6 +439,207 @@ func upcoming_calendar_events(limit: int) -> Array:
 			if out.size() >= limit:
 				break
 	return out
+
+
+func calendar_event(event_id: String) -> Dictionary:
+	for event in state.get("calendar", {}).get("events", []):
+		if str(event.get("event_id", "")) == event_id:
+			return event
+	return {}
+
+
+func race_result_for_event(event_id: String) -> Dictionary:
+	for result in state.get("race_results", {}).get("results", []):
+		if str(result.get("event_id", "")) == event_id:
+			return result
+	return {}
+
+
+func race_event_eligibility(event: Dictionary) -> String:
+	if event.is_empty() or str(event.get("type", "")) != "time_attack":
+		return "EVENT NOT FOUND."
+	if str(event.get("status", "")) != "available":
+		match str(event.get("status", "")):
+			"upcoming": return "AVAILABLE ON %s." % when(int(event["scheduled_week"]), int(event["scheduled_day"]))
+			"missed": return "MISSED. THIS AUTHORED EVENT DOES NOT REPEAT."
+			"completed": return "THIS EVENT IS ALREADY COMPLETE."
+			_: return "EVENT IS NOT AVAILABLE."
+	if not race_result_for_event(str(event["event_id"])).is_empty():
+		return "THIS EVENT ALREADY HAS A SAVED RESULT."
+	if str(state.get("civic", {}).get("chassis_id", "")) != "CHASSIS_0001":
+		return "THE PERMANENT CIVIC CHASSIS IS REQUIRED."
+	if str(state.get("civic", {}).get("base_car_id", "")) != str(event.get("entry_conditions", {}).get("base_car_id", "eg6_sir_ii_1995")):
+		return "THIS EVENT REQUIRES THE 1995 CIVIC SiR-II."
+	if not active_work_orders().is_empty():
+		return "FINISH ACTIVE GARAGE WORK BEFORE ENTRY."
+	if str(event.get("road_id", "")) != "LOCAL_CURVES":
+		return "EVENT ROAD IS NOT AVAILABLE."
+	return "ELIGIBLE. ENTRY IS SOLO, COSTS NOTHING, AND DOES NOT ADVANCE THE CALENDAR."
+
+
+func next_race_result_id() -> String:
+	return "RACE_%06d" % int(state.get("race_results", {}).get("next_result_id", 1))
+
+
+func prepare_race_event(event: Dictionary) -> bool:
+	if race_event_eligibility(event) != "ELIGIBLE. ENTRY IS SOLO, COSTS NOTHING, AND DOES NOT ADVANCE THE CALENDAR.":
+		return false
+	var result_id := next_race_result_id()
+	var event_id := str(event["event_id"])
+	var replay_ref := "user://replays/events/%s/%s.json" % [event_id, result_id]
+	pending_race_event = {"event_id": event_id, "result_id": result_id,
+		"replay": replay_ref, "chassis_id": str(state["civic"]["chassis_id"]),
+		"base_car_id": str(state["civic"]["base_car_id"]),
+		"calendar": {"week": int(state["week"]), "day": int(state["day"]),
+			"label": when(int(state["week"]), int(state["day"]))},
+		"installed": installed_configuration_snapshot()}
+	var out := ProjectSettings.globalize_path(replay_ref)
+	bridge.request("race_event", ["local_curves", "--out", out] + parts_args())
+	return true
+
+
+func complete_race_event(data: Dictionary) -> Dictionary:
+	var prepared: Dictionary = pending_race_event
+	pending_race_event = {}
+	if prepared.is_empty() or str(data.get("road_id", "")) != "LOCAL_CURVES" or str(data.get("road", {}).get("geometry_sha256", "")) == "":
+		return {}
+	var event := calendar_event(str(prepared["event_id"]))
+	if event.is_empty() or race_event_eligibility(event) != "ELIGIBLE. ENTRY IS SOLO, COSTS NOTHING, AND DOES NOT ADVANCE THE CALENDAR.":
+		return {}
+	if str(state["civic"]["chassis_id"]) != str(prepared["chassis_id"]) or str(state["civic"]["base_car_id"]) != str(prepared["base_car_id"]):
+		return {}
+	if int(state["week"]) != int(prepared["calendar"]["week"]) or int(state["day"]) != int(prepared["calendar"]["day"]):
+		return {}
+	var current_configuration := installed_configuration_snapshot()
+	if current_configuration != prepared["installed"]:
+		return {}
+	var expected_definitions: Array = prepared["installed"].map(func(part): return str(part["definition_id"]))
+	expected_definitions.sort()
+	var simulated_definitions: Array = data.get("installed_definition_ids", []).map(func(definition): return str(definition))
+	simulated_definitions.sort()
+	if simulated_definitions != expected_definitions:
+		return {}
+	var result := {"result_id": prepared["result_id"], "event_id": prepared["event_id"],
+		"chassis_id": prepared["chassis_id"], "base_car_id": prepared["base_car_id"],
+		"calendar": prepared["calendar"].duplicate(true), "road_id": data["road_id"],
+		"road": data["road"].duplicate(true), "installed": prepared["installed"].duplicate(true),
+		"conditions": data["conditions"].duplicate(true),
+		"vehicle_state": data["vehicle_state"].duplicate(true),
+		"measurement_scope": data.get("measurement_scope", {}).duplicate(true),
+		"measurements": data["measurements"].duplicate(true), "replay": prepared["replay"]}
+	var results: Array = state["race_results"]["results"]
+	if results.any(func(old): return str(old.get("event_id", "")) == str(prepared["event_id"]) or str(old.get("result_id", "")) == str(prepared["result_id"])):
+		return {}
+	results.append(result.duplicate(true))
+	state["race_results"]["next_result_id"] = int(str(prepared["result_id"]).trim_prefix("RACE_")) + 1
+	for saved_event in state["calendar"]["events"]:
+		if str(saved_event.get("event_id", "")) == str(prepared["event_id"]):
+			saved_event["status"] = "completed"
+			saved_event["result_id"] = str(prepared["result_id"])
+			saved_event["completed_week"] = int(state["week"])
+			saved_event["completed_day"] = int(state["day"])
+			break
+	save_game()
+	return result
+
+
+func show_race_event_detail(event_id: String) -> void:
+	var event := calendar_event(event_id)
+	if event.is_empty():
+		show_calendar()
+		return
+	var col := new_screen()
+	UI.spacer(col, false).custom_minimum_size.y = 16
+	UI.label(col, "SCHEDULED EVENT", "TitleLabel", UI.ACCENT)
+	UI.label(col, str(event.get("title", "TIME ATTACK")), "BigNumberLabel")
+	UI.label(col, "%s / %s / %s" % [event_id, when(int(event["scheduled_week"]), int(event["scheduled_day"])), str(event.get("road_id", ""))], "MutedLabel")
+	UI.label(col, str(event.get("description", "")), "MutedLabel")
+	UI.label(col, "ENTRY / %s" % race_event_eligibility(event), "HeadingLabel")
+	var result := race_result_for_event(event_id)
+	if not result.is_empty():
+		show_race_event_result_summary(col, result)
+		if test_replay_available(result):
+			UI.button(footer, "WATCH EVENT REPLAY", watch_race_event.bind(str(result["result_id"])), "AccentButton")
+		else:
+			UI.label(footer, "EVENT REPLAY FILE UNAVAILABLE / RESULT SNAPSHOT PRESERVED", "MutedLabel")
+	else:
+		var eligibility := race_event_eligibility(event)
+		if eligibility.begins_with("ELIGIBLE."):
+			UI.button(footer, "COMMIT TO TIME ATTACK", commit_race_event.bind(event_id), "AccentButton")
+	UI.button(footer, "BACK TO CALENDAR", show_calendar)
+
+
+func show_race_event_replay(result: Dictionary) -> void:
+	clear_screen()
+	viewer = Viewer.new()
+	viewer.replay_path = str(result["replay"])
+	viewer.embedded = true
+	viewer.status_text = "COMPETITIVE TIME ATTACK / LOCAL CURVES"
+	viewer.finished_viewing.connect(show_race_event_result.bind(str(result["result_id"])))
+	add_child(viewer)
+
+
+func commit_race_event(event_id: String) -> void:
+	var event := calendar_event(event_id)
+	if not prepare_race_event(event):
+		show_race_event_detail(event_id)
+		return
+	show_message("COMMITTED / LOCAL CURVES", "The EG6 will run the fixed reference-driver simulation. No entry fee, payout, or calendar time is applied.")
+
+
+func show_race_event_result_summary(parent: VBoxContainer, result: Dictionary) -> void:
+	var measurements: Dictionary = result.get("measurements", {})
+	UI.label(parent, "COMPETITIVE EVENT RESULT", "HeadingLabel")
+	if measurements.has("total_time_s"):
+		UI.label(parent, "TOTAL TIME / %.3f s" % float(measurements["total_time_s"]), "BigNumberLabel")
+	if measurements.has("peak_speed_mph"):
+		UI.stat_row(parent, "Peak speed", "%.1f mph" % float(measurements["peak_speed_mph"]))
+	UI.stat_row(parent, "Chassis", str(result.get("chassis_id", "")))
+	UI.stat_row(parent, "Configuration", test_configuration_summary(result))
+	for part in result.get("installed", []):
+		UI.label(parent, "%s / %s / %s" % [str(part.get("slot", "")),
+			str(part.get("owned_uid", "")), str(part.get("definition_id", ""))], "MutedLabel")
+	UI.stat_row(parent, "Road geometry", str(result.get("road", {}).get("geometry_sha256", "unknown")))
+	UI.stat_row(parent, "Date", test_calendar_summary(result))
+
+
+func show_race_event_result(result_id: String) -> void:
+	var result := {}
+	for saved in state.get("race_results", {}).get("results", []):
+		if str(saved.get("result_id", "")) == result_id:
+			result = saved
+			break
+	if result.is_empty():
+		show_calendar()
+		return
+	var col := new_screen()
+	UI.spacer(col, false).custom_minimum_size.y = 16
+	UI.label(col, "TIME ATTACK RESULT", "TitleLabel", UI.ACCENT)
+	UI.label(col, "LOCAL CURVES", "BigNumberLabel")
+	show_race_event_result_summary(col, result)
+	if test_replay_available(result):
+		UI.button(footer, "WATCH EVENT REPLAY", watch_race_event.bind(result_id), "AccentButton")
+	else:
+		UI.label(footer, "EVENT REPLAY FILE UNAVAILABLE / RESULT SNAPSHOT PRESERVED", "MutedLabel")
+	UI.button(footer, "BACK TO CALENDAR", show_calendar)
+
+
+func watch_race_event(result_id: String) -> void:
+	for result in state.get("race_results", {}).get("results", []):
+		if str(result.get("result_id", "")) != result_id:
+			continue
+		if not test_replay_available(result):
+			show_race_event_result(result_id)
+			return
+		clear_screen()
+		viewer = Viewer.new()
+		viewer.replay_path = str(result["replay"])
+		viewer.embedded = true
+		viewer.status_text = "COMPETITIVE TIME ATTACK / LOCAL CURVES"
+		viewer.finished_viewing.connect(show_race_event_result.bind(result_id))
+		add_child(viewer)
+		return
+	show_calendar()
 
 
 func calendar_events_for_week(week: int) -> Array:
@@ -1084,6 +1332,7 @@ func show_calendar() -> void:
 	calendar.advance_day.connect(func():
 		if advance_days(1, "calendar development control"):
 			show_calendar())
+	calendar.inspect_event.connect(show_race_event_detail)
 	calendar.setup(info)
 
 
@@ -1615,6 +1864,8 @@ func _on_reply(tag: String, data: Dictionary) -> void:
 	if not data.get("ok", false):
 		if tag in ["local_straight", "local_curves"]:
 			pending_test = {}
+		if tag == "race_event":
+			pending_race_event = {}
 		show_message("THE SIM HIT A PROBLEM", str(data.get("error", "unknown error")), "BACK TO HOME", show_warehouse)
 		return
 	match tag:
@@ -1648,6 +1899,13 @@ func _on_reply(tag: String, data: Dictionary) -> void:
 			latest_test_result = complete_test_run(data, pending_test)
 			pending_test = {}
 			show_local_curves_replay(latest_test_result)
+		"race_event":
+			var result := complete_race_event(data)
+			if result.is_empty():
+				show_message("EVENT RESULT NOT SAVED", "The event or Civic state changed before the simulation returned. No result was recorded.", "BACK TO CALENDAR", show_calendar)
+			else:
+				show_race_event_replay(result)
+
 
 # ------------------------------------------------------------------ self-test
 
@@ -1835,6 +2093,15 @@ func test_screen_has_label(expected: String) -> bool:
 	return false
 
 
+func test_screen_has_button(expected: String) -> bool:
+	if not is_instance_valid(screen):
+		return false
+	for node in screen.find_children("*", "Button", true, false):
+		if str(node.text) == expected:
+			return true
+	return false
+
+
 func calendar_test_fail(message: String) -> void:
 	var full := "CALENDARTEST FAIL %s" % message
 	push_error(full)
@@ -1859,7 +2126,7 @@ func work_test() -> void:
 		"calendar": initial_calendar(2, 6),
 		"test_log": {"next_id": 2, "runs": [{"run_id": "TEST_000001", "calendar": {"week": 1, "day": 0}, "replay": "keep.json"}]}}
 	state = migrate(v9.duplicate(true))
-	if state["version"] != 11 or state["garage_work"] != {"next_work_id": 1, "orders": []} or state["deliveries"] != {"next_delivery_id": 1, "orders": []}:
+	if state["version"] != 12 or state["garage_work"] != {"next_work_id": 1, "orders": []} or state["deliveries"] != {"next_delivery_id": 1, "orders": []}:
 		work_test_fail("v9 migration did not create empty garage work and delivery domains")
 		return
 	for key in v9:
@@ -1962,7 +2229,7 @@ func work_test() -> void:
 	if state["civic"]["installed"] != {"rear_sway": "p7", "shifter": "p8"} or active_work_orders().size() != 0:
 		work_test_fail("same-day jobs did not both complete")
 		return
-	print("WORKTEST v9 -> v11; WORK_000001 install, WORK_000002 remove; UID p7 preserved")
+	print("WORKTEST v9 -> v12; WORK_000001 install, WORK_000002 remove; UID p7 preserved")
 	print("WORKTEST before/after EG6 physics; multi-day rollover; parallel jobs; no duplicate completion")
 	print("WORKTEST OK")
 	get_tree().quit()
@@ -1985,7 +2252,7 @@ func delivery_test() -> void:
 		"calendar": initial_calendar(2, 3), "garage_work": {"next_work_id": 2, "orders": []},
 		"test_log": {"next_id": 2, "runs": [{"run_id": "TEST_000001", "road_id": "LOCAL_STRAIGHT", "measurements": {"quarter_mile_s": 17.2}, "replay": "keep.json"}]}}
 	var migrated := migrate(v10.duplicate(true))
-	if migrated["version"] != 11 or migrated["deliveries"] != {"next_delivery_id": 1, "orders": []}:
+	if migrated["version"] != 12 or migrated["deliveries"] != {"next_delivery_id": 1, "orders": []}:
 		delivery_test_fail("v10 migration did not initialize delivery state")
 		return
 	for key in ["cash", "followers", "rep", "week", "day", "history", "night", "civic", "inventory", "next_uid", "calendar", "garage_work", "test_log"]:
@@ -2117,10 +2384,198 @@ func delivery_test() -> void:
 	if int(state["cash"]) != cash_after_pickup or state["followers"] != 0 or state["rep"] != 0 or state.has("xp") or state.has("loot"):
 		delivery_test_fail("world updates changed cash, followers, REP, or progression")
 		return
-	print("DELIVERYTEST v10 -> v11; two retail UIDs in transit -> delivered once; local used pickup sold once")
+	print("DELIVERYTEST v10 -> v12; two retail UIDs in transit -> delivered once; local used pickup sold once")
 	print("DELIVERYTEST weekly refresh at week rollover; bounded stock, unique IDs, multi-week catch-up")
 	print("DELIVERYTEST work/calendar compatibility and immutable TEST LOG OK")
 	get_tree().quit()
+
+
+func race_event_test_fail(message: String) -> void:
+	var full := "RACE EVENT TEST FAIL %s" % message
+	push_error(full)
+	print(full)
+	restore_race_event_test_environment()
+	get_tree().quit(1)
+
+
+func restore_race_event_test_environment() -> void:
+	if race_event_test_save_exists:
+		var backup := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+		if backup:
+			backup.store_buffer(race_event_test_save_backup)
+	else:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
+	for path in race_event_test_outputs:
+		var absolute := ProjectSettings.globalize_path(path)
+		if FileAccess.file_exists(absolute):
+			DirAccess.remove_absolute(absolute)
+
+
+func race_event_test_pass() -> void:
+	restore_race_event_test_environment()
+	get_tree().quit()
+
+
+func race_event_test() -> void:
+	## End-to-end Phase 7A test using the real deterministic LOCAL CURVES bridge.
+	race_event_test_save_exists = FileAccess.file_exists(SAVE_PATH)
+	if race_event_test_save_exists:
+		race_event_test_save_backup = FileAccess.get_file_as_bytes(SAVE_PATH)
+	race_event_test_outputs.clear()
+	var v11_calendar := initial_calendar(3, 2)
+	v11_calendar["events"] = v11_calendar["events"].slice(0, 2)
+	var v11 := {"version": 11, "cash": 1450, "followers": 17, "rep": 17,
+		"week": 3, "day": 2, "history": [{"legacy": "race history"}],
+		"night": {"legacy": "night data"},
+		"civic": {"chassis_id": "CHASSIS_0001", "base_car_id": "eg6_sir_ii_1995",
+			"installed": {"rear_sway": "p17"}},
+		"inventory": [{"uid": "p17", "part": "rsb_19", "source": "retail"}],
+		"next_uid": 18, "market": {"seeded": true, "last_refresh_week": 3,
+			"next_listing_seq": 1, "used_listings": [{"listing_id": "USED_KEEP", "status": "available"}]},
+		"deliveries": {"next_delivery_id": 3, "orders": [{"delivery_id": "DELIVERY_KEEP", "status": "delivered"}]},
+		"garage_work": {"next_work_id": 2, "orders": [{"work_id": "WORK_KEEP", "status": "completed"}]},
+		"calendar": v11_calendar,
+		"test_log": {"next_id": 45, "runs": [{"run_id": "TEST_KEEP", "calendar": {"week": 2, "day": 3}, "replay": "keep.json"}]}}
+	var migrated := migrate(v11.duplicate(true))
+	if int(migrated["version"]) != 12 or migrated["race_results"] != {"next_result_id": 1, "results": []}:
+		race_event_test_fail("v11 migration did not initialize race result history")
+		return
+	for key in ["cash", "followers", "rep", "week", "day", "history", "night", "civic", "inventory", "next_uid", "market", "deliveries", "garage_work", "test_log"]:
+		if migrated[key] != v11[key]:
+			race_event_test_fail("v11 migration changed %s" % key)
+			return
+	if calendar_event_from(migrated["calendar"], "C96_TA_LOCAL_CURVES_001").is_empty():
+		race_event_test_fail("v11 migration did not add the authored event")
+		return
+
+	state = new_state()
+	var event := calendar_event("C96_TA_LOCAL_CURVES_001")
+	if event.is_empty() or str(event["road_id"]) != "LOCAL_CURVES" or str(event["status"]) != "upcoming":
+		race_event_test_fail("new save does not contain the scheduled upcoming event")
+		return
+	if not race_event_eligibility(event).begins_with("AVAILABLE ON"):
+		race_event_test_fail("upcoming event was prematurely enterable")
+		return
+	advance_days(4, "race event test approach date")
+	event = calendar_event("C96_TA_LOCAL_CURVES_001")
+	if str(event["status"]) != "upcoming":
+		race_event_test_fail("event became available before its scheduled day")
+		return
+	advance_days(1, "race event test scheduled date")
+	event = calendar_event("C96_TA_LOCAL_CURVES_001")
+	if str(event["status"]) != "available":
+		race_event_test_fail("event was not available on its scheduled date")
+		return
+	state["garage_work"]["orders"].append({"work_id": "WORK_BLOCK", "status": "active", "slot": "rear_sway", "owned_uid": "p1"})
+	if not race_event_eligibility(event).begins_with("FINISH ACTIVE GARAGE WORK"):
+		race_event_test_fail("active garage work did not block entry")
+		return
+	state["garage_work"]["orders"].clear()
+	state["civic"]["base_car_id"] = "not_the_eg6"
+	if not race_event_eligibility(event).begins_with("THIS EVENT REQUIRES"):
+		race_event_test_fail("ineligible Civic was accepted")
+		return
+	state["civic"]["base_car_id"] = "eg6_sir_ii_1995"
+	if race_event_eligibility(event) != "ELIGIBLE. ENTRY IS SOLO, COSTS NOTHING, AND DOES NOT ADVANCE THE CALENDAR.":
+		race_event_test_fail("eligible permanent EG6 was rejected")
+		return
+
+	state["cash"] = 2500
+	state["followers"] = 9
+	state["rep"] = 9
+	state["inventory"] = [{"uid": "p1", "part": "rsb_19", "source": "used"}]
+	state["civic"]["installed"] = {"rear_sway": "p1"}
+	state["history"] = [{"legacy": "race history remains"}]
+	state["test_log"]["runs"] = [{"run_id": "TEST_UNCHANGED", "road_id": "LOCAL_CURVES",
+		"calendar": {"week": 1, "day": 2}, "measurements": {"total_time_s": 72.1},
+		"installed": [{"slot": "rear_sway", "owned_uid": "p1", "definition_id": "rsb_19"}],
+		"replay": "user://replays/tests/TEST_UNCHANGED.json"}]
+	var before := {"cash": state["cash"], "followers": state["followers"], "rep": state["rep"],
+		"inventory": state["inventory"].duplicate(true), "installed": state["civic"]["installed"].duplicate(true),
+		"week": state["week"], "day": state["day"], "history": state["history"].duplicate(true),
+		"test_log": state["test_log"].duplicate(true), "market": state["market"].duplicate(true),
+		"deliveries": state["deliveries"].duplicate(true), "garage_work": state["garage_work"].duplicate(true),
+		"calendar": JSON.parse_string(JSON.stringify(state["calendar"]))}
+	if not prepare_race_event(event):
+		race_event_test_fail("explicit event commitment was rejected")
+		return
+	var reply: Array = await bridge.replied
+	if not game_test_reply_ok(reply):
+		return
+	var result := complete_race_event(reply[1])
+	if result.is_empty() or not test_replay_available(result):
+		race_event_test_fail("competitive result/replay was not saved")
+		return
+	for key in before:
+		if key == "calendar":
+			continue
+		var current = state[key] if key not in ["installed"] else state["civic"]["installed"]
+		if current != before[key]:
+			race_event_test_fail("event changed protected state %s" % key)
+			return
+	if state["calendar"]["events"].filter(func(item): return item.get("event_id", "") == "C96_TA_LOCAL_CURVES_001").size() != 1:
+		race_event_test_fail("event instance duplicated")
+		return
+	if str(calendar_event("C96_TA_LOCAL_CURVES_001")["status"]) != "completed" or state["race_results"]["results"].size() != 1:
+		race_event_test_fail("event was not completed exactly once")
+		return
+	var expected_calendar: Dictionary = before["calendar"]
+	for saved_event in expected_calendar["events"]:
+		if str(saved_event["event_id"]) == "C96_TA_LOCAL_CURVES_001":
+			saved_event["status"] = "completed"
+			saved_event["result_id"] = "RACE_000001"
+			saved_event["completed_week"] = before["week"]
+			saved_event["completed_day"] = before["day"]
+	expected_calendar = JSON.parse_string(JSON.stringify(expected_calendar))
+	if JSON.parse_string(JSON.stringify(state["calendar"])) != expected_calendar:
+		race_event_test_fail("event completion changed unrelated calendar dates or instances")
+		return
+	var replay_ref := str(result["replay"])
+	var verification_replay := "user://replays/events/C96_TA_LOCAL_CURVES_001/VERIFY.json"
+	race_event_test_outputs = [replay_ref, verification_replay]
+	bridge.request("race_event_repeatability", ["local_curves", "--out", ProjectSettings.globalize_path(verification_replay)] + parts_args())
+	reply = await bridge.replied
+	if not game_test_reply_ok(reply):
+		return
+	if reply[1]["measurements"] != result["measurements"] or reply[1]["road"] != result["road"]:
+		race_event_test_fail("competitive measured time or road snapshot was not deterministic")
+		return
+	if prepare_race_event(calendar_event("C96_TA_LOCAL_CURVES_001")) or not pending_race_event.is_empty():
+		race_event_test_fail("completed event accepted a second entry")
+		return
+	save_game()
+	var expected_results: Array = JSON.parse_string(JSON.stringify(state["race_results"]["results"]))
+	var expected_test_log: Dictionary = JSON.parse_string(JSON.stringify(state["test_log"]))
+	load_game()
+	if state["race_results"]["results"] != expected_results or state["test_log"]["runs"] != expected_test_log["runs"] or int(state["test_log"]["next_id"]) != int(expected_test_log["next_id"]):
+		race_event_test_fail("race history or TEST LOG changed across reload")
+		return
+	var stored := race_result_for_event("C96_TA_LOCAL_CURVES_001")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(replay_ref))
+	if test_replay_available(stored) or not stored.has("measurements") or int(stored["measurements"].get("total_time_s", 0)) <= 0:
+		race_event_test_fail("missing replay destroyed or hid the historical result")
+		return
+	show_calendar()
+	if not test_screen_has_button("INSPECT TIME ATTACK"):
+		race_event_test_fail("calendar does not expose event inspection")
+		return
+	show_race_event_detail("C96_TA_LOCAL_CURVES_001")
+	if not test_screen_has_label("COMPETITIVE EVENT RESULT") or not test_screen_has_label("EVENT REPLAY FILE UNAVAILABLE / RESULT SNAPSHOT PRESERVED"):
+		race_event_test_fail("event detail does not preserve/display result with missing replay")
+		return
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(verification_replay))
+	print("RACE EVENT TEST v11 -> v12; stable authored event, date/eligibility, one saved result")
+	print("RACE EVENT TEST deterministic LOCAL CURVES, exact EG6 configuration, separate replay, missing replay safe")
+	print("RACE EVENT TEST no TEST LOG, cash, follower, ownership, market, delivery, work, or legacy history side effects")
+	print("RACE EVENT TEST OK / total %.3f s / %s" % [float(result["measurements"]["total_time_s"]), result["result_id"]])
+	race_event_test_pass()
+
+
+func calendar_event_from(calendar: Dictionary, event_id: String) -> Dictionary:
+	for event in calendar.get("events", []):
+		if str(event.get("event_id", "")) == event_id:
+			return event
+	return {}
 
 
 func calendar_test() -> void:
@@ -2154,11 +2609,11 @@ func calendar_test() -> void:
 		calendar_test_fail("v8 migration changed marketplace ownership history")
 		return
 	var events: Array = migrated["calendar"]["events"]
-	if events.size() != 2 or events.map(func(event): return event["event_id"]) != ["EVENT_000001", "EVENT_000002"]:
+	if events.size() != 3 or events.map(func(event): return event["event_id"]) != ["EVENT_000001", "EVENT_000002", "C96_TA_LOCAL_CURVES_001"]:
 		calendar_test_fail("fixture event IDs are missing or unstable")
 		return
 	var migrated_again := migrate(migrated.duplicate(true))
-	if migrated_again["calendar"]["events"].size() != 2:
+	if migrated_again["calendar"]["events"].size() != 3:
 		calendar_test_fail("reload migration duplicated calendar events")
 		return
 
@@ -2183,7 +2638,7 @@ func calendar_test() -> void:
 		calendar_test_fail("HOME, CALENDAR, or TEST LOG browsing advanced time")
 		return
 
-	if events[0]["status"] != "upcoming" or events[1]["status"] != "upcoming":
+	if events[0]["status"] != "upcoming" or events[1]["status"] != "upcoming" or events[2]["status"] != "upcoming":
 		calendar_test_fail("new event status is not upcoming")
 		return
 	if not advance_days(1, "calendar regression rollover"):
@@ -2204,6 +2659,9 @@ func calendar_test() -> void:
 	if state["calendar"]["events"][1]["status"] != "missed":
 		calendar_test_fail("second event did not become missed after its date")
 		return
+	if state["calendar"]["events"][2]["status"] != "upcoming":
+		calendar_test_fail("competitive event availability changed before its scheduled day")
+		return
 	for key in protected:
 		if state[key] != protected[key]:
 			calendar_test_fail("day advancement changed protected state %s" % key)
@@ -2223,7 +2681,7 @@ func calendar_test() -> void:
 	if int(loaded_stamp["week"]) != 2 or int(loaded_stamp["day"]) != 6 or loaded_stamp["label"] != "SUN, WEEK 2" or loaded_test["replay"] != historical_test["replay"]:
 		calendar_test_fail("historical TEST LOG timestamp or replay reference changed")
 		return
-	print("CALENDARTEST events: EVENT_000001, EVENT_000002; upcoming -> available -> missed")
+	print("CALENDARTEST events: EVENT_000001, EVENT_000002, C96_TA_LOCAL_CURVES_001; upcoming -> available -> missed")
 	print("CALENDARTEST rollover: SUN WEEK 02 -> MON WEEK 03")
 	print("CALENDARTEST OK")
 	get_tree().quit()

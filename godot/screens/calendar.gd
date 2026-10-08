@@ -7,6 +7,7 @@ extends Control
 
 signal go(target: String)
 signal advance_day
+signal inspect_event(event_id: String)
 
 const UI := preload("res://ui.gd")
 const DAY_NAMES := ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
@@ -35,6 +36,8 @@ func event_card(parent: VBoxContainer, event: Dictionary) -> void:
 			" / ROAD %s" % road if road != "" else ""], "MutedLabel")
 	if str(event.get("description", "")) != "":
 		UI.label(card, str(event["description"]), "MutedLabel")
+	if str(event.get("type", "")) == "time_attack":
+		UI.button(card, "INSPECT TIME ATTACK", func(): inspect_event.emit(str(event["event_id"])), "AccentButton")
 
 
 func setup(info: Dictionary) -> void:
