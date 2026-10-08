@@ -32,7 +32,7 @@ const LOCATIONS := {
 }
 
 const SAVE_PATH := "user://save.json"
-const SAVE_VERSION := 7
+const SAVE_VERSION := 8
 const START_CASH := 2500
 const MIN_BUY_IN := 100
 const WAGER_STEP := 10
@@ -57,7 +57,8 @@ var shell: Control         # persistent hub shell (top rail, ribbon, bottom nav)
 var hub_content: Control   # the hub screen currently inside the shell
 var footer: VBoxContainer  # pinned area at the bottom of scrolling screens
 var viewer: Node           # replay viewer while racing
-var latest_test_result := {}  # transient controlled-test snapshot; not saved yet
+var latest_test_result := {}
+var pending_test := {}
 var choice := {"push": "normal", "wager": MIN_BUY_IN}
 var after_car_stats := "warehouse"   # where to go once car stats arrive
 var after_catalog := "shop"          # where to go once the parts catalog arrives
@@ -73,6 +74,9 @@ func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	if "--gametest" in args:
 		game_test()           # the test awaits replies itself: don't also run the game's handler
+		return
+	if "--testlogtest" in args:
+		test_log_test()
 		return
 	for a in args:
 		if a.begins_with("--gameshots="):
@@ -91,7 +95,8 @@ func new_state() -> Dictionary:
 		"civic": {"chassis_id": "CHASSIS_0001", "base_car_id": "eg6_sir_ii_1995", "installed": {}},
 		"history": [], "night": {},
 		"inventory": [], "next_uid": 1,
-		"market": {"seeded": false, "used_listings": []}}
+		"market": {"seeded": false, "used_listings": []},
+		"test_log": {"next_id": 1, "runs": []}}
 
 
 func load_game() -> void:
@@ -184,6 +189,25 @@ func migrate(data: Dictionary) -> Dictionary:
 		v = 7
 	if not civic.has("installed"):
 		civic["installed"] = {}
+	if v < 8:                        # v7 -> v8: persistent controlled-test history
+		data["test_log"] = {"next_id": 1, "runs": []}
+		v = 8
+	var test_log = data.get("test_log", {})
+	if typeof(test_log) != TYPE_DICTIONARY:
+		test_log = {}
+	var runs = test_log.get("runs", [])
+	if typeof(runs) != TYPE_ARRAY:
+		runs = []
+	var next_test_id := maxi(1, int(test_log.get("next_id", 1)))
+	for run in runs:
+		if typeof(run) != TYPE_DICTIONARY:
+			continue
+		var run_id := str(run.get("run_id", ""))
+		if run_id.begins_with("TEST_") and run_id.trim_prefix("TEST_").is_valid_int():
+			next_test_id = maxi(next_test_id, int(run_id.trim_prefix("TEST_")) + 1)
+	test_log["runs"] = runs
+	test_log["next_id"] = next_test_id
+	data["test_log"] = test_log
 	data["civic"] = civic
 	data["version"] = v
 	return data
@@ -309,6 +333,8 @@ func _go(target: String) -> void:
 			start_local_straight()
 		"local_curves":
 			start_local_curves()
+		"test_log":
+			show_test_log()
 		"race":
 			show_briefing()
 
@@ -385,6 +411,7 @@ func show_warehouse() -> void:
 	info["today"] = when(state["week"], state["day"])
 	info["tape_date"] = "%s / WEEK %02d" % [DAY_NAMES[int(state["day"])], int(state["week"])]
 	info["next_calendar"] = "%s / %s" % [when(ev["week"], ev["day"]), ev["title"]]
+	info["test_count"] = state["test_log"]["runs"].size()
 	open_hub(WarehouseScene, "home").setup(info)
 
 
@@ -453,30 +480,60 @@ func installed_configuration_snapshot() -> Array:
 	return installed
 
 
-func local_test_snapshot(data: Dictionary) -> Dictionary:
-	## Complete enough to persist as a future TEST LOG entry, but kept transient
-	## in Phase 5A while the permanent log schema is still deliberately deferred.
+func local_test_snapshot(data: Dictionary, run_id := "", replay_ref := "") -> Dictionary:
 	return {
+		"run_id": run_id,
 		"road_id": data["road_id"],
+		"road": data["road"].duplicate(true),
 		"chassis_id": state["civic"]["chassis_id"],
 		"base_car_id": state["civic"]["base_car_id"],
+		"calendar": {"week": int(state["week"]), "day": int(state["day"]),
+			"label": when(int(state["week"]), int(state["day"]))},
 		"installed": installed_configuration_snapshot(),
 		"conditions": data["conditions"].duplicate(true),
 		"vehicle_state": data["vehicle_state"].duplicate(true),
+		"measurement_scope": data.get("measurement_scope", {}).duplicate(true),
 		"measurements": data["measurements"].duplicate(true),
-		"replay": data["replay"],
+		"replay": replay_ref if replay_ref != "" else data["replay"],
 	}
+
+
+func next_test_run_id() -> String:
+	var next_id := maxi(1, int(state["test_log"].get("next_id", 1)))
+	for run in state["test_log"]["runs"]:
+		var existing := str(run.get("run_id", ""))
+		if existing.begins_with("TEST_") and existing.trim_prefix("TEST_").is_valid_int():
+			next_id = maxi(next_id, int(existing.trim_prefix("TEST_")) + 1)
+	return "TEST_%06d" % next_id
+
+
+func prepare_test_run(road_id: String) -> Dictionary:
+	var run_id := next_test_run_id()
+	return {"run_id": run_id, "road_id": road_id,
+		"replay": "user://replays/tests/%s.json" % run_id}
+
+
+func complete_test_run(data: Dictionary, prepared: Dictionary) -> Dictionary:
+	if prepared.is_empty() or str(prepared.get("road_id", "")) != str(data.get("road_id", "")):
+		return {}
+	var result := local_test_snapshot(data, str(prepared["run_id"]), str(prepared["replay"]))
+	state["test_log"]["runs"].append(result.duplicate(true))
+	state["test_log"]["next_id"] = int(str(prepared["run_id"]).trim_prefix("TEST_")) + 1
+	save_game()
+	return result
 
 
 func start_local_straight() -> void:
 	show_message("LOCAL STRAIGHT", "Setting up %s for a controlled quarter-mile run.\n\nFixed road. Fixed conditions. Reference driver. $0." % state["civic"]["chassis_id"])
-	var out := ProjectSettings.globalize_path("user://replays/local_straight.json")
+	pending_test = prepare_test_run("LOCAL_STRAIGHT")
+	var out := ProjectSettings.globalize_path(pending_test["replay"])
 	bridge.request("local_straight", ["local_straight", "--out", out] + parts_args())
 
 
 func start_local_curves() -> void:
 	show_message("LOCAL CURVES", "Setting up %s for a controlled handling run.\n\nFixed road. Fixed conditions. Reference driver. $0." % state["civic"]["chassis_id"])
-	var out := ProjectSettings.globalize_path("user://replays/local_curves.json")
+	pending_test = prepare_test_run("LOCAL_CURVES")
+	var out := ProjectSettings.globalize_path(pending_test["replay"])
 	bridge.request("local_curves", ["local_curves", "--out", out] + parts_args())
 
 
@@ -832,12 +889,14 @@ func show_local_straight_replay(result: Dictionary) -> void:
 	add_child(viewer)
 
 
-func show_test_results(result: Dictionary) -> void:
+func show_test_results(result: Dictionary, from_log := false) -> void:
 	var col := new_screen()
 	UI.spacer(col, false).custom_minimum_size.y = 24
 	UI.label(col, "TEST RESULTS", "TitleLabel", UI.ACCENT)
 	UI.label(col, "LOCAL STRAIGHT", "BigNumberLabel")
 	UI.label(col, "Controlled standing-start quarter mile / fixed dry baseline", "MutedLabel")
+	if str(result.get("run_id", "")) != "":
+		UI.label(col, "%s / %s" % [result["run_id"], test_calendar_summary(result)], "MutedLabel")
 
 	var measurements: Dictionary = result["measurements"]
 	var measured := UI.vbox(UI.panel(col), 6)
@@ -849,6 +908,9 @@ func show_test_results(result: Dictionary) -> void:
 
 	var config := UI.vbox(UI.panel(col), 6)
 	UI.label(config, "CIVIC CONFIGURATION", "HeadingLabel")
+	if str(result.get("run_id", "")) != "":
+		UI.stat_row(config, "Run", str(result["run_id"]))
+		UI.stat_row(config, "Date", test_calendar_summary(result))
 	UI.stat_row(config, "Chassis", str(result["chassis_id"]))
 	UI.stat_row(config, "Base car", str(result["base_car_id"]))
 	var installed: Array = result["installed"]
@@ -861,7 +923,9 @@ func show_test_results(result: Dictionary) -> void:
 	UI.label(col, "%s / %.0f C / %s" % [
 		str(conditions["surface"]).to_upper(), float(conditions["ambient_c"]),
 		str(conditions["reference_driver"]).to_upper()], "MutedLabel")
-	UI.button(footer, "BACK TO HOME", show_warehouse, "AccentButton")
+	if from_log:
+		add_historical_test_details(col, result)
+	add_test_result_footer(result, from_log)
 
 
 func show_local_curves_replay(result: Dictionary) -> void:
@@ -874,21 +938,23 @@ func show_local_curves_replay(result: Dictionary) -> void:
 	add_child(viewer)
 
 
-func show_curves_results(result: Dictionary) -> void:
+func show_curves_results(result: Dictionary, from_log := false) -> void:
 	var col := new_screen()
 	UI.spacer(col, false).custom_minimum_size.y = 24
 	UI.label(col, "TEST RESULTS", "TitleLabel", UI.ACCENT)
 	UI.label(col, "LOCAL CURVES", "BigNumberLabel")
 	UI.label(col, "Controlled handling route / fixed dry baseline", "MutedLabel")
+	if str(result.get("run_id", "")) != "":
+		UI.label(col, "%s / %s" % [result["run_id"], test_calendar_summary(result)], "MutedLabel")
 
 	var measurements: Dictionary = result["measurements"]
 	var measured := UI.vbox(UI.panel(col), 6)
 	UI.label(measured, "MEASURED", "HeadingLabel")
 	UI.stat_row(measured, "Total", "%.3f s" % float(measurements["total_time_s"]))
 	UI.stat_row(measured, "Peak speed", "%.1f mph" % float(measurements["peak_speed_mph"]))
-	UI.stat_row(measured, "Braking", "%d zones / %.1f m / %.3f s" % [
-		int(measurements["braking_zones"]), float(measurements["braking_distance_m"]),
-		float(measurements["braking_time_s"])])
+	UI.stat_row(measured, "Braking zones", str(int(measurements["braking_zones"])))
+	UI.stat_row(measured, "Braking distance", "%.1f m" % float(measurements["braking_distance_m"]))
+	UI.stat_row(measured, "Braking time", "%.3f s" % float(measurements["braking_time_s"]))
 	UI.stat_row(measured, "Peak brake", "%.1f%%" % (float(measurements["peak_brake"]) * 100.0))
 
 	for corner in measurements["corners"]:
@@ -901,6 +967,9 @@ func show_curves_results(result: Dictionary) -> void:
 
 	var config := UI.vbox(UI.panel(col), 6)
 	UI.label(config, "CIVIC CONFIGURATION", "HeadingLabel")
+	if str(result.get("run_id", "")) != "":
+		UI.stat_row(config, "Run", str(result["run_id"]))
+		UI.stat_row(config, "Date", test_calendar_summary(result))
 	UI.stat_row(config, "Chassis", str(result["chassis_id"]))
 	UI.stat_row(config, "Base car", str(result["base_car_id"]))
 	var installed: Array = result["installed"]
@@ -913,13 +982,150 @@ func show_curves_results(result: Dictionary) -> void:
 	UI.label(col, "%s / %.0f C / %s / SEED %d" % [
 		str(conditions["surface"]).to_upper(), float(conditions["ambient_c"]),
 		str(conditions["reference_driver"]).to_upper(), int(conditions["driver_seed"])], "MutedLabel")
+	if from_log:
+		add_historical_test_details(col, result)
+	add_test_result_footer(result, from_log)
+
+
+func add_historical_test_details(col: VBoxContainer, result: Dictionary) -> void:
+	var road: Dictionary = result.get("road", {})
+	var road_panel := UI.vbox(UI.panel(col), 4)
+	UI.label(road_panel, "ROAD SNAPSHOT", "HeadingLabel")
+	UI.stat_row(road_panel, "Geometry version", str(road.get("geometry_version", "unknown")))
+	var geometry_hash := str(road.get("geometry_sha256", "unknown"))
+	var wrapped_hash := geometry_hash if geometry_hash.length() <= 32 else "%s\n%s" % [geometry_hash.left(32), geometry_hash.substr(32)]
+	UI.label(road_panel, "SHA-256 /\n%s" % wrapped_hash, "MutedLabel")
+	var scope: Dictionary = result.get("measurement_scope", {})
+	var scope_keys: Array = scope.keys()
+	scope_keys.sort()
+	for key in scope_keys:
+		UI.label(road_panel, "%s / %s" % [str(key).to_upper(), scope[key]], "MutedLabel")
+
+	var conditions: Dictionary = result.get("conditions", {})
+	var condition_panel := UI.vbox(UI.panel(col), 4)
+	UI.label(condition_panel, "CONDITIONS SNAPSHOT", "HeadingLabel")
+	var condition_keys: Array = conditions.keys()
+	condition_keys.sort()
+	for key in condition_keys:
+		UI.stat_row(condition_panel, str(key).replace("_", " ").capitalize(), str(conditions[key]))
+
+	var vehicle: Dictionary = result.get("vehicle_state", {})
+	var vehicle_panel := UI.vbox(UI.panel(col), 4)
+	UI.label(vehicle_panel, "PHYSICAL VEHICLE SNAPSHOT", "HeadingLabel")
+	var vehicle_keys: Array = vehicle.keys()
+	vehicle_keys.sort()
+	for key in vehicle_keys:
+		UI.stat_row(vehicle_panel, str(key).replace("_", " ").capitalize(), str(vehicle[key]))
+
+
+func test_replay_available(result: Dictionary) -> bool:
+	var replay_ref := str(result.get("replay", ""))
+	return replay_ref != "" and FileAccess.file_exists(replay_ref)
+
+
+func add_test_result_footer(result: Dictionary, from_log: bool) -> void:
+	if from_log:
+		if test_replay_available(result):
+			UI.button(footer, "WATCH REPLAY", watch_logged_test.bind(result), "AccentButton")
+		else:
+			UI.label(footer, "REPLAY FILE UNAVAILABLE", "MutedLabel")
+		UI.button(footer, "BACK TO TEST LOG", show_test_log)
+	else:
+		UI.button(footer, "TEST LOG", show_test_log)
+	UI.button(footer, "BACK TO HOME", show_warehouse)
+
+
+func watch_logged_test(result: Dictionary) -> void:
+	if not test_replay_available(result):
+		show_test_detail(str(result.get("run_id", "")))
+		return
+	if result["road_id"] == "LOCAL_STRAIGHT":
+		show_local_straight_replay(result)
+	else:
+		show_local_curves_replay(result)
+
+
+func find_test_run(run_id: String) -> Dictionary:
+	for run in state["test_log"]["runs"]:
+		if str(run.get("run_id", "")) == run_id:
+			return run
+	return {}
+
+
+func test_measurement_summary(result: Dictionary) -> String:
+	var measurements: Dictionary = result.get("measurements", {})
+	if result.get("road_id", "") == "LOCAL_STRAIGHT":
+		return "0-60 %.3f s / 1/4 %.3f s @ %.1f mph" % [
+			float(measurements.get("zero_60_s", 0.0)),
+			float(measurements.get("quarter_mile_s", 0.0)),
+			float(measurements.get("quarter_mile_trap_mph", 0.0))]
+	return "TOTAL %.3f s / PEAK %.1f mph" % [
+		float(measurements.get("total_time_s", 0.0)),
+		float(measurements.get("peak_speed_mph", 0.0))]
+
+
+func test_configuration_summary(result: Dictionary) -> String:
+	var installed: Array = result.get("installed", [])
+	if installed.is_empty():
+		return "STOCK"
+	var definitions := []
+	for part in installed:
+		definitions.append(str(part.get("definition_id", "unknown")))
+	return ", ".join(definitions)
+
+
+func test_calendar_summary(result: Dictionary) -> String:
+	var calendar: Dictionary = result.get("calendar", {})
+	var day := int(calendar.get("day", 0))
+	var day_name: String = DAY_NAMES[day] if day >= 0 and day < DAY_NAMES.size() else "DAY"
+	return "%s / WEEK %02d / DAY %02d" % [day_name, int(calendar.get("week", 0)), day + 1]
+
+
+func show_test_log() -> void:
+	var col := new_screen()
+	UI.spacer(col, false).custom_minimum_size.y = 24
+	UI.label(col, "TEST LOG", "TitleLabel", UI.ACCENT)
+	UI.label(col, "CONTROLLED RUN HISTORY / RAW OBSERVATIONS", "MutedLabel")
+	var runs: Array = state["test_log"]["runs"].duplicate()
+	if runs.is_empty():
+		UI.label(col, "No controlled tests recorded yet.", "MutedLabel")
+	else:
+		runs.reverse()
+		for run in runs:
+			var panel := UI.vbox(UI.panel(col), 4)
+			UI.label(panel, "%s / %s" % [run.get("run_id", "UNKNOWN"), run.get("road_id", "UNKNOWN")], "HeadingLabel")
+			UI.label(panel, "%s / %s" % [test_calendar_summary(run), test_configuration_summary(run)], "MutedLabel")
+			UI.label(panel, test_measurement_summary(run))
+			UI.button(panel, "OPEN RUN", show_test_detail.bind(str(run.get("run_id", ""))))
 	UI.button(footer, "BACK TO HOME", show_warehouse, "AccentButton")
+
+
+func show_test_detail(run_id: String) -> void:
+	var result := find_test_run(run_id)
+	if result.is_empty():
+		show_message("TEST LOG", "Run %s is no longer available." % run_id, "BACK TO TEST LOG", show_test_log)
+		return
+	if result["road_id"] == "LOCAL_STRAIGHT":
+		show_test_results(result, true)
+	else:
+		show_curves_results(result, true)
+	reset_screen_scroll.call_deferred()
+
+
+func reset_screen_scroll() -> void:
+	if not is_instance_valid(screen):
+		return
+	for node in screen.find_children("*", "ScrollContainer", true, false):
+		node.scroll_horizontal = 0
+		node.scroll_vertical = 0
 
 
 # ------------------------------------------------------------------ bridge replies
 
 func _on_reply(tag: String, data: Dictionary) -> void:
 	if not data.get("ok", false):
+		if tag in ["local_straight", "local_curves"]:
+			pending_test = {}
 		show_message("THE SIM HIT A PROBLEM", str(data.get("error", "unknown error")), "BACK TO HOME", show_warehouse)
 		return
 	match tag:
@@ -946,10 +1152,12 @@ func _on_reply(tag: String, data: Dictionary) -> void:
 			var result := apply_result(data)
 			show_race(data["replay"], result)
 		"local_straight":
-			latest_test_result = local_test_snapshot(data)
+			latest_test_result = complete_test_run(data, pending_test)
+			pending_test = {}
 			show_local_straight_replay(latest_test_result)
 		"local_curves":
-			latest_test_result = local_test_snapshot(data)
+			latest_test_result = complete_test_run(data, pending_test)
+			pending_test = {}
 			show_local_curves_replay(latest_test_result)
 
 
@@ -963,6 +1171,126 @@ func game_test_reply_ok(reply: Array) -> bool:
 	print(message)
 	get_tree().quit(1)
 	return false
+
+
+func test_log_fail(message: String) -> void:
+	var full := "TESTLOGTEST FAIL %s" % message
+	push_error(full)
+	print(full)
+	get_tree().quit(1)
+
+
+func test_log_test() -> void:
+	## Headless save-v8 regression for controlled test history:
+	##   godot --headless --path godot -- --testlogtest
+	var legacy_v7 := {
+		"version": 7, "cash": 1840, "followers": 23, "rep": 23,
+		"week": 4, "day": 2, "history": [{"event": "legacy"}], "night": {},
+		"civic": {"chassis_id": "CHASSIS_0042", "base_car_id": "eg6_sir_ii_1995",
+			"installed": {"rear_sway": "p7"}},
+		"inventory": [{"uid": "p7", "part": "rsb_19", "source": "used"}],
+		"next_uid": 8, "market": {"seeded": true, "used_listings": [{"listing_id": "KEEP"}]},
+	}
+	var migrated := migrate(legacy_v7.duplicate(true))
+	if int(migrated["version"]) != 8 or migrated["test_log"] != {"next_id": 1, "runs": []}:
+		test_log_fail("v7 migration did not create one empty v8 test_log")
+		return
+	for key in ["cash", "followers", "rep", "week", "day", "history", "night", "civic", "inventory", "next_uid", "market"]:
+		if migrated[key] != legacy_v7[key]:
+			test_log_fail("v7 migration changed %s" % key)
+			return
+
+	state = new_state()
+	state["inventory"] = [{"uid": "p77", "part": "rsb_19", "source": "retail",
+		"acquired_price": 320, "acquired_week": 1, "acquired_day": 0}]
+	state["next_uid"] = 78
+	var unchanged := {"cash": state["cash"], "followers": state["followers"],
+		"rep": state["rep"], "week": state["week"], "day": state["day"],
+		"history": state["history"].duplicate(true), "inventory": state["inventory"].duplicate(true)}
+	var run_specs := [
+		{"road": "LOCAL_STRAIGHT", "command": "local_straight", "installed": false},
+		{"road": "LOCAL_STRAIGHT", "command": "local_straight", "installed": true},
+		{"road": "LOCAL_CURVES", "command": "local_curves", "installed": true},
+		{"road": "LOCAL_CURVES", "command": "local_curves", "installed": false},
+	]
+	for spec in run_specs:
+		state["civic"]["installed"] = {"rear_sway": "p77"} if spec["installed"] else {}
+		var prepared := prepare_test_run(spec["road"])
+		var out := ProjectSettings.globalize_path(prepared["replay"])
+		bridge.request("test_log_run", [spec["command"], "--out", out] + parts_args())
+		var reply: Array = await bridge.replied
+		if not game_test_reply_ok(reply):
+			return
+		var completed := complete_test_run(reply[1], prepared)
+		if completed.is_empty():
+			test_log_fail("could not complete %s" % prepared["run_id"])
+			return
+
+	var runs: Array = state["test_log"]["runs"]
+	if runs.size() != 4 or int(state["test_log"]["next_id"]) != 5:
+		test_log_fail("four runs or next ID were not persisted")
+		return
+	for i in runs.size():
+		var expected_id := "TEST_%06d" % (i + 1)
+		var run: Dictionary = runs[i]
+		if run["run_id"] != expected_id or run["replay"] != "user://replays/tests/%s.json" % expected_id:
+			test_log_fail("unstable ID or replay reference for run %d" % i)
+			return
+		if run["road"]["road_id"] != run["road_id"] or str(run["road"]["geometry_sha256"]).length() != 64:
+			test_log_fail("missing road identity/hash for %s" % expected_id)
+			return
+		if run["conditions"].is_empty() or run["vehicle_state"].is_empty() or run["measurements"].is_empty() or run["measurement_scope"].is_empty():
+			test_log_fail("incomplete physical snapshot for %s" % expected_id)
+			return
+		for forbidden in ["reward", "cash", "followers", "rep", "xp", "won", "loot"]:
+			if run.has(forbidden):
+				test_log_fail("controlled test recorded forbidden progression field %s" % forbidden)
+				return
+	if not runs[0]["installed"].is_empty() or runs[1]["installed"] != [{"slot": "rear_sway", "owned_uid": "p77", "definition_id": "rsb_19"}]:
+		test_log_fail("historical UID/definition configuration snapshots changed")
+		return
+	if runs[0]["measurements"] != runs[1]["measurements"]:
+		# The rear sway changes physical state but is not expected to alter the straight metric.
+		test_log_fail("identical straight behavior changed from a roll-only component")
+		return
+	if runs[2]["measurements"] == runs[3]["measurements"]:
+		test_log_fail("curves did not preserve the installed physical effect")
+		return
+	for key in unchanged:
+		if state[key] != unchanged[key]:
+			test_log_fail("controlled tests changed %s" % key)
+			return
+	var replay_refs := {}
+	for run in runs:
+		replay_refs[run["replay"]] = true
+	if replay_refs.size() != 4:
+		test_log_fail("replay references are not unique")
+		return
+	var original_replay: String = runs[0]["replay"]
+	runs[0]["replay"] = "user://replays/tests/MISSING.json"
+	if test_replay_available(runs[0]):
+		test_log_fail("missing replay was reported as available")
+		return
+	show_test_detail(runs[0]["run_id"])
+	runs[0]["replay"] = original_replay
+	# Compare against the JSON-round-tripped shape; Godot parses JSON numbers as
+	# floats even when the in-memory snapshot was constructed with ints.
+	var expected_runs: Array = JSON.parse_string(JSON.stringify(runs))
+	save_game()
+	load_game()
+	var loaded_runs: Array = state["test_log"]["runs"]
+	if loaded_runs.size() != expected_runs.size() or int(state["test_log"]["next_id"]) != 5:
+		test_log_fail("test history changed across save/reload")
+		return
+	for i in expected_runs.size():
+		for key in ["run_id", "road_id", "road", "chassis_id", "base_car_id", "calendar",
+			"installed", "conditions", "vehicle_state", "measurement_scope", "measurements", "replay"]:
+			if loaded_runs[i][key] != expected_runs[i][key]:
+				test_log_fail("%s changed across save/reload for run %d" % [key, i])
+				return
+	print("TESTLOGTEST runs: TEST_000001..TEST_000004; straight 2; curves 2")
+	print("TESTLOGTEST OK")
+	get_tree().quit()
 
 
 func game_test() -> void:
@@ -1167,7 +1495,7 @@ func game_test() -> void:
 	car_stats = retail_stats
 	show_warehouse()
 	var home_civic: Dictionary = hub_content.current_civic_state()
-	if not shell.is_home_mode() or shell.navigation_labels() != ["CAR", "CALENDAR", "HOME", "TEAM", "SHOP"] or not hub_content.has_node("%LocalStraightButton") or not hub_content.has_node("%LocalCurvesButton") or home_civic != state["civic"] or hub_content.current_vehicle_visual_state() != state["civic"]:
+	if not shell.is_home_mode() or shell.navigation_labels() != ["CAR", "CALENDAR", "HOME", "TEAM", "SHOP"] or not hub_content.has_node("%LocalStraightButton") or not hub_content.has_node("%LocalCurvesButton") or not hub_content.has_node("%TestLogButton") or home_civic != state["civic"] or hub_content.current_vehicle_visual_state() != state["civic"]:
 		push_error("GAMETEST FAIL HOME Civic state or navigation")
 		get_tree().quit(1)
 		return
@@ -1285,25 +1613,33 @@ func game_shots(folder: String) -> void:
 	car_stats = (await bridge.replied)[1]
 	show_warehouse()
 	await snap(folder, "1_warehouse")
-	var local_out := ProjectSettings.globalize_path("user://replays/local_straight_shots.json")
+	var prepared_straight := prepare_test_run("LOCAL_STRAIGHT")
+	var local_out := ProjectSettings.globalize_path(prepared_straight["replay"])
 	bridge.request("local_straight", ["local_straight", "--out", local_out])
 	var local_data: Dictionary = (await bridge.replied)[1]
-	var local_result := local_test_snapshot(local_data)
+	var local_result := complete_test_run(local_data, prepared_straight)
 	show_local_straight_replay(local_result)
 	viewer.t = viewer.lap_time
 	await snap(folder, "1a_local_straight_finish")
 	show_test_results(local_result)
 	await snap(folder, "1b_local_straight_results")
 	show_warehouse()
-	var curves_out := ProjectSettings.globalize_path("user://replays/local_curves_shots.json")
+	var prepared_curves := prepare_test_run("LOCAL_CURVES")
+	var curves_out := ProjectSettings.globalize_path(prepared_curves["replay"])
 	bridge.request("local_curves", ["local_curves", "--out", curves_out])
 	var curves_data: Dictionary = (await bridge.replied)[1]
-	var curves_result := local_test_snapshot(curves_data)
+	var curves_result := complete_test_run(curves_data, prepared_curves)
 	show_local_curves_replay(curves_result)
 	viewer.t = viewer.lap_time
 	await snap(folder, "1c_local_curves_finish")
 	show_curves_results(curves_result)
 	await snap(folder, "1d_local_curves_results")
+	show_test_log()
+	await snap(folder, "1e_test_log")
+	show_test_detail(local_result["run_id"])
+	await snap(folder, "1f_test_log_straight_detail")
+	show_test_detail(curves_result["run_id"])
+	await snap(folder, "1g_test_log_curves_detail")
 	show_warehouse()
 	bridge.request("parts", ["shop_catalog"])
 	accept_shop_catalog((await bridge.replied)[1])

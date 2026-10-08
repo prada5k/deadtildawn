@@ -10,6 +10,7 @@ signal go(target: String)
 func _ready() -> void:
 	%LocalStraightButton.pressed.connect(func(): go.emit("local_straight"))
 	%LocalCurvesButton.pressed.connect(func(): go.emit("local_curves"))
+	%TestLogButton.pressed.connect(func(): go.emit("test_log"))
 
 
 ## Called by game.gd after the screen is added.
@@ -30,6 +31,8 @@ func setup(info: Dictionary) -> void:
 	%TapeDate.text = str(info.get("tape_date", ""))
 	%CashOnHand.text = home_money(int(info.get("cash", 0)))
 	%Followers.text = str(int(info.get("followers", 0)))
+	%TestLogButton.text = "TEST LOG / %d RUN%s" % [int(info.get("test_count", 0)),
+		"" if int(info.get("test_count", 0)) == 1 else "S"]
 
 
 func base_car_name(base_car_id: String) -> String:

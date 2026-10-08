@@ -1,4 +1,5 @@
 """Permanent LOCAL_STRAIGHT controlled-test contract."""
+import hashlib
 import json
 import subprocess
 import sys
@@ -35,6 +36,15 @@ def test_local_straight_is_repeatable_and_writes_existing_replay_contract(tmp_pa
 
     assert first["ok"] and second["ok"]
     assert first["road_id"] == second["road_id"] == "LOCAL_STRAIGHT"
+    assert first["road"] == second["road"] == {
+        "road_id": "LOCAL_STRAIGHT",
+        "geometry_version": 1,
+        "geometry_sha256": hashlib.sha256(ROAD.read_bytes()).hexdigest(),
+    }
+    assert first["measurement_scope"] == {
+        "run": "standing-start 402.336 m acceleration",
+        "braking": "separate existing 60-0 braking calculation",
+    }
     assert first["conditions"] == second["conditions"]
     assert first["measurements"] == second["measurements"]
     assert first["vehicle_state"] == second["vehicle_state"]

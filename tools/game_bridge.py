@@ -96,6 +96,15 @@ def physical_vehicle_state(car):
     }
 
 
+def road_snapshot(path, road_id):
+    """Stable identity for a controlled road's exact authored geometry."""
+    return {
+        "road_id": road_id,
+        "geometry_version": 1,
+        "geometry_sha256": hashlib.sha256(Path(path).read_bytes()).hexdigest(),
+    }
+
+
 def reply(**data):
     print(json.dumps({"bridge_version": BRIDGE_VERSION, "ok": True, **data},
                      separators=(",", ":")))
@@ -179,6 +188,11 @@ def local_straight(out_file, part_ids=()):
     trap = speed_at_distance(telemetry, QUARTER_MILE_M)
     reply(
         road_id=LOCAL_STRAIGHT_ID,
+        road=road_snapshot(LOCAL_STRAIGHT_FILE, LOCAL_STRAIGHT_ID),
+        measurement_scope={
+            "run": "standing-start 402.336 m acceleration",
+            "braking": "separate existing 60-0 braking calculation",
+        },
         conditions={
             "surface": "baseline dry",
             "ambient_c": AMBIENT_C,
@@ -257,6 +271,10 @@ def local_curves(out_file, part_ids=()):
     )
     reply(
         road_id=LOCAL_CURVES_ID,
+        road=road_snapshot(LOCAL_CURVES_FILE, LOCAL_CURVES_ID),
+        measurement_scope={
+            "corners": "geometric corner arcs; approach and braking sectors excluded",
+        },
         conditions={
             "surface": "baseline dry",
             "ambient_c": AMBIENT_C,

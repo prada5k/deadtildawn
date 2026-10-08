@@ -42,6 +42,14 @@ def test_local_curves_is_repeatable_and_uses_fixed_reference_driver(tmp_path):
     second = run_test(tmp_path / "second.json")
 
     assert first["road_id"] == second["road_id"] == "LOCAL_CURVES"
+    assert first["road"] == second["road"] == {
+        "road_id": "LOCAL_CURVES",
+        "geometry_version": 1,
+        "geometry_sha256": hashlib.sha256(ROAD.read_bytes()).hexdigest(),
+    }
+    assert first["measurement_scope"] == {
+        "corners": "geometric corner arcs; approach and braking sectors excluded",
+    }
     assert first["conditions"] == second["conditions"]
     assert first["vehicle_state"] == second["vehicle_state"]
     assert first["measurements"] == second["measurements"]
