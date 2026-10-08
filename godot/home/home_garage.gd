@@ -4,7 +4,25 @@ extends Node3D
 
 const GAME_CAR_ID := "eg6_sir_ii_1995"
 const GAME_CAR_SCENE := "res://assets/models/cars/eg6_game.glb"
-const GARAGE_SCENE := "res://assets/models/scenes/garage1_game.glb"
+const GARAGE_SCENE := "res://assets/models/scenes/warehouse1_game.glb"
+const GARAGE_PROPS_SCENE := "res://assets/models/scenes/warehouse_props_game.glb"
+
+## The camera is stationary: close, a little above the roofline (about 1.9 m, looking down ~10 degrees),
+## front three-quarter, the Civic nose toward it (+x is the nose), the car centered and ~89% of the frame
+## width (the whole car, mirrors included, stays inside). Camera position + fov are on GarageCamera in
+## home_garage.tscn; this is the point it looks at.
+## The prepared models share one origin (art/blender/prep_home.py): where the Civic parks, floor at y = 0,
+## the warehouse's long side wall 2.6 m behind it (z = -2.6).
+const CAMERA_TARGET := Vector3(-0.15, 0.35, -0.4)
+
+## The car's paint and glass are glossy in the pack: under a bright tube light that is a hot white blob on the
+## hood and windshield. Rougher / less specular, same colors (looks only).
+const PAINT_ROUGHNESS := 0.62
+const PAINT_SPECULAR := 0.3
+const GLASS_ROUGHNESS := 0.5
+const GLASS_SPECULAR := 0.2
+const CONTACT_SHADOW_SIZE := Vector2(5.0, 2.5)    # the soft dark blot under the car (wheels read as grounded)
+const CONTACT_SHADOW_ALPHA := 0.6
 
 const BODY := Color(0.62, 0.07, 0.09)
 const GLASS := Color(0.06, 0.07, 0.09)
@@ -21,8 +39,12 @@ var _civic_state := {}
 
 func _ready() -> void:
 	configure_environment()
-	garage_camera.look_at(Vector3(0.0, 0.65, 0.0), Vector3.UP)
-	load_optional_scene(GARAGE_SCENE, garage_visual)
+	garage_camera.look_at(CAMERA_TARGET, Vector3.UP)
+	var built := load_optional_scene(GARAGE_SCENE, garage_visual)
+	built = load_optional_scene(GARAGE_PROPS_SCENE, garage_visual) or built
+	if built:
+		use_vertex_colors(garage_visual)
+	add_contact_shadow()
 	refresh_vehicle_visual()
 
 
@@ -52,11 +74,28 @@ func current_vehicle_visual_state() -> Dictionary:
 func configure_environment() -> void:
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color(0.035, 0.032, 0.035)
+	environment.background_color = Color(0.02, 0.022, 0.026)
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color(0.42, 0.4, 0.38)
-	environment.ambient_light_energy = 0.7
+	environment.ambient_light_color = Color(0.36, 0.4, 0.46)
+	environment.ambient_light_energy = 0.55
+	environment.fog_enabled = true                      # the far end of the garage falls into the dark
+	environment.fog_light_color = Color(0.03, 0.034, 0.04)
+	environment.fog_density = 0.035
 	%Environment.environment = environment
+
+
+## The garage's colors are baked into its vertices (one color per facet, no textures): the
+## material has to read them as albedo.
+func use_vertex_colors(root: Node) -> void:
+	for node in root.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := node as MeshInstance3D
+		for surface in mesh_instance.mesh.get_surface_count():
+			var source := mesh_instance.mesh.surface_get_material(surface) as StandardMaterial3D
+			if source == null:
+				continue
+			var colored := source.duplicate() as StandardMaterial3D
+			colored.vertex_color_use_as_albedo = true
+			mesh_instance.set_surface_override_material(surface, colored)
 
 
 func load_optional_scene(path: String, anchor: Node3D) -> bool:
@@ -76,8 +115,55 @@ func refresh_vehicle_visual() -> void:
 		child.queue_free()
 	apply_vehicle_visual_state(_civic_state)
 	if _civic_state.get("base_car_id", "") == GAME_CAR_ID and load_optional_scene(GAME_CAR_SCENE, vehicle_visual):
+		soften_car_highlights(vehicle_visual)
 		return
 	build_eg6_development_fallback()
+
+
+## Paint and glass by material name (the prepared EG6 names them Paint / Glass).
+func soften_car_highlights(root: Node) -> void:
+	for node in root.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := node as MeshInstance3D
+		for surface in mesh_instance.mesh.get_surface_count():
+			var source := mesh_instance.mesh.surface_get_material(surface) as StandardMaterial3D
+			if source == null or not source.resource_name in ["Paint", "Glass"]:
+				continue
+			var softer := source.duplicate() as StandardMaterial3D
+			var is_paint := source.resource_name == "Paint"
+			softer.roughness = PAINT_ROUGHNESS if is_paint else GLASS_ROUGHNESS
+			softer.metallic_specular = PAINT_SPECULAR if is_paint else GLASS_SPECULAR
+			mesh_instance.set_surface_override_material(surface, softer)
+
+
+## A cheap soft shadow blot under the car: a transparent quad with a radial gradient, so the tires read as
+## sitting on the floor even where the real shadow is faint. It lives on the anchor (the car's own
+## nodes are rebuilt when the Civic state changes).
+func add_contact_shadow() -> void:
+	var gradient := Gradient.new()
+	gradient.colors = PackedColorArray([Color(0, 0, 0, CONTACT_SHADOW_ALPHA), Color(0, 0, 0, CONTACT_SHADOW_ALPHA * 0.5), Color(0, 0, 0, 0)])
+	gradient.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
+	var texture := GradientTexture2D.new()
+	texture.gradient = gradient
+	texture.fill = GradientTexture2D.FILL_RADIAL
+	texture.fill_from = Vector2(0.5, 0.5)
+	texture.fill_to = Vector2(1.0, 0.5)
+	texture.width = 128
+	texture.height = 128
+	var quad := QuadMesh.new()
+	quad.size = Vector2(CONTACT_SHADOW_SIZE.x, CONTACT_SHADOW_SIZE.y)
+	var blot := StandardMaterial3D.new()
+	blot.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	blot.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	blot.albedo_texture = texture
+	blot.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var shadow := MeshInstance3D.new()
+	shadow.name = "ContactShadow"
+	shadow.mesh = quad
+	shadow.material_override = blot
+	shadow.rotation_degrees = Vector3(-90, 0, 0)
+	shadow.position = Vector3(0, 0.008, 0)
+	shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	civic_anchor.add_child(shadow)
 
 
 ## Single visual customization hook. It intentionally records the authoritative

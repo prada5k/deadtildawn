@@ -935,7 +935,7 @@ Use US dollars.
 ## HOME layout language
 
 Current approved direction:
-- upper ~55–58%: camcorder view of actual Civic in garage
+- upper ~55–58%: camcorder view of actual Civic in Garage 1 (the Oxnard warehouse, section 21)
 - lower ~42–45%: grimy/zine-like UI
 - camcorder REC/date/time/SP/battery language
 - SETTINGS as distressed tape label
@@ -958,6 +958,20 @@ Race sound is crucial because the player watches. RPM, shifts, throttle modulati
 # 21. GARAGE / HOME IMPLEMENTATION PHILOSOPHY
 
 HOME is an anchor, not a point-and-click adventure.
+
+## Garage 1: the Oxnard warehouse
+
+**Garage 1 is a permanent low-poly industrial warehouse bay in Oxnard, California.** It is the player's one garage for the entire save (section 1.2). It replaces the earlier parking-structure garage, which is retired as a HOME environment (the old prepared file `godot/assets/models/scenes/garage1_game.glb` and the raw scan `art/models/scenes/parking_garage.glb` are kept, unused).
+
+- Look: 1996 SoCal industrial. An arched steel hall with ribs, side-wall panels and a clerestory strip, matte faceted concrete floor, muted putty-gray palette, fluorescent fixtures. Aged, not abandoned; a modest personal work bay, never a showroom. No Japanese environmental text.
+- The Civic parks beside the long side wall, nose toward the camera (+x is the nose). The prepared models share one origin: where the Civic parks, floor at y = 0, the side wall 2.6 m behind it (z = -2.6). The visible space is a cropped ~19 m section of the source hall, closed by plain end walls.
+- Files: `godot/home/home_garage.tscn` / `.gd` (hooks: `CivicAnchor`, `VehicleVisual`, `GarageVisual`, `GarageCamera`, lights under `Lighting`), `godot/assets/models/scenes/warehouse1_game.glb` (structure, floor, end walls, window glow), `warehouse_props_game.glb` (fixtures, locker, light switch, boxes, bin), `godot/assets/models/cars/eg6_game.glb`. Everything is rebuilt from the raw sources in `art/models/` by `art/blender/prep_home.py` (stages `car`, `warehouse`, `props`; `garage` is the retired parking structure). Raw sources are never edited.
+- Camera (Spire's final, set by hand in the editor): stationary, tight front three-quarter, at (7.6, 2.2, 4.3) with fov 27 looking down ~11 degrees at `CAMERA_TARGET` (-0.15, 0.35, -0.4). The car fills the frame width; at 390x844 the mirrors and bumper corners crop slightly (intentional). Camera position and fov live on `GarageCamera` in `home_garage.tscn`; the aim point is the `CAMERA_TARGET` constant in `home_garage.gd` (it re-aims the camera on every start, so the camera's rotation in the Inspector is overwritten). HOME's 3D region is ~58% of the screen (`warehouse.tscn` GarageHero).
+- Rendering: `gl_compatibility`, mobile-first. Walls and floor are flat per-face colors (vertex colors, no textures); three omni lights (one shadow-casting tube over the car) with low specular; a gradient blot under the car grounds the tires; soft paint/glass specular on the Civic. Paint and Glass materials are softened in code by name.
+- Placeholders: the cardboard boxes and the bin on HOME are still simple primitives. Real models (`set_of_cardboard_boxes.glb`, `trashcan.glb`) are in `art/models/warehouse props/` but not yet integrated into `prep_home.py`. The bin sits where the camera cannot see it.
+- Provenance: every downloaded asset's source, author, license and attribution status is in `docs/ASSET_PROVENANCE.md`. CC-BY assets need an in-game credit that does not exist yet; two props are under the Sketchfab Standard license, unverified.
+
+## Anchors
 
 Use one persistent garage scene with state-driven display anchors/zones:
 - car
@@ -1189,6 +1203,8 @@ Use procedural/code generation where it adds real value:
 Build a normalized reusable low-poly asset library for vegetation, rocks, barriers, guardrails, poles, warehouses, lights, signs, garage props, boxes, tools, wheels and car components.
 
 Keep scale, pivots, naming, material philosophy and polygon density consistent.
+
+Every downloaded asset gets an entry in `docs/ASSET_PROVENANCE.md` (source, author, license, attribution status) when it enters `art/`. Never state a license that the file or its source page does not show; mark it unverified.
 
 ---
 

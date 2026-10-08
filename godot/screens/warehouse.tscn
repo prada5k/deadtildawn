@@ -5,9 +5,9 @@
 
 [sub_resource type="StyleBoxFlat" id="HomePanel"]
 content_margin_left = 24.0
-content_margin_top = 18.0
+content_margin_top = 10.0
 content_margin_right = 24.0
-content_margin_bottom = 18.0
+content_margin_bottom = 10.0
 bg_color = Color(0.026, 0.018, 0.019, 0.97)
 border_width_top = 2
 border_color = Color(0.839, 0.251, 0.271, 1)
@@ -133,7 +133,7 @@ theme_override_styles/panel = SubResource("HomePanel")
 
 [node name="InformationColumn" type="VBoxContainer" parent="Column/HomeInformation"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 2
 
 [node name="BrandRow" type="HBoxContainer" parent="Column/HomeInformation/InformationColumn"]
 layout_mode = 2
@@ -154,7 +154,7 @@ horizontal_alignment = 2
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"TitleLabel"
-theme_override_font_sizes/font_size = 40
+theme_override_font_sizes/font_size = 32
 text = "1995 CIVIC SiR-II"
 
 [node name="CivicIdentity" type="Label" parent="Column/HomeInformation/InformationColumn"]
@@ -243,10 +243,10 @@ color = Color(0.839, 0.251, 0.271, 0.8)
 
 [node name="CashRow" type="HBoxContainer" parent="Column/HomeInformation/InformationColumn"]
 layout_mode = 2
+theme_override_constants/separation = 20
 
 [node name="CashLabel" type="Label" parent="Column/HomeInformation/InformationColumn/CashRow"]
 layout_mode = 2
-size_flags_horizontal = 3
 theme_type_variation = &"MutedLabel"
 text = "CASH ON HAND"
 
@@ -257,16 +257,18 @@ theme_type_variation = &"HeadingLabel"
 text = "$2,500"
 horizontal_alignment = 2
 
-[node name="FollowersRow" type="HBoxContainer" parent="Column/HomeInformation/InformationColumn"]
+[node name="FollowersRow" type="HBoxContainer" parent="Column/HomeInformation/InformationColumn/CashRow"]
 layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
 
-[node name="FollowersLabel" type="Label" parent="Column/HomeInformation/InformationColumn/FollowersRow"]
+[node name="FollowersLabel" type="Label" parent="Column/HomeInformation/InformationColumn/CashRow/FollowersRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"MutedLabel"
 text = "FOLLOWERS"
 
-[node name="Followers" type="Label" parent="Column/HomeInformation/InformationColumn/FollowersRow"]
+[node name="Followers" type="Label" parent="Column/HomeInformation/InformationColumn/CashRow/FollowersRow"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "0"

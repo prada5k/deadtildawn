@@ -1,49 +1,68 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://cf0pavepdpxej"]
 
-[ext_resource type="Script" path="res://home/home_garage.gd" id="1"]
+[ext_resource type="Script" uid="uid://i1s2utefd5gc" path="res://home/home_garage.gd" id="1"]
 
-[node name="HomeGarage" type="Node3D"]
+[node name="HomeGarage" type="Node3D" unique_id=1577158806]
 unique_name_in_owner = true
 script = ExtResource("1")
 
-[node name="Environment" type="WorldEnvironment" parent="."]
+[node name="Environment" type="WorldEnvironment" parent="." unique_id=196515979]
 unique_name_in_owner = true
 
-[node name="GarageVisual" type="Node3D" parent="."]
+[node name="GarageVisual" type="Node3D" parent="." unique_id=1384090767]
 unique_name_in_owner = true
 
-[node name="Zones" type="Node3D" parent="."]
+[node name="Zones" type="Node3D" parent="." unique_id=891193254]
 
-[node name="Civic" type="Node3D" parent="Zones"]
+[node name="Civic" type="Node3D" parent="Zones" unique_id=453861645]
 
-[node name="CivicAnchor" type="Node3D" parent="Zones/Civic"]
+[node name="CivicAnchor" type="Node3D" parent="Zones/Civic" unique_id=1603658416]
 unique_name_in_owner = true
 
-[node name="VehicleVisual" type="Node3D" parent="Zones/Civic/CivicAnchor"]
+[node name="VehicleVisual" type="Node3D" parent="Zones/Civic/CivicAnchor" unique_id=1951713335]
 unique_name_in_owner = true
 
-[node name="WorkArea" type="Node3D" parent="Zones"]
+[node name="WorkArea" type="Node3D" parent="Zones" unique_id=1784856858]
 
-[node name="PartsStorage" type="Node3D" parent="Zones"]
+[node name="PartsStorage" type="Node3D" parent="Zones" unique_id=703380216]
 
-[node name="Tools" type="Node3D" parent="Zones"]
+[node name="Tools" type="Node3D" parent="Zones" unique_id=2108456359]
 
-[node name="WallMemorabilia" type="Node3D" parent="Zones"]
+[node name="WallMemorabilia" type="Node3D" parent="Zones" unique_id=2029315222]
 
-[node name="EntranceBackground" type="Node3D" parent="Zones"]
+[node name="EntranceBackground" type="Node3D" parent="Zones" unique_id=798908666]
 
-[node name="Lighting" type="Node3D" parent="."]
+[node name="Lighting" type="Node3D" parent="." unique_id=1938067132]
 
-[node name="KeyLight" type="DirectionalLight3D" parent="Lighting"]
-rotation_degrees = Vector3(-48, 32, 0)
-light_color = Color(0.92, 0.88, 0.8, 1)
-light_energy = 0.85
-shadow_enabled = false
+[node name="KeyLight" type="DirectionalLight3D" parent="Lighting" unique_id=90671201]
+transform = Transform3D(0.8480481, -0.3938068, 0.35458517, 0, 0.66913056, 0.74314487, -0.52991927, -0.63022256, 0.5674549, 0, 0, 0)
+light_color = Color(0.7, 0.78, 0.9, 1)
+light_energy = 0.22
 
-[node name="CameraRig" type="Node3D" parent="."]
+[node name="GarageTube" type="OmniLight3D" parent="Lighting" unique_id=1932210801]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.35, 2.3, 0.1)
+light_color = Color(0.82, 0.93, 1, 1)
+light_energy = 4.2
+light_specular = 0.25
+shadow_enabled = true
+shadow_blur = 1.6
+omni_range = 10.0
 
-[node name="GarageCamera" type="Camera3D" parent="CameraRig"]
+[node name="AisleFill" type="OmniLight3D" parent="Lighting" unique_id=1749163360]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.5, 2.2, 1.5)
+light_color = Color(0.85, 0.9, 1, 1)
+light_specular = 0.2
+omni_range = 11.0
+
+[node name="WallWash" type="OmniLight3D" parent="Lighting" unique_id=166786883]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6, 2.2, -1.6)
+light_color = Color(0.9, 0.95, 1, 1)
+light_energy = 1.4
+
+[node name="CameraRig" type="Node3D" parent="." unique_id=451110355]
+
+[node name="GarageCamera" type="Camera3D" parent="CameraRig" unique_id=1942848649]
 unique_name_in_owner = true
-position = Vector3(5.8, 2.65, 6.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.6, 2.2, 4.3)
 current = true
-fov = 38.0
+fov = 27.0
