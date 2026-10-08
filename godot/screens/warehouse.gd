@@ -7,10 +7,23 @@ signal go(target: String)
 @onready var home_garage: Node3D = %HomeGarage
 
 
+var tape_seconds := 0.0           # the camcorder's tape counter (this visit's footage), not a date or the game clock
+
+
 func _ready() -> void:
 	%LocalStraightButton.pressed.connect(func(): go.emit("local_straight"))
 	%LocalCurvesButton.pressed.connect(func(): go.emit("local_curves"))
 	%TestLogButton.pressed.connect(func(): go.emit("test_log"))
+
+
+## The viewfinder's live bits: REC blinks, the tape counter runs. The counter is footage time only; the
+## game's calendar day is the separate GAME DAY label (setup below).
+func _process(delta: float) -> void:
+	tape_seconds += delta
+	var blink := fmod(tape_seconds, 1.2) < 0.75
+	%Rec.text = "REC ●" if blink else "REC"
+	var whole := int(tape_seconds)
+	%TapeTime.text = "TAPE %d:%02d:%02d" % [whole / 3600, (whole / 60) % 60, whole % 60]
 
 
 ## Called by game.gd after the screen is added.
@@ -39,7 +52,7 @@ func setup(info: Dictionary) -> void:
 				["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"][int(order["due_day"])],
 				int(order["due_week"])])
 		%GarageWork.text = "GARAGE WORK / " + "\n".join(lines)
-	%TapeDate.text = str(info.get("tape_date", ""))
+	%TapeDate.text = "GAME DAY: %s" % str(info.get("tape_date", ""))
 	%CashOnHand.text = home_money(int(info.get("cash", 0)))
 	%Followers.text = str(int(info.get("followers", 0)))
 	%TestLogButton.text = "TEST LOG / %d RUN%s" % [int(info.get("test_count", 0)),

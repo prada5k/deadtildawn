@@ -38,3 +38,15 @@ author's stated asset license, not separate Honda brand permissions.
 This selection is replay-only presentation data. It does not change physics,
 the save schema, the permanent player Civic, the rival vehicle ID, or historical
 race configuration snapshots.
+
+## Update: prepared model and the 3D rear camera
+
+The replay's REAR camera (`godot/widgets/replay_chase.gd`) draws the proxy as a prepared, game-ready model,
+`godot/assets/models/cars/eg9_game.glb` (made from the unchanged raw `art/models/cars/eg9.glb` by
+`art/blender/prep_home.py`, stage `eg9`: scaled to the real 4.38 m, nose +X, tires on the ground, wheels
+separate, Frost-white paint so it reads apart from the red EG6). It is selected by the stable
+`vehicle_visual.visual_id` (`eg9_ferio_temp_proxy`), so already-saved rival replays and the rival profile
+(`asset_path`) are unchanged; the 2D views still use the raw path above. If the prepared file is missing, the
+3D view shows the generic low-poly marker. The top bar still prints the proxy disclosure
+(`TEMPORARY VISUAL PROXY / ... / SIM / 1996 Honda Civic DX Coupe`). The rival's gauges use his own recorded
+redline (6500) and fuel cut (6800).

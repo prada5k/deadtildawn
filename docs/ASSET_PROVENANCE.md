@@ -40,7 +40,7 @@ primitives. Real box and trashcan models have since been downloaded (see the unu
 
 | Title | Author | License (per file) | Source | Why unused |
 |---|---|---|---|---|
-| Honda Civic EG9 Sedan (Low Poly) | RedUnLuckyBlockOSC | CC-BY-4.0 | https://sketchfab.com/3d-models/honda-civic-eg9-sedan-low-poly-8f727e25234841c28bdd2eafe439de9e | Rival visual proxy (`art/models/cars/eg9.glb`); separate from HOME. If it ships in replay, credit it. |
+| Honda Civic EG9 Sedan (Low Poly) | RedUnLuckyBlockOSC | CC-BY-4.0 | https://sketchfab.com/3d-models/honda-civic-eg9-sedan-low-poly-8f727e25234841c28bdd2eafe439de9e | **In use in replays** as Rafa's TEMPORARY VISUAL PROXY (not on HOME); prepared as `godot/assets/models/cars/eg9_game.glb`. Needs an in-game credit like the other CC-BY assets. |
 | parking garage | SPLEEN VISION | CC-BY-4.0 | https://sketchfab.com/3d-models/parking-garage-98f7bc75350f4fb7ad36830f58fc99be | Retired HOME environment (replaced by the warehouse). Prepared output `garage1_game.glb` kept, unused. |
 | Set of Cardboard Boxes | NotAnotherApocalypticCo. | CC-BY-4.0 | https://sketchfab.com/3d-models/set-of-cardboard-boxes-8986ba512f704ac5b253286a0d1ad8bb | Added to `art/models/warehouse props/` after the warehouse pass; **not yet integrated** (HOME still shows the placeholder primitive boxes). |
 | Trashcan | Arrangemonk | CC-BY-4.0 | https://sketchfab.com/3d-models/trashcan-534ea55c8e7f4e0f93024aa9625b0a30 | Same: **not yet integrated** (HOME still shows the placeholder bin). If used, move it to the in-use table and credit it. |
@@ -57,6 +57,7 @@ Raw sources: `art/models/scenes/`, `art/models/cars/`, `art/models/warehouse pro
   re-tuned (roughness, lamp emission), textures removed.
 - Switch and fixtures: textures removed, scaled; the pack's OFF fixture was dropped.
 - Locker: texture reduced to flat per-face colors.
+- EG9 (replay proxy): scaled to 4.38 m, re-oriented, wheels separated, materials renamed and re-tuned, textures removed, repainted Frost white (the source is red).
 
 ## Checklist before any public build
 

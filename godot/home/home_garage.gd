@@ -6,6 +6,8 @@ const GAME_CAR_ID := "eg6_sir_ii_1995"
 const GAME_CAR_SCENE := "res://assets/models/cars/eg6_game.glb"
 const GARAGE_SCENE := "res://assets/models/scenes/warehouse1_game.glb"
 const GARAGE_PROPS_SCENE := "res://assets/models/scenes/warehouse_props_game.glb"
+const HandheldMotion := preload("res://widgets/handheld_motion.gd")
+const HomeAmbience := preload("res://home/home_ambience.gd")
 
 ## The camera is stationary: close, a little above the roofline (about 1.9 m, looking down ~10 degrees),
 ## front three-quarter, the Civic nose toward it (+x is the nose), the car centered and ~89% of the frame
@@ -30,6 +32,9 @@ const TIRE := Color(0.05, 0.05, 0.05)
 const RIM := Color(0.55, 0.56, 0.6)
 
 var _civic_state := {}
+var _handheld := HandheldMotion.new()      # the camcorder in a person's hands (visual only; see widgets/handheld_motion.gd)
+var _camera_reference := Transform3D()     # the approved camera pose: the handheld offset is applied to THIS every frame, never accumulated
+var _handheld_time := 0.0                  # this visit's handheld clock (only runs while HOME is on screen)
 
 @onready var civic_anchor: Node3D = %CivicAnchor
 @onready var vehicle_visual: Node3D = %VehicleVisual
@@ -40,12 +45,28 @@ var _civic_state := {}
 func _ready() -> void:
 	configure_environment()
 	garage_camera.look_at(CAMERA_TARGET, Vector3.UP)
+	_camera_reference = garage_camera.transform
 	var built := load_optional_scene(GARAGE_SCENE, garage_visual)
 	built = load_optional_scene(GARAGE_PROPS_SCENE, garage_visual) or built
 	if built:
 		use_vertex_colors(garage_visual)
 	add_contact_shadow()
 	refresh_vehicle_visual()
+	if get_node_or_null("HomeAmbience") == null:       # one set per HOME visit: an aging tube, dust, a gnat
+		var ambience := HomeAmbience.new()
+		ambience.name = "HomeAmbience"
+		add_child(ambience)
+		ambience.setup(garage_visual, _camera_reference, garage_camera.fov)
+
+
+## The handheld camcorder: the approved pose, plus a small human offset that is a pure function of this visit's
+## clock. Only the rendered 3D world moves: every overlay is a separate screen-locked Control. Nothing runs while
+## HOME is not on screen (the screen that owns this scene is freed when you leave it).
+func _process(delta: float) -> void:
+	if not is_visible_in_tree():
+		return
+	_handheld_time += delta
+	garage_camera.transform = _camera_reference * _handheld.offset_transform(_handheld_time)
 
 
 ## The whole transient view is copied so future appearance, damage, wheels,

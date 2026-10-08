@@ -42,7 +42,7 @@ light_energy = 0.22
 [node name="GarageTube" type="OmniLight3D" parent="Lighting" unique_id=1932210801]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.35, 2.3, 0.1)
 light_color = Color(0.82, 0.93, 1, 1)
-light_energy = 4.2
+light_energy = 3.7
 light_specular = 0.25
 shadow_enabled = true
 shadow_blur = 1.6

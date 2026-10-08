@@ -104,6 +104,12 @@ BOXES = (((0.55, 0.42, 0.38), (HALL_CROP[0] + 0.45, WALL_Y - 1.75, 0.19), 0.12),
          ((0.46, 0.34, 0.3), (HALL_CROP[0] + 0.45, WALL_Y - 1.75, 0.55), 0.35))
 TRASH_AT = (-6.0, 2.2)                  # a placeholder bin (no model supplied) on the floor by the work area
 
+# ---- Rafa's temporary visual proxy (EG9 sedan; his simulated car is still the EJ6 DX coupe) ----
+SRC_EG9 = os.path.join(REPO, "art", "models", "cars", "eg9.glb")
+OUT_EG9 = os.path.join(REPO, "godot", "assets", "models", "cars", "eg9_game.glb")
+EG9_LENGTH_M = 4.38                    # Civic Ferio (EG9) sedan, bumper to bumper
+EG9_PAINT = (0.80, 0.80, 0.77, 1.0)    # Frost white: reads apart from the player's red EG6 in a replay
+
 STAGES = globals().get("STAGES") or [a for a in (sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])] or ["car", "garage"]
 
 
@@ -1079,6 +1085,89 @@ def prep_props():
     cleanup(sc)
 
 
+# ------------------------------------------------------------------ Rafa's temporary visual proxy (EG9)
+def prep_eg9():
+    """Rafa's replay model: Honda Civic EG9 sedan, a TEMPORARY VISUAL PROXY (his simulated, saved car stays the
+    1996 EJ6 DX coupe, docs/PHASE_7B_RIVAL_VISUAL_PROXY.md). Same game frame as the EG6: nose +X, origin in the
+    middle of the footprint, tire bottoms on z = 0, four separate wheels, the rest one Body. The raw file is
+    never edited. Painted Frost white (not the player's red) so the two cars read apart in a replay."""
+    print("== EG9 proxy")
+    sc = fresh_scene("home_prep_eg9")
+    objs = import_glb(SRC_EG9)
+    bake_world(objs)
+    meshes = [o for o in sc.objects if o.type == "MESH"]
+    stray = [o.name for o in meshes if not any(o.data.materials)]      # an unmaterialed Icosphere comes with the pack
+    for name in stray:
+        bpy.data.objects.remove(bpy.data.objects[name], do_unlink=True)
+    meshes = [o for o in sc.objects if o.type == "MESH"]
+    print(f"  dropped stray meshes: {stray}")
+
+    # wheel parts (tire / rim / nuts), by which corner of the car their middle is in (before any transform:
+    # the raw car's nose is -Y, left is +x)
+    wheel_materials = {"Tire", "material", "material_15"}
+    groups = {"Wheel_FL": [], "Wheel_FR": [], "Wheel_RL": [], "Wheel_RR": []}
+    body = []
+    for o in meshes:
+        if all(m is not None and m.name in wheel_materials for m in o.data.materials):
+            lo, hi = bounds([o])
+            side = "L" if (lo.x + hi.x) / 2 > 0 else "R"
+            end = "F" if (lo.y + hi.y) / 2 < 0 else "R"
+            groups["Wheel_" + end + side].append(o)
+        else:
+            body.append(o)
+    print("  wheel parts:", {k: len(v) for k, v in groups.items()}, " body parts:", len(body))
+
+    transform_meshes(meshes, Matrix.Rotation(math.radians(90.0), 4, "Z"))      # nose -Y -> +X
+    lo, hi = bounds(body)
+    scale = EG9_LENGTH_M / (hi.x - lo.x)
+    transform_meshes(meshes, Matrix.Scale(scale, 4))
+    lo, hi = bounds(body)
+    wlo, whi = bounds([o for g in groups.values() for o in g])
+    transform_meshes(meshes, Matrix.Translation(Vector((-(lo.x + hi.x) / 2, -(lo.y + hi.y) / 2, -min(lo.z, wlo.z)))))
+    print(f"  scale {scale:.4f}")
+
+    flipped = 0
+    for o in meshes:
+        bad = check_normals(o, [])
+        if bad:
+            bm = bmesh.new()
+            bm.from_mesh(o.data)
+            bm.faces.ensure_lookup_table()
+            bmesh.ops.reverse_faces(bm, faces=[bm.faces[i] for c in bad for i in c[0]])
+            bm.to_mesh(o.data)
+            bm.free()
+            flipped += len(bad)
+    print(f"  normals: {flipped} inside-out closed solids flipped")
+
+    table = dict(CAR_MATERIALS)
+    table["BrakeLight"] = ("BrakeLight", None, 0.3, 0.6)
+    table["Taillight_1"] = ("Taillight", None, 0.3, 0.6)
+    table["material_15"] = ("WheelNut", None, 0.8, None)      # (this pack names the wheel nuts material_15)
+    tune_materials(meshes, table)
+    paint = bpy.data.materials.get("Paint")
+    if paint is not None:
+        b = next(n for n in paint.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+        set_input(b, "Base Color", EG9_PAINT)
+    for m in [m for m in bpy.data.materials if m.users == 0]:
+        bpy.data.materials.remove(m)
+
+    out = []
+    for name, parts in groups.items():
+        w = join(parts, name)
+        bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="BOUNDS")
+        out.append(w)
+    b = join(body, "Body")
+    bpy.context.view_layer.objects.active = b
+    bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
+    out.insert(0, b)
+    lo, hi = bounds(out)
+    print(f"  final size L {hi.x - lo.x:.3f}  W {hi.y - lo.y:.3f}  H {hi.z - lo.z:.3f}   z0 {lo.z:.4f}")
+    for o in out:
+        print(f"  {o.name:10} tris {tri_count(o):6}  origin {tuple(round(v, 3) for v in o.location)}")
+    export(OUT_EG9, out)
+    cleanup(sc)
+
+
 if "car" in STAGES:
     prep_car()
 if "garage" in STAGES:
@@ -1087,4 +1176,6 @@ if "warehouse" in STAGES:
     prep_warehouse()
 if "props" in STAGES:
     prep_props()
+if "eg9" in STAGES:
+    prep_eg9()
 print("DONE", STAGES)

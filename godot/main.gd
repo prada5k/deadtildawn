@@ -38,11 +38,13 @@ const CHASE_VIEW_M := 110.0      # meters across the screen in chase mode
 const CHASE_LOOKAHEAD_M := 22.0  # chase camera looks ahead so the car sits low on screen
 const PEDAL_H := 210.0
 const GaugeScript := preload("res://gauge.gd")
+const ChaseScript := preload("res://widgets/replay_chase.gd")
+const GearBoxScript := preload("res://widgets/gear_box.gd")
 
 signal finished_viewing     # embedded mode: player pressed Continue after the finish
 
-enum CamMode { OVERVIEW, FOLLOW, CHASE, TRACKSIDE }
-const CAM_NAMES := ["Overview", "Follow", "Chase", "TV"]
+enum CamMode { OVERVIEW, FOLLOW, CHASE, TRACKSIDE, REAR }
+const CAM_NAMES := ["Overview", "Follow", "Chase", "TV", "REAR"]   # REAR = the 3D low rear-bumper camera (widgets/replay_chase.gd)
 
 # Set these before adding the viewer to the tree (game.gd does); defaults = standalone
 var replay_path := REPLAY_PATH
@@ -73,6 +75,7 @@ var track_size := Vector2.ONE
 var hud := {}             # name -> HUD node
 var corner_labels := []   # [Label, corner midpoint, outward direction], rescaled with the zoom
 var marker: Node2D
+var chase = null           # the 3D rear chase camera (widgets/replay_chase.gd)
 
 
 # ------------------------------------------------------------------ setup
@@ -90,8 +93,20 @@ func _ready() -> void:
 	build_track()
 	build_car()
 	build_camera()
+	build_chase()
 	build_hud()
-	set_cam_mode(CamMode.TRACKSIDE if embedded else CamMode.OVERVIEW)
+	var start_mode: int = CamMode.REAR if embedded else CamMode.OVERVIEW      # the signature view is the low rear camera
+	for a in args:
+		if a.begins_with("--cam="):                          # standalone: --cam=overview|follow|chase|tv|rear
+			var found := CAM_NAMES.map(func(n: String): return n.to_lower()).find(a.trim_prefix("--cam=").to_lower())
+			if found >= 0:
+				start_mode = found
+	for a in args:
+		if a.begins_with("--view="):                         # QA stills: a camera beside the car (side | rear_close | front34)
+			chase.debug_view = a.trim_prefix("--view=")
+		if a.begins_with("--exaggerate="):                   # QA stills: x the body motion so its direction shows (never in the game)
+			chase.debug_exaggerate = float(a.trim_prefix("--exaggerate="))
+	set_cam_mode(start_mode)
 	if "--selftest" in args:
 		self_test()
 	for a in args:
@@ -330,6 +345,12 @@ func collect_vehicle_visual_bounds(node: Node, parent_transform: Transform3D, bo
 		collect_vehicle_visual_bounds(child, node_transform, bounds)
 
 
+func build_chase() -> void:
+	chase = ChaseScript.new()
+	add_child(chase)
+	chase.build(replay)
+
+
 func build_camera() -> void:
 	camera = Camera2D.new()
 	# Camera2D ignores its own rotation by default; the chase camera needs it
@@ -368,6 +389,7 @@ func add_bar(parent: Node, pos: Vector2, size: Vector2, color: Color) -> ColorRe
 
 func build_hud() -> void:
 	var layer := CanvasLayer.new()
+	layer.layer = 2                       # above the 3D rear view (its layer is 1)
 	add_child(layer)
 
 	# Top info bar
@@ -379,7 +401,7 @@ func build_hud() -> void:
 	hud["title"] = add_label(top, Vector2(30, 112), 22, Color(0.7, 0.71, 0.75))
 	hud["title"].text = "%s  /  %s" % [replay["car"]["name"], str(replay["track"]["name"]).get_basename().replace("_", " ")]
 	hud["status"] = add_label(top, Vector2(30, 142), 24, Color(1.0, 0.55, 0.1))
-	hud["visual_notice"] = add_label(top, Vector2(30, 170), 14, Color(0.92, 0.78, 0.47))
+	hud["visual_notice"] = add_label(top, Vector2(30, 168), 17, Color(0.92, 0.78, 0.47))
 	var visual_selection: Dictionary = replay.get("vehicle_visual", {})
 	hud["visual_notice"].text = "%s / SIM / %s" % [
 		str(visual_selection.get("asset_label", vehicle_visual_status)), str(replay["car"].get("name", "UNKNOWN VEHICLE"))]
@@ -399,7 +421,7 @@ func build_hud() -> void:
 	for i in CAM_NAMES.size():
 		var b := Button.new()
 		b.text = CAM_NAMES[i]
-		b.add_theme_font_size_override("font_size", 22)
+		b.add_theme_font_size_override("font_size", 20)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.focus_mode = Control.FOCUS_NONE
 		b.pressed.connect(set_cam_mode.bind(i))
@@ -423,31 +445,43 @@ func build_hud() -> void:
 	hud["dash"] = dash
 	hud["temp"] = add_label(dash, Vector2(24, 0), 22, Color(0.8, 0.8, 0.82))
 
+	# The instrument cluster (gauge.gd "honda90s"). Scales come from the replay's own recorded numbers: the tach
+	# reads a little past the recorded fuel cut with the red band from the recorded redline; the speedometer
+	# reads past the recorded top speed. A channel the replay doesn't carry shows NO DATA, never a made-up value.
+	var redline := float(replay["car"]["redline"])
+	var fuel_cut := float(replay["car"].get("fuel_cut", redline))
 	var tach: Control = GaugeScript.new()
-	tach.position = Vector2(14, 34)
-	tach.size = Vector2(250, 250)
-	tach.max_value = 8000.0
+	tach.position = Vector2(12, 34)
+	tach.size = Vector2(262, 262)
+	tach.max_value = clampf(ceilf((fuel_cut + 1.0) / 1000.0) * 1000.0, 7000.0, 10000.0)
 	tach.major_step = 1000.0
 	tach.minor_step = 500.0
 	tach.label_scale = 0.001
-	tach.redline_from = float(replay["car"]["redline"])
-	tach.title = "rpm x1000"
+	tach.redline_from = redline
+	tach.limiter_at = fuel_cut
+	tach.title = "x1000 r/min"
 	dash.add_child(tach)
 	hud["tach"] = tach
 
+	var top_kmh := 0.0
+	if has_channel("v"):
+		for v in samples["v"]:
+			top_kmh = maxf(top_kmh, float(v) * 3.6)
 	var speedo: Control = GaugeScript.new()
-	speedo.position = Vector2(272, 34)
-	speedo.size = Vector2(250, 250)
-	speedo.max_value = 200.0
-	speedo.major_step = 40.0
+	speedo.position = Vector2(282, 34)
+	speedo.size = Vector2(262, 262)
+	speedo.max_value = clampf(ceilf(top_kmh * 1.15 / 40.0) * 40.0, 160.0, 280.0)
+	speedo.major_step = 20.0 if speedo.max_value <= 200.0 else 40.0
 	speedo.minor_step = 10.0
 	speedo.title = "km/h"
 	dash.add_child(speedo)
 	hud["speedo"] = speedo
 
-	hud["gear"] = add_label(dash, Vector2(560, 22), 72, Color(1.0, 0.85, 0.3))
-	hud["gear_caption"] = add_label(dash, Vector2(552, 104), 16, Color(0.6, 0.61, 0.66))
-	hud["gear_caption"].text = "GEAR"
+	var gear_box: Control = GearBoxScript.new()
+	gear_box.position = Vector2(552, 22)
+	gear_box.size = Vector2(56, 84)
+	dash.add_child(gear_box)
+	hud["gear"] = gear_box
 	hud["throttle"] = add_bar(dash, Vector2(616, 70), Vector2(30, PEDAL_H), Color(0.3, 0.8, 0.4))
 	hud["brake"] = add_bar(dash, Vector2(656, 70), Vector2(30, PEDAL_H), Color(0.93, 0.17, 0.24))
 
@@ -488,17 +522,20 @@ func update_hud() -> void:
 	hud["play"].text = "||" if playing and t < lap_time else ">"
 	hud["speed_btn"].text = "%sx" % str(SPEEDS[speed_i])
 
-	var gear := int(samples["gear"][idx])
-	hud["gear"].text = "-" if gear == 0 else str(gear)
-	hud["tach"].value = value_at("rpm")
-	hud["speedo"].value = value_at("v") * 3.6
-
-	var temp := value_at("brake_temp")
-	var fade := float(replay["car"]["pad_fade_temp"])
-	hud["temp"].text = "FRONT ROTOR %d C%s" % [int(temp), "   FADING" if temp > fade else ""]
-	hud["temp"].add_theme_color_override("font_color", Color(1, 0.35, 0.3) if temp > fade else Color(0.8, 0.8, 0.82))
-	set_pedal(hud["throttle"], value_at("throttle"), Vector2(616, 70))
-	set_pedal(hud["brake"], value_at("brake"), Vector2(656, 70))
+	update_cluster()
+	var has_temp := has_channel("brake_temp")
+	hud["temp"].visible = has_temp
+	if has_temp:
+		var temp := value_at("brake_temp")
+		var fade := float(replay["car"]["pad_fade_temp"])
+		hud["temp"].text = "FRONT ROTOR %d C%s" % [int(temp), "   FADING" if temp > fade else ""]
+		hud["temp"].add_theme_color_override("font_color", Color(1, 0.35, 0.3) if temp > fade else Color(0.8, 0.8, 0.82))
+	hud["throttle"].visible = has_channel("throttle")
+	hud["brake"].visible = has_channel("brake")
+	if has_channel("throttle"):
+		set_pedal(hud["throttle"], value_at("throttle"), Vector2(616, 70))
+	if has_channel("brake"):
+		set_pedal(hud["brake"], value_at("brake"), Vector2(656, 70))
 
 	# Finish banner (two lines with a rival) and Continue
 	var banner: Label = hud["banner"]
@@ -534,6 +571,28 @@ func update_hud() -> void:
 				mistake.visible = true
 
 
+## Does the replay carry this telemetry channel (one value per sample)?
+func has_channel(key: String) -> bool:
+	return samples.has(key) and samples[key] is Array and (samples[key] as Array).size() == (samples["t"] as Array).size()
+
+
+## The needles and the gear box show the recorded values at playback time t, unsmoothed. A missing channel is
+## shown as NO DATA / "--"; nothing is estimated.
+func update_cluster() -> void:
+	var tach: Control = hud["tach"]
+	tach.available = has_channel("rpm")
+	if tach.available:
+		tach.value = value_at("rpm")
+	var speedo: Control = hud["speedo"]
+	speedo.available = has_channel("v")
+	if speedo.available:
+		speedo.value = value_at("v") * 3.6
+	var gear_box: Control = hud["gear"]
+	gear_box.available = has_channel("gear")
+	if gear_box.available:
+		gear_box.gear = int(samples["gear"][idx])
+
+
 func set_pedal(fill: ColorRect, amount: float, base: Vector2) -> void:
 	# Vertical bar that fills from the bottom
 	var h := PEDAL_H * clampf(amount, 0.0, 1.0)
@@ -557,6 +616,7 @@ func _process(delta: float) -> void:
 		t = minf(t + delta * SPEEDS[speed_i], lap_time)
 	update_car()
 	update_camera(delta, false)
+	sync_rear()
 	update_hud()
 
 
@@ -603,6 +663,7 @@ func set_cam_mode(mode: int) -> void:
 	cam_mode = mode
 	active_corner = -1
 	update_camera(0.0, true)
+	sync_rear()
 
 
 func pick_corner(s: float) -> int:
@@ -674,6 +735,20 @@ func update_camera(delta: float, snap: bool) -> void:
 	rescale_overlays()
 
 
+## The 3D camera-car view for the current playback time (update_car has set idx and t). A pure function of t:
+## no state is kept between frames, so seek, pause, restart and playback speed cannot change a picture.
+## Visual only: it reads the replay, never writes it.
+func sync_rear() -> void:
+	if chase == null:
+		return
+	chase.set_active(cam_mode == CamMode.REAR)
+	if cam_mode != CamMode.REAR:
+		return
+	chase.set_area(view_area())
+	var heading := lerp_angle(float(samples["heading"][idx]), float(samples["heading"][idx + 1]), frac())
+	chase.sync(t, value_at("x"), value_at("y"), heading, value_at("s"), value_at("brake") if has_channel("brake") else 0.0)
+
+
 ## Keep corner labels and the car marker a constant size on screen
 ## (world size = screen size / zoom), and upright when the camera rotates.
 func rescale_overlays() -> void:
@@ -709,6 +784,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			set_cam_mode(CamMode.CHASE)
 		KEY_4:
 			set_cam_mode(CamMode.TRACKSIDE)
+		KEY_5:
+			set_cam_mode(CamMode.REAR)
 		KEY_C:
 			set_cam_mode((cam_mode + 1) % CAM_NAMES.size())
 		KEY_SPACE:
@@ -742,20 +819,162 @@ func show_message(text: String) -> void:
 ## Headless check: step through the replay and every camera, print what
 ## the viewer sees, then quit. Run with:  godot --headless -- --selftest
 func self_test() -> void:
+	var samples_hash_before := samples.hash()               # the viewer must never alter the recorded run
+	var file_hash_before := FileAccess.get_sha256(replay_path)
 	print("SELFTEST samples=%d lap_time=%.2f corners=%d" % [samples["t"].size(), lap_time, corners.size()])
 	if not vehicle_visual_status.is_empty():
 		print("SELFTEST vehicle visual: %s" % vehicle_visual_status)
 	for check_t in [0.0, lap_time * 0.25, lap_time * 0.5, lap_time * 0.75, lap_time]:
 		t = check_t
 		update_car()
-		for mode in [CamMode.OVERVIEW, CamMode.FOLLOW, CamMode.CHASE, CamMode.TRACKSIDE]:
+		for mode in [CamMode.OVERVIEW, CamMode.FOLLOW, CamMode.CHASE, CamMode.TRACKSIDE, CamMode.REAR]:
 			set_cam_mode(mode)
 		update_hud()
-		print("t=%7.2f s=%7.1f m  pos=(%7.1f, %7.1f) m  v=%5.1f km/h  gear=%d  corner_cam=%d" % [
+		print("t=%7.2f s=%7.1f m  pos=(%7.1f, %7.1f) m  v=%5.1f km/h  gear=%s  corner_cam=%d" % [
 			t, value_at("s"), car.position.x / PX_PER_M, -car.position.y / PX_PER_M,
-			value_at("v") * 3.6, int(samples["gear"][idx]), active_corner])
-	print("SELFTEST OK")
+			value_at("v") * 3.6, str(int(samples["gear"][idx])) if has_channel("gear") else "n/a", active_corner])
+	var rear_ok := rear_camera_check()
+	var motion_ok := motion_check(samples_hash_before, file_hash_before)
+	var cluster_ok := cluster_check()
+	print("SELFTEST OK" if rear_ok and motion_ok and cluster_ok else "SELFTEST FAIL (camera %s, motion %s, cluster %s)" % [rear_ok, motion_ok, cluster_ok])
 	get_tree().quit()
+
+
+## The cluster must show the recorded telemetry at the playback time: needles = rpm and speed, gear box = gear.
+## Checked at many moments; a replay that lacks a channel must show it as unavailable.
+func cluster_check() -> bool:
+	var worst_rpm := 0.0
+	var worst_kmh := 0.0
+	var gear_mismatch := 0
+	var checks := 0
+	for k in 41:
+		t = lap_time * k / 40.0
+		update_car()
+		update_hud()
+		checks += 1
+		if has_channel("rpm"):
+			worst_rpm = maxf(worst_rpm, absf(float(hud["tach"].value) - value_at("rpm")))
+		if has_channel("v"):
+			worst_kmh = maxf(worst_kmh, absf(float(hud["speedo"].value) - value_at("v") * 3.6))
+		if has_channel("gear") and int(hud["gear"].gear) != int(samples["gear"][idx]):
+			gear_mismatch += 1
+	var tach: Control = hud["tach"]
+	var ok := worst_rpm < 0.01 and worst_kmh < 0.01 and gear_mismatch == 0
+	print("CLUSTER tach 0..%d redline %d limiter %d | speedo 0..%d | channels rpm=%s v=%s gear=%s | %d checks, worst needle error %.4f rpm / %.4f km/h, gear mismatches %d  %s" % [
+		int(tach.max_value), int(tach.redline_from), int(tach.limiter_at), int(hud["speedo"].max_value),
+		has_channel("rpm"), has_channel("v"), has_channel("gear"), checks, worst_rpm, worst_kmh, gear_mismatch, "OK" if ok else "FAIL"])
+	return ok
+
+
+## The camera-car view over the whole run, in 0.05 s steps: the filming car must never jump relative to the
+## subject, never drop to the ground, always keep the subject in frame, and keep a believable gap. Reads the
+## replay only.
+func rear_camera_check() -> bool:
+	set_cam_mode(CamMode.REAR)
+	var step := 0.05
+	var worst_jump := 0.0
+	var min_height := INF
+	var min_d := INF
+	var max_d := 0.0
+	var min_gap := INF
+	var max_gap := 0.0
+	var off_screen := 0
+	var tightest_margin := 1.0
+	var prev_cam := Vector3.ZERO
+	var prev_car := Vector3.ZERO
+	var first := true
+	var tt := 0.0
+	while tt <= lap_time + 1e-6:
+		t = minf(tt, lap_time)
+		update_car()
+		sync_rear()
+		var m: Dictionary = chase.measure(t)
+		if not first:                                   # how far the camera moved relative to the car in one step
+			worst_jump = maxf(worst_jump, ((m["camera"] - prev_cam) - (m["car"] - prev_car)).length())
+		first = false
+		prev_cam = m["camera"]
+		prev_car = m["car"]
+		min_height = minf(min_height, float(m["height"]))
+		min_d = minf(min_d, float(m["distance"]))
+		max_d = maxf(max_d, float(m["distance"]))
+		min_gap = minf(min_gap, float(m["gap"]))
+		max_gap = maxf(max_gap, float(m["gap"]))
+		if not m["on_screen"]:
+			off_screen += 1
+		tightest_margin = minf(tightest_margin, float(m["frame_margin"]))
+		tt += step
+	var ok := worst_jump < 1.0 and min_height > 0.9 and off_screen == 0 and min_d > 3.0 and tightest_margin > 0.01
+	print("REARCAM model=%s  worst relative jump %.2f m/step  lens height min %.2f m  distance %.1f..%.1f m  road gap %.1f..%.1f m  off-screen steps %d  whole-car frame margin min %.1f%%  %s" % [
+		chase.model_label, worst_jump, min_height, min_d, max_d, min_gap, max_gap, off_screen, tightest_margin * 100.0, "OK" if ok else "FAIL"])
+	return ok
+
+
+## The visual-only vehicle motion and the filming car, against the recorded run:
+##  - the recorded arrays are never touched (hash before / after, and the file on disk);
+##  - roll leans OUTWARD in corners (a left turn rolls the roof to the right), braking dives, accelerating squats;
+##  - every visual state is a pure function of time: asking for the same moment in any order (seek, restart, any
+##    playback speed) gives bit-identical poses.
+func motion_check(samples_hash_before: int, file_hash_before: String) -> bool:
+	var dyn = chase.dynamics
+	var sm: Dictionary = dyn.summary()
+	var rsm: Dictionary = chase.rig.dynamics.summary()
+	var left_ok := 0
+	var left_n := 0
+	var right_ok := 0
+	var right_n := 0
+	var brake_ok := 0
+	var brake_n := 0
+	var accel_ok := 0
+	var accel_n := 0
+	for k in dyn.count:
+		var ay: float = dyn.a_lat[k] / dyn.G
+		var ax: float = dyn.a_long[k] / dyn.G
+		if ay > 0.25:
+			left_n += 1
+			left_ok += 1 if dyn.roll[k] > 0.0 else 0          # left turn: roll > 0 = roof to the right = outward
+		elif ay < -0.25:
+			right_n += 1
+			right_ok += 1 if dyn.roll[k] < 0.0 else 0
+		if ax < -0.3:
+			brake_n += 1
+			brake_ok += 1 if dyn.pitch[k] < 0.0 else 0        # braking: nose down
+		elif ax > 0.2:
+			accel_n += 1
+			accel_ok += 1 if dyn.pitch[k] > 0.0 else 0
+	var tel_ok := samples.hash() == samples_hash_before and FileAccess.get_sha256(replay_path) == file_hash_before
+	# determinism: the same moments asked for in a different order, and after a restart, give identical poses
+	var times: Array = []
+	for k in 25:
+		times.append(lap_time * float((k * 7) % 25) / 24.0)
+	var forward: Array = []
+	for tq in times:
+		forward.append(pose_signature(float(tq)))
+	var identical := true
+	for i in times.size():
+		var back := times.size() - 1 - i
+		if pose_signature(float(times[back])) != forward[back]:
+			identical = false
+	restart()
+	var first_look := pose_signature(0.0)
+	identical = identical and first_look == pose_signature(0.0) and first_look == forward[0 if float(times[0]) == 0.0 else 0]
+	# (a damped body lags a change of load by a few frames, so the test is agreement over the samples, not every frame)
+	var sign_ok := left_ok >= 0.95 * left_n and right_ok >= 0.95 * right_n and brake_ok >= 0.95 * brake_n and accel_ok >= 0.95 * accel_n
+	var ok := sign_ok and identical and tel_ok and float(sm["roll_deg"]) <= 6.01
+	print("DYNAMICS subject: wheelbase %.2f m (model) | peak lateral %.2f g -> roll %.1f deg | longitudinal %.2f..%.2f g -> pitch %.1f..%.1f deg | steer peak %.1f deg (kinematic, not recorded)" % [
+		dyn.wheelbase_m, sm["a_lat_g"], sm["roll_deg"], sm["a_long_min_g"], sm["a_long_max_g"], sm["pitch_min_deg"], sm["pitch_max_deg"], sm["steer_deg"]])
+	print("DYNAMICS camera car: roll peak %.1f deg, pitch %.1f..%.1f deg | gap target %.1f m + %.2f per m/s" % [
+		rsm["roll_deg"], rsm["pitch_min_deg"], rsm["pitch_max_deg"], chase.rig.gap_m, chase.rig.gap_per_ms])
+	print("MOTION signs: left turns roll outward %d/%d, right turns %d/%d, braking dives %d/%d, accelerating squats %d/%d | deterministic across seek / restart: %s | telemetry + file unchanged: %s  %s" % [
+		left_ok, left_n, right_ok, right_n, brake_ok, brake_n, accel_ok, accel_n, identical, tel_ok, "OK" if ok else "FAIL"])
+	return ok
+
+
+## A string of the visual state at time t (subject body, steer, and the filming car), for the determinism check:
+## equal strings = bit-identical poses.
+func pose_signature(tq: float) -> String:
+	var body: Dictionary = chase.dynamics.at(tq)
+	var shot: Dictionary = chase.rig.at(tq)
+	return "%s|%s|%s" % [var_to_str(body), var_to_str(shot["transform"]), var_to_str(shot["gap"])]
 
 
 ## Save stills: every camera at a few moments in the run, then quit.
@@ -764,14 +983,27 @@ func take_screenshots(folder: String) -> void:
 	DirAccess.make_dir_recursive_absolute(folder)
 	playing = false
 	var moments := {"start": 2.0, "r3_entry": 24.0, "hairpin": 34.5, "finish": lap_time}
-	if driver != null:                          # also catch any mistake on camera
+	var only_cam := ""                          # --cam=rear: stills of that camera only, at start / mid / near finish
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--cam="):
+			only_cam = a.trim_prefix("--cam=").to_lower()
+	if only_cam != "":
+		moments = {"start": 1.0, "mid": lap_time * 0.5, "late": lap_time * 0.9}
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--at="):                   # --at=3.0,12.5: stills at exactly these playback times
+			moments = {}
+			for part in a.trim_prefix("--at=").split(","):
+				moments["t%05.1f" % float(part)] = float(part)
+	if driver != null and only_cam == "":       # also catch any mistake on camera
 		for c in driver["corners"]:
 			if c["mistake"]:
 				moments["mistake_" + str(c["text"]).replace(" ", "_")] = time_at_s(float(c["s_end"]))
 	for moment in moments:
 		t = minf(float(moments[moment]), lap_time)
 		update_car()
-		for mode in [CamMode.OVERVIEW, CamMode.FOLLOW, CamMode.CHASE, CamMode.TRACKSIDE]:
+		for mode in [CamMode.OVERVIEW, CamMode.FOLLOW, CamMode.CHASE, CamMode.TRACKSIDE, CamMode.REAR]:
+			if only_cam != "" and CAM_NAMES[mode].to_lower() != only_cam:
+				continue
 			set_cam_mode(mode)
 			update_hud()
 			await RenderingServer.frame_post_draw
