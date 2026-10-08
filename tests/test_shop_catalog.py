@@ -51,3 +51,19 @@ def test_garage_work_durations_cover_compatible_slots():
     assert all(type(value) is int and value >= 1
                for slot in durations.values() for value in slot.values())
     assert "provisional" in reply["work_notes"].lower()
+
+
+def test_delivery_and_market_refresh_policy_is_bounded_and_data_driven():
+    reply = shop_reply()
+    refresh = reply["used_refresh"]
+    assert reply["retail_delivery_days"] == 2
+    assert "provisional" in reply["retail_fulfillment_notes"].lower()
+    assert reply["used_pickup_days"] == 0
+    assert "provisional" in reply["used_fulfillment_notes"].lower()
+    assert refresh["calendar_weeks"] == 1
+    assert refresh["max_available_listings"] == 3
+    assert refresh["listings_per_refresh"] == 3
+    initial = {item["listing_id"]: item for item in reply["initial_used"]}
+    assert set(refresh["fixture_listing_ids"]) <= initial.keys()
+    assert all(initial[item]["part"] in {part["id"] for part in reply["parts"]}
+               for item in refresh["fixture_listing_ids"])

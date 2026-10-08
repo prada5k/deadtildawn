@@ -375,8 +375,28 @@ def shop_catalog():
         type(work_days[p["slot"]].get(op)) is not int or work_days[p["slot"]][op] < 1
         for op in ("install", "remove")) for p in eligible.values()):
         raise ValueError("every EG6-compatible slot needs positive whole-day work durations")
+    refresh = market["used_refresh"]
+    fixtures = refresh["fixture_listing_ids"]
+    fixture_ids = {listing["listing_id"] for listing in used}
+    if any(listing_id not in fixture_ids for listing_id in fixtures):
+        raise ValueError("used refresh fixture references an unknown initial listing")
+    if type(market["retail_delivery_days"]) is not int or market["retail_delivery_days"] < 1:
+        raise ValueError("retail delivery duration must be a positive whole number of days")
+    if type(market["used_pickup_days"]) is not int or market["used_pickup_days"] < 0:
+        raise ValueError("used pickup duration must be a non-negative whole number of days")
+    if type(refresh["calendar_weeks"]) is not int or refresh["calendar_weeks"] < 1:
+        raise ValueError("market refresh cadence must be a positive number of calendar weeks")
+    if type(refresh["max_available_listings"]) is not int or refresh["max_available_listings"] < 1:
+        raise ValueError("market availability cap must be positive")
+    if type(refresh["listings_per_refresh"]) is not int or not 1 <= refresh["listings_per_refresh"] <= refresh["max_available_listings"]:
+        raise ValueError("market refresh batch must fit the available listing cap")
     reply(slots=slots, retail_ids=retail, initial_used=used,
           work_days_by_slot=work_days, work_notes=market["work_notes"],
+          retail_delivery_days=market["retail_delivery_days"],
+          used_pickup_days=market["used_pickup_days"],
+          retail_fulfillment_notes=market["retail_fulfillment_notes"],
+          used_fulfillment_notes=market["used_fulfillment_notes"],
+          used_refresh=refresh,
           parts=[{**{k: v for k, v in p.items() if k != "rarity"},
                   "effects_text": part_effects(car, p)} for p in eligible.values()])
 

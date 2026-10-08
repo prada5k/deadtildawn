@@ -7,6 +7,17 @@
     "springs": {"install": 2, "remove": 2}
   },
   "work_notes": "Provisional whole-day garage reservations, not factory labor estimates. Completion occurs at the start of the due day; several non-conflicting jobs may start on one day.",
+  "retail_delivery_days": 2,
+  "used_pickup_days": 0,
+  "retail_fulfillment_notes": "Two calendar days is a provisional game scheduling fixture for ordinary retail orders, not a claim about a named supplier or historical shipping time.",
+  "used_fulfillment_notes": "The curated offers identify local sellers; zero-day pickup is a provisional game fixture and does not claim a specific meeting arrangement.",
+  "used_refresh": {
+    "calendar_weeks": 1,
+    "max_available_listings": 3,
+    "listings_per_refresh": 3,
+    "fixture_listing_ids": ["USED_0001", "USED_0002", "USED_0003"],
+    "notes": "At each new calendar week, available prior-week listings expire and a three-listing curated fixture is posted with new stable listing IDs. Reserved and sold listings remain in history."
+  },
   "retail_ids": ["flywheel_light", "shifter_short", "rsb_19", "springs_lowering", "coilovers_street"],
   "initial_used": [
     {"listing_id": "USED_0001", "part": "shifter_race", "seller_id": "SELLER_0001", "seller_name": "Local seller", "price": 315, "note": "Used shifter and bushings."},

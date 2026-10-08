@@ -32,7 +32,7 @@ const LOCATIONS := {
 }
 
 const SAVE_PATH := "user://save.json"
-const SAVE_VERSION := 10
+const SAVE_VERSION := 11
 const START_CASH := 2500
 const MIN_BUY_IN := 100
 const WAGER_STEP := 10
@@ -51,6 +51,7 @@ var car_stats := {}        # bridge replies, cached for the session
 var track_info := {}
 var practice := {}
 var catalog := {}          # bridge "parts" reply (slots + parts with exact effects)
+var market_rules := {}
 var shop_message := ""
 var car_message := ""
 var selected_test_road := "LOCAL_STRAIGHT" # Transient list section; never saved.
@@ -87,6 +88,9 @@ func _ready() -> void:
 	if "--worktest" in args:
 		work_test()
 		return
+	if "--deliverytest" in args:
+		delivery_test()
+		return
 	for a in args:
 		if a.begins_with("--gameshots="):
 			game_shots(a.trim_prefix("--gameshots="))
@@ -104,7 +108,8 @@ func new_state() -> Dictionary:
 		"civic": {"chassis_id": "CHASSIS_0001", "base_car_id": "eg6_sir_ii_1995", "installed": {}},
 		"history": [], "night": {},
 		"inventory": [], "next_uid": 1,
-		"market": {"seeded": false, "used_listings": []},
+		"market": {"seeded": false, "used_listings": [], "last_refresh_week": 1, "next_listing_seq": 1},
+		"deliveries": {"next_delivery_id": 1, "orders": []},
 		"calendar": initial_calendar(1, 0),
 		"garage_work": {"next_work_id": 1, "orders": []},
 		"test_log": {"next_id": 1, "runs": []}}
@@ -118,6 +123,10 @@ func load_game() -> void:
 	if typeof(data) != TYPE_DICTIONARY:
 		return
 	state = migrate(data)
+	var migrated_snapshot := JSON.stringify(state)
+	process_calendar_world_updates()
+	if JSON.stringify(state) != migrated_snapshot:
+		save_game()
 
 
 ## Upgrade an older save instead of throwing it away. Each step takes a save
@@ -237,6 +246,30 @@ func migrate(data: Dictionary) -> Dictionary:
 		if work_id.begins_with("WORK_") and work_id.trim_prefix("WORK_").is_valid_int():
 			next_work_id = maxi(next_work_id, int(work_id.trim_prefix("WORK_")) + 1)
 	data["garage_work"] = {"next_work_id": next_work_id, "orders": orders}
+	if v < 11:                       # v10 -> v11: calendar-driven acquisition
+		data["deliveries"] = {"next_delivery_id": 1, "orders": []}
+		v = 11
+	var market: Dictionary = data.get("market", {})
+	var used_listings: Array = market.get("used_listings", [])
+	var next_listing_seq := maxi(1, int(market.get("next_listing_seq", 1)))
+	for listing in used_listings:
+		var listing_id := str(listing.get("listing_id", ""))
+		if listing_id.begins_with("USED_") and listing_id.trim_prefix("USED_").is_valid_int():
+			next_listing_seq = maxi(next_listing_seq, int(listing_id.trim_prefix("USED_")) + 1)
+		if not listing.has("status"):
+			listing["status"] = "available"
+	if not market.has("last_refresh_week"):
+		market["last_refresh_week"] = int(data["week"])
+	market["next_listing_seq"] = next_listing_seq
+	data["market"] = market
+	var deliveries: Dictionary = data.get("deliveries", {})
+	var delivery_orders: Array = deliveries.get("orders", [])
+	var next_delivery_id := maxi(1, int(deliveries.get("next_delivery_id", 1)))
+	for order in delivery_orders:
+		var delivery_id := str(order.get("delivery_id", ""))
+		if delivery_id.begins_with("DELIVERY_") and delivery_id.trim_prefix("DELIVERY_").is_valid_int():
+			next_delivery_id = maxi(next_delivery_id, int(delivery_id.trim_prefix("DELIVERY_")) + 1)
+	data["deliveries"] = {"next_delivery_id": next_delivery_id, "orders": delivery_orders}
 	data["civic"] = civic
 	data["version"] = v
 	return data
@@ -367,8 +400,9 @@ func calendar_events_for_week(week: int) -> Array:
 
 
 func advance_days(days, reason: String) -> bool:
-	## The only authoritative clock mutation. Events are available for their
-	## scheduled day and become missed, without a penalty, once that day passes.
+	## The only authoritative clock mutation. Processing a target date is ordered:
+	## event statuses, garage work, due deliveries, then weekly market refresh.
+	## Jobs and orders due during a multi-day jump settle once at their due date.
 	if typeof(days) != TYPE_INT or int(days) < 0 or reason.strip_edges() == "":
 		return false
 	if int(days) == 0:
@@ -376,14 +410,20 @@ func advance_days(days, reason: String) -> bool:
 	var target := calendar_date_after(int(state["week"]), int(state["day"]), int(days))
 	state["week"] = target["week"]
 	state["day"] = target["day"]
-	refresh_calendar_event_statuses()
-	complete_due_work()
+	process_calendar_world_updates()
 	# A cached legacy race night cannot survive an intentional date change.
 	state["night"] = {}
 	track_info = {}
 	practice = {}
 	save_game()
 	return true
+
+
+func process_calendar_world_updates() -> void:
+	refresh_calendar_event_statuses()
+	complete_due_work()
+	process_due_deliveries()
+	process_market_refreshes()
 
 
 ## Dormant prototype race scheduling. It remains available to existing
@@ -589,7 +629,7 @@ func show_shop() -> void:
 	shop.buy_retail.connect(buy_retail)
 	shop.buy_used.connect(buy_used)
 	shop.setup(common_info(), catalog, state["inventory"], state["civic"]["installed"],
-		state["market"]["used_listings"], shop_message)
+		state["market"]["used_listings"], active_delivery_orders(), shop_message)
 	shop_message = ""
 
 
@@ -691,12 +731,30 @@ func instance(uid: String) -> Dictionary:
 
 func accept_shop_catalog(data: Dictionary) -> void:
 	catalog = data
+	market_rules = data
 	var market: Dictionary = state["market"]
 	var changed := false
 	if not market.get("seeded", false):
 		market["used_listings"] = data["initial_used"].duplicate(true)
+		for listing in market["used_listings"]:
+			listing["status"] = "available"
+			listing["posted_week"] = int(state["week"])
+			listing["posted_day"] = int(state["day"])
 		market["seeded"] = true
+		market["last_refresh_week"] = int(state["week"])
 		changed = true
+	var next_seq := 1
+	for listing in market["used_listings"]:
+		var listing_id := str(listing.get("listing_id", ""))
+		if listing_id.begins_with("USED_") and listing_id.trim_prefix("USED_").is_valid_int():
+			next_seq = maxi(next_seq, int(listing_id.trim_prefix("USED_")) + 1)
+	if int(market.get("next_listing_seq", 1)) < next_seq:
+		market["next_listing_seq"] = next_seq
+		changed = true
+	for listing in market["used_listings"]:
+		if not listing.has("status"):
+			listing["status"] = "available"
+			changed = true
 	var valid_inventory := []
 	var by_uid := {}
 	for inst in state["inventory"]:
@@ -721,6 +779,128 @@ func accept_shop_catalog(data: Dictionary) -> void:
 		changed = true
 	if changed:
 		save_game()
+
+
+func load_market_rules() -> Dictionary:
+	if not market_rules.is_empty():
+		return market_rules
+	var path := ProjectSettings.globalize_path("res://../data/parts/market_v01.json")
+	if not FileAccess.file_exists(path):
+		return {}
+	var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if typeof(parsed) == TYPE_DICTIONARY:
+		market_rules = parsed
+	return market_rules
+
+
+func delivery_date_after(week: int, day: int, duration_days: int) -> Dictionary:
+	return calendar_date_after(week, day, duration_days)
+
+
+func inventory_has_uid(uid: String) -> bool:
+	return not instance(uid).is_empty()
+
+
+func reserve_owned_uid() -> String:
+	var uid := "p%d" % int(state["next_uid"])
+	while inventory_has_uid(uid) or delivery_uid_in_transit(uid):
+		state["next_uid"] = int(state["next_uid"]) + 1
+		uid = "p%d" % int(state["next_uid"])
+	state["next_uid"] = int(state["next_uid"]) + 1
+	return uid
+
+
+func delivery_uid_in_transit(uid: String) -> bool:
+	for order in state["deliveries"]["orders"]:
+		if order.get("status", "") == "in_transit" and str(order.get("owned_uid", "")) == uid:
+			return true
+	return false
+
+
+func create_delivery_order(part_id: String, source_type: String, source_listing: String,
+		price: int, seller_id: String, duration_days: int) -> Dictionary:
+	var uid := reserve_owned_uid()
+	var arrival := delivery_date_after(int(state["week"]), int(state["day"]), duration_days)
+	var deliveries: Dictionary = state["deliveries"]
+	var order := {"delivery_id": "DELIVERY_%06d" % int(deliveries["next_delivery_id"]),
+		"purchase_week": int(state["week"]), "purchase_day": int(state["day"]),
+		"arrival_week": int(arrival["week"]), "arrival_day": int(arrival["day"]),
+		"source_type": source_type, "source_listing": source_listing,
+		"definition_id": part_id, "owned_uid": uid, "paid_price": price,
+		"seller_id": seller_id, "status": "in_transit"}
+	deliveries["next_delivery_id"] = int(deliveries["next_delivery_id"]) + 1
+	deliveries["orders"].append(order)
+	return order
+
+
+func process_due_deliveries() -> void:
+	var today := absolute_day(int(state["week"]), int(state["day"]))
+	var orders: Array = state["deliveries"]["orders"]
+	orders.sort_custom(func(a, b):
+		var a_day := absolute_day(int(a["arrival_week"]), int(a["arrival_day"]))
+		var b_day := absolute_day(int(b["arrival_week"]), int(b["arrival_day"]))
+		return a_day < b_day or (a_day == b_day and str(a["delivery_id"]) < str(b["delivery_id"])))
+	for order in orders:
+		if order.get("status", "") != "in_transit" or absolute_day(int(order["arrival_week"]), int(order["arrival_day"])) > today:
+			continue
+		var uid := str(order["owned_uid"])
+		if instance(uid).is_empty():
+			state["inventory"].append({"uid": uid, "part": str(order["definition_id"]),
+				"source": str(order["source_type"]).to_lower(), "acquired_price": int(order["paid_price"]),
+				"acquired_week": int(order["purchase_week"]), "acquired_day": int(order["purchase_day"]),
+				"seller_id": str(order.get("seller_id", "")),
+				"listing_id": str(order["source_listing"])})
+		order["status"] = "delivered"
+		order["delivered_week"] = int(order["arrival_week"])
+		order["delivered_day"] = int(order["arrival_day"])
+		if str(order["source_type"]) == "used":
+			for listing in state["market"]["used_listings"]:
+				if str(listing.get("listing_id", "")) == str(order["source_listing"]):
+					listing["status"] = "sold"
+					listing["delivery_id"] = str(order["delivery_id"])
+					listing["closed_week"] = int(order["arrival_week"])
+					listing["closed_day"] = int(order["arrival_day"])
+
+
+func process_market_refreshes() -> void:
+	var rules := load_market_rules()
+	var refresh: Dictionary = rules.get("used_refresh", {})
+	if refresh.is_empty() or not bool(state["market"].get("seeded", false)):
+		return
+	var interval := maxi(1, int(refresh.get("calendar_weeks", 1)))
+	var market: Dictionary = state["market"]
+	var week := int(market.get("last_refresh_week", int(state["week"]))) + interval
+	while week <= int(state["week"]):
+		for listing in market["used_listings"]:
+			if listing.get("status", "available") == "available":
+				listing["status"] = "expired"
+				listing["closed_week"] = week
+				listing["closed_day"] = 0
+		var fixtures: Array = refresh.get("fixture_listing_ids", [])
+		var fixture_list: Array = rules.get("initial_used", [])
+		var cap := maxi(1, int(refresh.get("max_available_listings", 3)))
+		var batch := mini(int(refresh.get("listings_per_refresh", 1)), cap)
+		for i in batch:
+			var available: int = market["used_listings"].filter(func(item): return item.get("status", "available") == "available").size()
+			if available >= cap or fixtures.is_empty():
+				break
+			var fixture_id := str(fixtures[(i + week) % fixtures.size()])
+			var template: Dictionary = {}
+			for item in fixture_list:
+				if str(item.get("listing_id", "")) == fixture_id:
+					template = item
+					break
+			if template.is_empty():
+				continue
+			var listing: Dictionary = template.duplicate(true)
+			listing["listing_id"] = "USED_%04d" % int(market.get("next_listing_seq", 1))
+			market["next_listing_seq"] = int(market.get("next_listing_seq", 1)) + 1
+			listing["status"] = "available"
+			listing["posted_week"] = week
+			listing["posted_day"] = 0
+			market["used_listings"].append(listing)
+		market["last_refresh_week"] = week
+		week += interval
 
 
 func add_instance(part_id: String, source: String, price: int,
@@ -748,10 +928,14 @@ func buy_retail(id: String) -> void:
 		shop_message = "Not enough cash for that part."
 		show_shop()
 		return
-	state["cash"] = int(state["cash"]) - int(p["price"])
-	add_instance(id, "retail", int(p["price"]))
+	var rules := load_market_rules()
+	var price := int(p["price"])
+	state["cash"] = int(state["cash"]) - price
+	var order := create_delivery_order(id, "retail", "RETAIL_%s" % id, price, "",
+		int(rules.get("retail_delivery_days", 2)))
 	save_game()
-	shop_message = "Bought %s. Find it under CAR to install." % p["name"]
+	shop_message = "ORDERED %s / %s / DUE %s" % [p["name"], order["owned_uid"],
+		when(int(order["arrival_week"]), int(order["arrival_day"]))]
 	show_shop()
 
 
@@ -759,19 +943,23 @@ func buy_used(listing_id: String) -> void:
 	var listings: Array = state["market"]["used_listings"]
 	for i in listings.size():
 		var listing: Dictionary = listings[i]
-		if listing["listing_id"] != listing_id:
+		if listing["listing_id"] != listing_id or listing.get("status", "available") != "available":
 			continue
 		var p := part_by_id(listing["part"])
 		if p.is_empty() or int(state["cash"]) < int(listing["price"]):
 			shop_message = "Not enough cash for that listing."
 			show_shop()
 			return
-		state["cash"] = int(state["cash"]) - int(listing["price"])
-		add_instance(listing["part"], "used", int(listing["price"]),
-			listing["seller_id"], listing_id)
-		listings.remove_at(i)
+		var price := int(listing["price"])
+		state["cash"] = int(state["cash"]) - price
+		var rules := load_market_rules()
+		var order := create_delivery_order(str(listing["part"]), "used", listing_id, price,
+			str(listing.get("seller_id", "")), int(rules.get("used_pickup_days", 0)))
+		listing["status"] = "reserved"
+		listing["delivery_id"] = str(order["delivery_id"])
+		process_due_deliveries()
 		save_game()
-		shop_message = "Bought %s. Find it under CAR to install." % p["name"]
+		shop_message = "PICKED UP %s / %s" % [p["name"], order["owned_uid"]]
 		show_shop()
 		return
 
@@ -780,6 +968,10 @@ func buy_used(listing_id: String) -> void:
 ## market data. There is no sub-day clock or daily action cap.
 func active_work_orders() -> Array:
 	return state["garage_work"]["orders"].filter(func(order): return order["status"] == "active")
+
+
+func active_delivery_orders() -> Array:
+	return state["deliveries"]["orders"].filter(func(order): return order["status"] == "in_transit")
 
 
 func queue_part_work(slot: String, uid: String) -> bool:
@@ -1457,7 +1649,6 @@ func _on_reply(tag: String, data: Dictionary) -> void:
 			pending_test = {}
 			show_local_curves_replay(latest_test_result)
 
-
 # ------------------------------------------------------------------ self-test
 
 func game_test_reply_ok(reply: Array) -> bool:
@@ -1492,10 +1683,13 @@ func test_log_test() -> void:
 	if int(migrated["version"]) != SAVE_VERSION or migrated["test_log"] != {"next_id": 1, "runs": []}:
 		test_log_fail("v7 migration did not preserve the empty test_log")
 		return
-	for key in ["cash", "followers", "rep", "week", "day", "history", "night", "civic", "inventory", "next_uid", "market"]:
+	for key in ["cash", "followers", "rep", "week", "day", "history", "night", "civic", "inventory", "next_uid"]:
 		if migrated[key] != legacy_v7[key]:
 			test_log_fail("v7 migration changed %s" % key)
 			return
+	if migrated["market"]["seeded"] != legacy_v7["market"]["seeded"] or migrated["market"]["used_listings"][0]["listing_id"] != "KEEP":
+		test_log_fail("v7 migration changed marketplace listing identity")
+		return
 
 	state = new_state()
 	state["inventory"] = [{"uid": "p77", "part": "rsb_19", "source": "retail",
@@ -1656,7 +1850,7 @@ func work_test_fail(message: String) -> void:
 
 
 func work_test() -> void:
-	## Headless save-v10 and physical installation regression.
+	## Headless save-v10 migration and physical installation regression.
 	var v9 := {"version": 9, "week": 2, "day": 6, "cash": 1912,
 		"followers": 12, "rep": 12, "history": [{"old": true}], "night": {},
 		"civic": {"chassis_id": "CHASSIS_0001", "base_car_id": "eg6_sir_ii_1995", "installed": {}},
@@ -1665,16 +1859,19 @@ func work_test() -> void:
 		"calendar": initial_calendar(2, 6),
 		"test_log": {"next_id": 2, "runs": [{"run_id": "TEST_000001", "calendar": {"week": 1, "day": 0}, "replay": "keep.json"}]}}
 	state = migrate(v9.duplicate(true))
-	if state["version"] != 10 or state["garage_work"] != {"next_work_id": 1, "orders": []}:
-		work_test_fail("v9 migration did not create empty garage work")
+	if state["version"] != 11 or state["garage_work"] != {"next_work_id": 1, "orders": []} or state["deliveries"] != {"next_delivery_id": 1, "orders": []}:
+		work_test_fail("v9 migration did not create empty garage work and delivery domains")
 		return
 	for key in v9:
-		if key != "version" and state[key] != v9[key]:
+		if key not in ["version", "market"] and state[key] != v9[key]:
 			work_test_fail("v9 migration changed %s" % key)
 			return
+	if state["market"]["seeded"] != v9["market"]["seeded"] or state["market"]["used_listings"][0]["listing_id"] != "USED_KEEP":
+		work_test_fail("v9 migration lost market listing history")
+		return
 	var protected := {"cash": state["cash"], "followers": state["followers"],
 		"rep": state["rep"], "history": state["history"].duplicate(true),
-		"inventory": state["inventory"].duplicate(true), "market": state["market"].duplicate(true),
+		"inventory": state["inventory"].duplicate(true),
 		"test_log": state["test_log"].duplicate(true)}
 	protected = JSON.parse_string(JSON.stringify(protected))
 	bridge.request("work_catalog", ["shop_catalog"])
@@ -1749,6 +1946,9 @@ func work_test() -> void:
 		if JSON.parse_string(JSON.stringify(state[key])) != protected[key]:
 			work_test_fail("work changed protected state %s" % key)
 			return
+	if not state["market"]["used_listings"].any(func(item): return item["listing_id"] == "USED_KEEP" and item["status"] == "expired"):
+		work_test_fail("calendar refresh lost the existing listing while garage work completed")
+		return
 	save_game()
 	load_game()
 	if state["garage_work"]["orders"].size() != 2 or state["garage_work"]["orders"][0]["status"] != "completed" or state["garage_work"]["orders"][1]["status"] != "completed":
@@ -1762,9 +1962,164 @@ func work_test() -> void:
 	if state["civic"]["installed"] != {"rear_sway": "p7", "shifter": "p8"} or active_work_orders().size() != 0:
 		work_test_fail("same-day jobs did not both complete")
 		return
-	print("WORKTEST v9 -> v10; WORK_000001 install, WORK_000002 remove; UID p7 preserved")
+	print("WORKTEST v9 -> v11; WORK_000001 install, WORK_000002 remove; UID p7 preserved")
 	print("WORKTEST before/after EG6 physics; multi-day rollover; parallel jobs; no duplicate completion")
 	print("WORKTEST OK")
+	get_tree().quit()
+
+
+func delivery_test_fail(message: String) -> void:
+	var full := "DELIVERYTEST FAIL %s" % message
+	push_error(full)
+	print(full)
+	get_tree().quit(1)
+
+
+func delivery_test() -> void:
+	## Headless save-v11 delivery, refresh, and calendar integration regression.
+	var v10 := {"version": 10, "cash": 2400, "followers": 8, "rep": 8,
+		"week": 2, "day": 3, "history": [{"race": "kept"}], "night": {"legacy": "kept"},
+		"civic": {"chassis_id": "CHASSIS_0001", "base_car_id": "eg6_sir_ii_1995", "installed": {"rear_sway": "p8"}},
+		"inventory": [{"uid": "p8", "part": "rsb_19", "source": "retail"}], "next_uid": 9,
+		"market": {"seeded": true, "used_listings": [{"listing_id": "USED_0003", "part": "rsb_19", "seller_id": "SELLER_0003", "seller_name": "Local seller", "price": 240, "note": "Used rear sway bar."}]},
+		"calendar": initial_calendar(2, 3), "garage_work": {"next_work_id": 2, "orders": []},
+		"test_log": {"next_id": 2, "runs": [{"run_id": "TEST_000001", "road_id": "LOCAL_STRAIGHT", "measurements": {"quarter_mile_s": 17.2}, "replay": "keep.json"}]}}
+	var migrated := migrate(v10.duplicate(true))
+	if migrated["version"] != 11 or migrated["deliveries"] != {"next_delivery_id": 1, "orders": []}:
+		delivery_test_fail("v10 migration did not initialize delivery state")
+		return
+	for key in ["cash", "followers", "rep", "week", "day", "history", "night", "civic", "inventory", "next_uid", "calendar", "garage_work", "test_log"]:
+		if migrated[key] != v10[key]:
+			delivery_test_fail("v10 migration changed %s" % key)
+			return
+	if migrated["market"]["used_listings"][0]["listing_id"] != "USED_0003" or migrated["market"]["used_listings"][0]["status"] != "available":
+		delivery_test_fail("v10 migration lost or invalidated an existing listing")
+		return
+	state = new_state()
+	state["cash"] = 3000
+	bridge.request("delivery_catalog", ["shop_catalog"])
+	var reply: Array = await bridge.replied
+	if not game_test_reply_ok(reply):
+		return
+	accept_shop_catalog(reply[1])
+	var saved_runs: Array = state["test_log"]["runs"].duplicate(true)
+	var initial_listing_ids: Array = state["market"]["used_listings"].map(func(item): return item["listing_id"])
+	show_shop()
+	if state["market"]["used_listings"].map(func(item): return item["listing_id"]) != initial_listing_ids:
+		delivery_test_fail("opening SHOP refreshed the market")
+		return
+	buy_retail("rsb_19")
+	buy_retail("shifter_short")
+	if state["cash"] != 2380 or not state["inventory"].is_empty() or active_delivery_orders().size() != 2:
+		delivery_test_fail("retail purchase charge or transit ownership is wrong")
+		return
+	var retail_uid := str(active_delivery_orders()[0]["owned_uid"])
+	var second_uid := str(active_delivery_orders()[1]["owned_uid"])
+	var first_delivery: Dictionary = active_delivery_orders()[0]
+	if first_delivery["delivery_id"] != "DELIVERY_000001" or first_delivery["purchase_week"] != 1 or first_delivery["purchase_day"] != 0 or first_delivery["arrival_week"] != 1 or first_delivery["arrival_day"] != 2 or first_delivery["source_listing"] != "RETAIL_rsb_19" or first_delivery["definition_id"] != "rsb_19" or first_delivery["paid_price"] != 320:
+		delivery_test_fail("delivery order identity, source, price, or dates are incorrect")
+		return
+	if not test_screen_has_label("PURCHASED / IN TRANSIT"):
+		delivery_test_fail("SHOP did not show pending deliveries")
+		return
+	if retail_uid == second_uid:
+		delivery_test_fail("delivery UIDs were not unique")
+		return
+	if queue_part_work("rear_sway", retail_uid):
+		delivery_test_fail("in-transit part was installable")
+		return
+	if active_work_orders().size() != 0:
+		delivery_test_fail("in-transit part created garage work")
+		return
+	save_game()
+	load_game()
+	if active_delivery_orders().size() != 2 or active_delivery_orders()[0]["owned_uid"] != retail_uid or state["cash"] != 2380:
+		delivery_test_fail("reload changed in-transit purchase or charged again")
+		return
+	advance_days(1, "delivery regression before due date")
+	if not state["inventory"].is_empty() or active_delivery_orders().size() != 2:
+		delivery_test_fail("delivery arrived before due date")
+		return
+	advance_days(1, "delivery regression due date")
+	if state["inventory"].size() != 2 or active_delivery_orders().size() != 0:
+		delivery_test_fail("deliveries due together did not arrive")
+		return
+	process_due_deliveries()
+	save_game()
+	load_game()
+	if state["inventory"].size() != 2 or state["inventory"].filter(func(item): return item["uid"] == retail_uid).size() != 1 or state["deliveries"]["orders"].filter(func(item): return item["status"] == "delivered").size() != 2 or state["cash"] != 2380:
+		delivery_test_fail("reload or repeated processing duplicated arrival or payment")
+		return
+	var paid_before_used := int(state["cash"])
+	var inventory_before_used: int = state["inventory"].size()
+	buy_used("USED_0003")
+	var used_uid := str(state["inventory"].back()["uid"])
+	var used_listing = state["market"]["used_listings"].filter(func(item): return item["listing_id"] == "USED_0003")[0]
+	var pickup_order: Dictionary = state["deliveries"]["orders"].back()
+	if state["inventory"].size() != inventory_before_used + 1 or int(state["cash"]) != paid_before_used - 240 or used_listing["status"] != "sold" or active_delivery_orders().size() != 0 or pickup_order["status"] != "delivered" or pickup_order["owned_uid"] != used_uid or pickup_order["source_listing"] != "USED_0003" or pickup_order["paid_price"] != 240:
+		delivery_test_fail("local pickup did not transfer the same listing once")
+		return
+	if not test_screen_has_label("SOLD / UNAVAILABLE LISTINGS") or not test_screen_has_label("USED_0003 / Rear sway bar 19 mm / Local seller / SOLD"):
+		delivery_test_fail("SHOP did not retain sold listing status")
+		return
+	var cash_after_pickup := int(state["cash"])
+	buy_used("USED_0003")
+	if int(state["cash"]) != cash_after_pickup or state["inventory"].size() != inventory_before_used + 1:
+		delivery_test_fail("sold listing could be purchased twice")
+		return
+	if not queue_part_work("rear_sway", retail_uid) or active_work_orders().size() != 1:
+		delivery_test_fail("delivered UID did not enter the existing garage work flow")
+		return
+	advance_days(4, "delivery regression reach market boundary")
+	if active_work_orders().size() != 0 or state["civic"]["installed"].get("rear_sway", "") != retail_uid:
+		delivery_test_fail("delivery processing broke Phase 6B work completion")
+		return
+	var ids_at_day_six: Array = state["market"]["used_listings"].map(func(item): return item["listing_id"])
+	show_shop()
+	if state["market"]["used_listings"].map(func(item): return item["listing_id"]) != ids_at_day_six:
+		delivery_test_fail("opening SHOP caused an unscheduled refresh")
+		return
+	var original_test_runs: Array = state["test_log"]["runs"].duplicate(true)
+	market_rules = {} # Simulate a fresh session advancing before SHOP loads its bridge data.
+	advance_days(1, "delivery regression weekly market refresh")
+	var available: Array = state["market"]["used_listings"].filter(func(item): return item["status"] == "available")
+	if state["week"] != 2 or state["day"] != 0 or available.size() != 3 or state["market"]["used_listings"].filter(func(item): return item["status"] == "sold").size() != 1:
+		delivery_test_fail("weekly market refresh did not expire and replenish a bounded stock")
+		return
+	var refreshed_ids: Array = state["market"]["used_listings"].map(func(item): return item["listing_id"])
+	var unique_ids := {}
+	for listing_id in refreshed_ids:
+		unique_ids[listing_id] = true
+	if unique_ids.size() != refreshed_ids.size() or not refreshed_ids.has("USED_0004") or not refreshed_ids.has("USED_0006"):
+		delivery_test_fail("refreshed listing identities duplicated or were unstable")
+		return
+	var count_before_repeat := refreshed_ids.size()
+	process_calendar_world_updates()
+	if state["market"]["used_listings"].size() != count_before_repeat:
+		delivery_test_fail("same-date world update was not idempotent")
+		return
+	save_game()
+	load_game()
+	advance_days(14, "delivery regression catch up multiple weeks")
+	available = state["market"]["used_listings"].filter(func(item): return item["status"] == "available")
+	if state["week"] != 4 or state["day"] != 0 or available.size() != 3 or state["market"]["next_listing_seq"] != 13:
+		delivery_test_fail("multi-week refresh catch-up was not deterministic or bounded")
+		return
+	var final_listing_ids: Array = state["market"]["used_listings"].map(func(item): return item["listing_id"])
+	save_game()
+	load_game()
+	if state["market"]["used_listings"].map(func(item): return item["listing_id"]) != final_listing_ids or state["inventory"].filter(func(item): return item["uid"] == retail_uid).size() != 1 or int(state["cash"]) != cash_after_pickup:
+		delivery_test_fail("reload duplicated listings, item ownership, or payment")
+		return
+	if state["test_log"]["runs"] != original_test_runs or state["test_log"]["runs"] != saved_runs:
+		delivery_test_fail("delivery and market updates changed TEST LOG history")
+		return
+	if int(state["cash"]) != cash_after_pickup or state["followers"] != 0 or state["rep"] != 0 or state.has("xp") or state.has("loot"):
+		delivery_test_fail("world updates changed cash, followers, REP, or progression")
+		return
+	print("DELIVERYTEST v10 -> v11; two retail UIDs in transit -> delivered once; local used pickup sold once")
+	print("DELIVERYTEST weekly refresh at week rollover; bounded stock, unique IDs, multi-week catch-up")
+	print("DELIVERYTEST work/calendar compatibility and immutable TEST LOG OK")
 	get_tree().quit()
 
 
@@ -1791,10 +2146,13 @@ func calendar_test() -> void:
 		calendar_test_fail("v8 migration did not create a calendar with top-level time authority")
 		return
 	for key in ["cash", "followers", "rep", "week", "day", "history", "night", "civic",
-		"inventory", "next_uid", "market", "test_log"]:
+		"inventory", "next_uid", "test_log"]:
 		if migrated[key] != legacy_v8[key]:
 			calendar_test_fail("v8 migration changed %s" % key)
 			return
+	if migrated["market"]["seeded"] != legacy_v8["market"]["seeded"] or migrated["market"]["used_listings"][0]["listing_id"] != "USED_KEEP":
+		calendar_test_fail("v8 migration changed marketplace ownership history")
+		return
 	var events: Array = migrated["calendar"]["events"]
 	if events.size() != 2 or events.map(func(event): return event["event_id"]) != ["EVENT_000001", "EVENT_000002"]:
 		calendar_test_fail("fixture event IDs are missing or unstable")
@@ -1808,7 +2166,7 @@ func calendar_test() -> void:
 	var protected := {
 		"cash": state["cash"], "followers": state["followers"], "rep": state["rep"],
 		"history": state["history"].duplicate(true), "inventory": state["inventory"].duplicate(true),
-		"market": state["market"].duplicate(true), "civic": state["civic"].duplicate(true),
+		"civic": state["civic"].duplicate(true),
 		"test_log": state["test_log"].duplicate(true),
 	}
 	var starting_date := [state["week"], state["day"]]
@@ -1968,40 +2326,45 @@ func game_test() -> void:
 	shop_message = ""
 	var market_date := [state["week"], state["day"]]
 	buy_retail("rsb_19")
-	if state["cash"] != START_CASH - 320 or state["inventory"].size() != 1 or not state["civic"]["installed"].is_empty():
-		push_error("GAMETEST FAIL retail cash, instance, or spare state")
+	if state["cash"] != START_CASH - 320 or not state["inventory"].is_empty() or active_delivery_orders().size() != 1 or not state["civic"]["installed"].is_empty():
+		push_error("GAMETEST FAIL retail charge or transit state")
 		get_tree().quit(1)
 		return
-	var retail_uid: String = state["inventory"][0]["uid"]
-	if state["inventory"][0]["part"] != "rsb_19" or state["inventory"][0].has("quality") or state.has("pity"):
+	var retail_uid: String = active_delivery_orders()[0]["owned_uid"]
+	if active_delivery_orders()[0]["definition_id"] != "rsb_19" or state.has("pity"):
 		push_error("GAMETEST FAIL retail definition or gacha fields")
 		get_tree().quit(1)
 		return
 	var listings_before: int = state["market"]["used_listings"].size()
 	buy_used("USED_0003")
-	if state["cash"] != START_CASH - 320 - 240 or state["inventory"].size() != 2 or state["market"]["used_listings"].size() != listings_before - 1:
+	if state["cash"] != START_CASH - 320 - 240 or state["inventory"].size() != 1 or state["market"]["used_listings"].size() != listings_before:
 		push_error("GAMETEST FAIL used purchase transaction")
 		get_tree().quit(1)
 		return
-	var used_uid: String = state["inventory"][1]["uid"]
-	if used_uid == retail_uid or state["inventory"][1]["part"] != "rsb_19" or state["inventory"][1]["listing_id"] != "USED_0003":
+	var used_uid: String = state["inventory"][0]["uid"]
+	if used_uid == retail_uid or state["inventory"][0]["part"] != "rsb_19" or state["inventory"][0]["listing_id"] != "USED_0003":
 		push_error("GAMETEST FAIL used instance identity/provenance")
 		get_tree().quit(1)
 		return
 	var cash_after_used := int(state["cash"])
 	buy_used("USED_0003")
 	accept_shop_catalog(catalog)
-	if state["cash"] != cash_after_used or state["inventory"].size() != 2 or state["market"]["used_listings"].size() != listings_before - 1:
+	if state["cash"] != cash_after_used or state["inventory"].size() != 1 or state["market"]["used_listings"].size() != listings_before:
 		push_error("GAMETEST FAIL purchased used listing reappeared")
+		get_tree().quit(1)
+		return
+	if [state["week"], state["day"]] != market_date:
+		push_error("GAMETEST FAIL buying advanced calendar time")
+		get_tree().quit(1)
+		return
+	advance_days(2, "gametest retail delivery")
+	if state["inventory"].size() != 2 or state["inventory"].filter(func(item): return item["uid"] == retail_uid).size() != 1 or state["deliveries"]["orders"].filter(func(item): return item["owned_uid"] == retail_uid and item["status"] == "delivered").size() != 1:
+		push_error("GAMETEST FAIL retail UID did not arrive exactly once")
 		get_tree().quit(1)
 		return
 	install_part("rear_sway", retail_uid, false)
 	if not state["civic"]["installed"].is_empty() or parts_args() != [] or active_work_orders().size() != 1:
 		push_error("GAMETEST FAIL installation did not remain pending")
-		get_tree().quit(1)
-		return
-	if [state["week"], state["day"]] != market_date:
-		push_error("GAMETEST FAIL buying or queueing work advanced calendar time")
 		get_tree().quit(1)
 		return
 	advance_days(1, "gametest complete installation")
@@ -2191,7 +2554,7 @@ func game_test() -> void:
 	print("GAMETEST skip with 60 rep: rep %d, %s" % [state["rep"], when(state["week"], state["day"])])
 	save_game()
 	load_game()
-	if state["civic"]["chassis_id"] != "CHASSIS_0001" or state["civic"]["base_car_id"] != "eg6_sir_ii_1995" or state["civic"]["installed"].get("rear_sway", "") != used_uid or state["inventory"].size() != 2 or state["inventory"][0]["uid"] != retail_uid or state["inventory"][1]["uid"] != used_uid or state["market"]["used_listings"].size() != listings_before - 1 or state["market"]["used_listings"].any(func(listing): return listing["listing_id"] == "USED_0003"):
+	if state["civic"]["chassis_id"] != "CHASSIS_0001" or state["civic"]["base_car_id"] != "eg6_sir_ii_1995" or state["civic"]["installed"].get("rear_sway", "") != used_uid or state["inventory"].size() != 2 or state["inventory"].filter(func(item): return item["uid"] == retail_uid).size() != 1 or state["inventory"].filter(func(item): return item["uid"] == used_uid).size() != 1 or state["market"]["used_listings"].size() < listings_before or not state["market"]["used_listings"].any(func(listing): return listing["listing_id"] == "USED_0003" and listing["status"] == "sold"):
 		push_error("GAMETEST FAIL Civic parts/listings lost on save/reload")
 		get_tree().quit(1)
 		return
