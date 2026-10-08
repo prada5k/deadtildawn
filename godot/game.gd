@@ -102,6 +102,9 @@ func _ready() -> void:
 	if "--rivaltest" in args:
 		race_event_test(true)
 		return
+	if "--standingstest" in args:
+		standings_ui_test()
+		return
 	for a in args:
 		if a.begins_with("--gameshots="):
 			game_shots(a.trim_prefix("--gameshots="))
@@ -666,21 +669,16 @@ func show_race_event_detail(event_id: String) -> void:
 	var result := race_result_for_event(event_id)
 	if not result.is_empty():
 		show_race_event_result_summary(col, result)
-		if test_replay_available(result):
-			UI.button(footer, "WATCH EVENT REPLAY", watch_race_event.bind(str(result["result_id"])), "AccentButton")
+		if has_multi_entrant_standings(result):
+			show_event_standings(col, result)
 		else:
-			UI.label(footer, "EVENT REPLAY FILE UNAVAILABLE / RESULT SNAPSHOT PRESERVED", "MutedLabel")
-		var competition: Dictionary = result.get("competition", {})
-		if not competition.is_empty():
-			if test_replay_available({"replay": str(competition.get("replay", ""))}):
-				UI.button(footer, "WATCH RIVAL REPLAY", watch_rival_event_replay.bind(str(result["result_id"])))
-			else:
-				UI.label(footer, "RIVAL REPLAY UNAVAILABLE / PHYSICS RESULT PRESERVED", "MutedLabel")
+			show_legacy_event_replay_actions(result)
 	else:
 		var eligibility := race_event_eligibility(event)
 		if eligibility.begins_with("ELIGIBLE."):
 			UI.button(footer, "COMMIT TO TIME ATTACK", commit_race_event.bind(event_id), "AccentButton")
 	UI.button(footer, "BACK TO CALENDAR", show_calendar)
+	UI.button(footer, "BACK TO HOME", show_warehouse)
 
 
 func show_race_event_replay(result: Dictionary) -> void:
@@ -716,7 +714,7 @@ func show_race_event_result_summary(parent: VBoxContainer, result: Dictionary) -
 	UI.stat_row(parent, "Road geometry", str(result.get("road", {}).get("geometry_sha256", "unknown")))
 	UI.stat_row(parent, "Date", test_calendar_summary(result))
 	var competition: Dictionary = result.get("competition", {})
-	if not competition.is_empty():
+	if not competition.is_empty() and not has_multi_entrant_standings(result):
 		var identity: Dictionary = competition.get("identity", {})
 		var rival_measurements: Dictionary = competition.get("measurements", {})
 		UI.label(parent, "RIVAL / %s / %s" % [str(identity.get("name", competition.get("rival_id", "UNKNOWN"))),
@@ -730,6 +728,136 @@ func show_race_event_result_summary(parent: VBoxContainer, result: Dictionary) -
 			str(competition.get("driver", {}).get("push", "")),
 			float(competition.get("driver", {}).get("fraction", 0.0)),
 			float(competition.get("driver", {}).get("sigma", 0.0))], "MutedLabel")
+
+
+func has_multi_entrant_standings(result: Dictionary) -> bool:
+	return result.get("standings", []) is Array and not result.get("standings", []).is_empty() and result.get("entrants", []) is Array
+
+
+func saved_entrant_for_id(result: Dictionary, entrant_id: String) -> Dictionary:
+	for entrant in result.get("entrants", []):
+		if str(entrant.get("entrant_id", "")) == entrant_id:
+			return entrant
+	return {}
+
+
+func entrant_display_name(entrant: Dictionary) -> String:
+	var identity: Dictionary = entrant.get("identity", {})
+	return str(entrant.get("display_name", identity.get("name", entrant.get("entrant_id", "UNKNOWN ENTRANT"))))
+
+
+func entrant_vehicle_label(entrant: Dictionary) -> String:
+	var vehicle: Dictionary = entrant.get("vehicle_configuration", {})
+	var vehicle_name := str(vehicle.get("name", ""))
+	if vehicle_name == "":
+		vehicle_name = str(entrant.get("vehicle_id", "UNKNOWN VEHICLE"))
+	return vehicle_name.to_upper()
+
+
+func entrant_replay_compatible(entrant: Dictionary) -> bool:
+	var replay_ref := str(entrant.get("replay", ""))
+	if replay_ref == "" or not FileAccess.file_exists(replay_ref):
+		return false
+	var parsed = JSON.parse_string(FileAccess.get_file_as_string(replay_ref))
+	if typeof(parsed) != TYPE_DICTIONARY or typeof(parsed.get("car", {})) != TYPE_DICTIONARY:
+		return false
+	if str(parsed.get("format", "")) != "deadtildawn-replay" or int(parsed.get("version", 0)) != 1:
+		return false
+	if typeof(parsed.get("samples", {})) != TYPE_DICTIONARY or typeof(parsed.get("track", {})) != TYPE_DICTIONARY:
+		return false
+	var samples: Dictionary = parsed["samples"]
+	var track: Dictionary = parsed["track"]
+	if not samples.has_all(["t", "s", "heading", "v"]) or not track.has("centerline") or not track.has("corners"):
+		return false
+	var visual: Dictionary = parsed.get("vehicle_visual", {})
+	var visual_id := str(visual.get("visual_id", ""))
+	if visual_id == "eg9_ferio_temp_proxy":
+		return ResourceLoader.exists("res://assets/models/cars/eg9_game.glb")
+	if visual_id != "":
+		return false
+	var car_name := str(parsed["car"].get("name", "")).to_upper()
+	return car_name.contains("EG6") and ResourceLoader.exists("res://assets/models/cars/eg6_game.glb")
+
+
+func show_event_standings(parent: VBoxContainer, result: Dictionary) -> void:
+	## Draw persisted rows in their stored order; never recalculate or rerun results here.
+	var standings: Array = result.get("standings", [])
+	UI.label(parent, "FINAL STANDINGS / %d ENTRANTS" % standings.size(), "HeadingLabel", UI.ACCENT)
+	var event := calendar_event(str(result.get("event_id", "")))
+	if not event.is_empty():
+		UI.label(parent, str(event.get("title", "TIME ATTACK")), "HeadingLabel")
+		if str(event.get("location_id", "")) != "":
+			UI.label(parent, str(event["location_id"]).replace("_", " ").to_upper(), "MutedLabel")
+	UI.label(parent, "%s / %s / %s" % [str(result.get("event_id", "")),
+		test_calendar_summary(result), str(result.get("road_id", "LOCAL CURVES"))], "MutedLabel")
+	var conditions: Dictionary = result.get("event_conditions", {})
+	var condition_summary := []
+	for key in ["ambient_c", "surface_wetness", "rain_mm_h"]:
+		if conditions.has(key):
+			condition_summary.append("%s %s" % [str(key).replace("_", " ").to_upper(), str(conditions[key])])
+	if not condition_summary.is_empty():
+		UI.label(parent, " / ".join(condition_summary), "MutedLabel")
+	var columns := UI.hbox(parent, 8)
+	var position_heading := UI.label(columns, "POS", "MutedLabel")
+	position_heading.custom_minimum_size.x = 36
+	var entrant_heading := UI.label(columns, "ENTRANT / VEHICLE", "MutedLabel")
+	entrant_heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var time_heading := UI.label(columns, "TIME / GAP (s)", "MutedLabel")
+	time_heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	var by_id := {}
+	for entrant in result.get("entrants", []):
+		by_id[str(entrant.get("entrant_id", ""))] = entrant
+	var player_position := 0
+	for standing in standings:
+		var entrant_id := str(standing.get("entrant_id", ""))
+		var entrant: Dictionary = by_id.get(entrant_id, {"entrant_id": entrant_id,
+			"display_name": entrant_id if entrant_id != "" else "ENTRANT NOT RECORDED",
+			"vehicle_id": "VEHICLE NOT RECORDED", "vehicle_configuration": {}, "replay": ""})
+		var position := int(standing.get("position", 0))
+		if entrant_id == "PLAYER_CHASSIS_0001":
+			player_position = position
+		var card := UI.vbox(UI.panel(parent), 5)
+		var row := UI.hbox(card, 8)
+		var place := UI.label(row, "%02d" % position, "BigNumberLabel", UI.ACCENT if entrant_id == "PLAYER_CHASSIS_0001" else UI.MUTED)
+		place.custom_minimum_size.x = 36
+		var details := UI.vbox(row, 2)
+		details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var display := entrant_display_name(entrant)
+		if entrant_id == "PLAYER_CHASSIS_0001":
+			display += " / PLAYER"
+		var name_label := UI.label(details, display, "HeadingLabel", UI.ACCENT if entrant_id == "PLAYER_CHASSIS_0001" else null)
+		name_label.add_theme_font_size_override("font_size", 22)
+		var vehicle_label := UI.label(details, entrant_vehicle_label(entrant), "MutedLabel")
+		vehicle_label.add_theme_font_size_override("font_size", 17)
+		var timing := UI.vbox(row, 2)
+		timing.custom_minimum_size.x = 95
+		var time_label := UI.label(timing, "%.3f" % float(standing.get("time_s", 0.0)), "HeadingLabel")
+		time_label.add_theme_font_size_override("font_size", 21)
+		time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		var gap := float(standing.get("gap_to_leader_s", 0.0))
+		var gap_text := "LEADER" if position == 1 else "+%.3f" % gap
+		var gap_label := UI.label(timing, gap_text, "MutedLabel")
+		gap_label.add_theme_font_size_override("font_size", 17)
+		gap_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		if entrant_replay_compatible(entrant):
+			UI.button(card, "WATCH RECORDED RUN", watch_event_entrant_replay.bind(str(result["result_id"]), entrant_id))
+		else:
+			UI.label(card, "NO SAVED REPLAY", "MutedLabel")
+	if player_position > 0:
+		UI.label(parent, "CHASSIS_0001 / POSITION %d OF %d" % [player_position, standings.size()], "HeadingLabel", UI.ACCENT)
+
+
+func show_legacy_event_replay_actions(result: Dictionary) -> void:
+	if test_replay_available(result):
+		UI.button(footer, "WATCH EVENT REPLAY", watch_race_event.bind(str(result["result_id"])), "AccentButton")
+	else:
+		UI.label(footer, "EVENT REPLAY FILE UNAVAILABLE / RESULT SNAPSHOT PRESERVED", "MutedLabel")
+	var competition: Dictionary = result.get("competition", {})
+	if not competition.is_empty():
+		if test_replay_available({"replay": str(competition.get("replay", ""))}):
+			UI.button(footer, "WATCH RIVAL REPLAY", watch_rival_event_replay.bind(str(result["result_id"])))
+		else:
+			UI.label(footer, "RIVAL REPLAY UNAVAILABLE / PHYSICS RESULT PRESERVED", "MutedLabel")
 
 
 func show_race_event_result(result_id: String) -> void:
@@ -746,17 +874,31 @@ func show_race_event_result(result_id: String) -> void:
 	UI.label(col, "TIME ATTACK RESULT", "TitleLabel", UI.ACCENT)
 	UI.label(col, "LOCAL CURVES", "BigNumberLabel")
 	show_race_event_result_summary(col, result)
-	if test_replay_available(result):
-		UI.button(footer, "WATCH EVENT REPLAY", watch_race_event.bind(result_id), "AccentButton")
+	if has_multi_entrant_standings(result):
+		show_event_standings(col, result)
 	else:
-		UI.label(footer, "EVENT REPLAY FILE UNAVAILABLE / RESULT SNAPSHOT PRESERVED", "MutedLabel")
-	var competition: Dictionary = result.get("competition", {})
-	if not competition.is_empty():
-		if test_replay_available({"replay": str(competition.get("replay", ""))}):
-			UI.button(footer, "WATCH RIVAL REPLAY", watch_rival_event_replay.bind(result_id))
-		else:
-			UI.label(footer, "RIVAL REPLAY UNAVAILABLE / PHYSICS RESULT PRESERVED", "MutedLabel")
+		show_legacy_event_replay_actions(result)
 	UI.button(footer, "BACK TO CALENDAR", show_calendar)
+	UI.button(footer, "BACK TO HOME", show_warehouse)
+
+
+func watch_event_entrant_replay(result_id: String, entrant_id: String) -> void:
+	for result in state.get("race_results", {}).get("results", []):
+		if str(result.get("result_id", "")) != result_id:
+			continue
+		var entrant := saved_entrant_for_id(result, entrant_id)
+		if entrant.is_empty() or not entrant_replay_compatible(entrant):
+			show_race_event_result(result_id)
+			return
+		clear_screen()
+		viewer = Viewer.new()
+		viewer.replay_path = str(entrant["replay"])
+		viewer.embedded = true
+		viewer.status_text = "RECORDED EVENT RUN / %s" % entrant_display_name(entrant).to_upper()
+		viewer.finished_viewing.connect(show_race_event_result.bind(result_id))
+		add_child(viewer)
+		return
+	show_calendar()
 
 
 func watch_race_event(result_id: String) -> void:
@@ -2571,6 +2713,99 @@ func race_event_test_pass() -> void:
 	get_tree().quit()
 
 
+func standings_ui_test_fail(message: String) -> void:
+	var full := "STANDINGSTEST FAIL %s" % message
+	push_error(full)
+	print(full)
+	get_tree().quit(1)
+
+
+func test_screen_label_count(expected: String) -> int:
+	if not is_instance_valid(screen):
+		return 0
+	var count := 0
+	for node in screen.find_children("*", "Label", true, false):
+		if str(node.text) == expected:
+			count += 1
+	return count
+
+
+func test_screen_button_count(expected: String) -> int:
+	if not is_instance_valid(screen):
+		return 0
+	var count := 0
+	for node in screen.find_children("*", "Button", true, false):
+		if str(node.text) == expected:
+			count += 1
+	return count
+
+
+func standings_ui_test() -> void:
+	## UI-only fixtures. These values exercise display layout; no bridge or simulation is called.
+	state = new_state()
+	for entrant_count in [3, 5, 7]:
+		var player_positions := [1, ceili(float(entrant_count) / 2.0), entrant_count]
+		if entrant_count == 5:
+			player_positions.append(4) # the stock-EG6 fixture's measured fourth place
+		for player_position in player_positions:
+			var entrants := []
+			var standings := []
+			for index in entrant_count:
+				var entrant_id := "PLAYER_CHASSIS_0001" if index + 1 == player_position else "FIXTURE_%02d" % index
+				var long_name_index := 0 if player_position != 1 else 1
+				var entrant_name := "CHASSIS_0001" if index + 1 == player_position else ("Very Long Local Entrant Name for Layout Check" if index == long_name_index else "Local Driver %02d" % index)
+				entrants.append({"entrant_id": entrant_id, "display_name": entrant_name,
+					"vehicle_id": "FIXTURE_VEHICLE_%02d" % index,
+					"vehicle_configuration": {"name": "1995 Civic EG6 SiR-II"}, "replay": ""})
+				standings.append({"position": index + 1, "entrant_id": entrant_id,
+					"time_s": 40.0 + float(index) * 0.125,
+					"gap_to_leader_s": float(index) * 0.125})
+			var result := {"result_id": "UI_FIXTURE", "event_id": "UI_FIXTURE_EVENT",
+				"road_id": "LOCAL_CURVES", "calendar": {"week": 1, "day": 0, "label": "MON, WEEK 1"},
+				"event_conditions": {}, "entrants": entrants, "standings": standings}
+			var col := new_screen()
+			show_event_standings(col, result)
+			if not test_screen_has_label("FINAL STANDINGS / %d ENTRANTS" % entrant_count):
+				standings_ui_test_fail("entrant count %d was not rendered" % entrant_count)
+				return
+			if not test_screen_has_label("CHASSIS_0001 / POSITION %d OF %d" % [player_position, entrant_count]):
+				standings_ui_test_fail("player position %d of %d was not rendered" % [player_position, entrant_count])
+				return
+			if entrant_count >= 3 and not test_screen_has_label("Very Long Local Entrant Name for Layout Check"):
+				standings_ui_test_fail("long entrant name was hidden")
+				return
+			for index in entrant_count:
+				if not test_screen_has_label("%02d" % (index + 1)) or not test_screen_has_label("%.3f" % (40.0 + float(index) * 0.125)):
+					standings_ui_test_fail("position/time row %d missing from %d-entrant list" % [index + 1, entrant_count])
+					return
+			if not test_screen_has_label("LEADER") or not test_screen_has_label("+0.125"):
+				standings_ui_test_fail("leader gap or positive time-gap format was not shown")
+				return
+			if test_screen_button_count("WATCH RECORDED RUN") != 0 or not test_screen_has_label("NO SAVED REPLAY"):
+				standings_ui_test_fail("missing replay did not produce an unavailable state")
+				return
+	state["race_results"]["results"] = [{"result_id": "LEGACY_SOLO", "event_id": "OLD_SOLO",
+		"measurements": {"total_time_s": 72.345}, "calendar": {"label": "SAT, WEEK 4"},
+		"replay": "user://missing_solo_replay.json"}]
+	show_race_event_result("LEGACY_SOLO")
+	if not test_screen_has_label("EVENT REPLAY FILE UNAVAILABLE / RESULT SNAPSHOT PRESERVED") or test_screen_has_label("FINAL STANDINGS / 0 ENTRANTS"):
+		standings_ui_test_fail("legacy solo result presentation changed")
+		return
+	state["race_results"]["results"].append({"result_id": "LEGACY_H2H", "event_id": "OLD_HEAD_TO_HEAD",
+		"measurements": {"total_time_s": 71.234}, "calendar": {"label": "SUN, WEEK 5"},
+		"replay": "user://missing_player_replay.json",
+		"competition": {"rival_id": "LEGACY_RIVAL", "identity": {"name": "Rafa"},
+			"measurements": {"total_time_s": 70.987}, "replay": "user://missing_rival_replay.json"}})
+	show_race_event_result("LEGACY_H2H")
+	if not test_screen_has_label("RIVAL REPLAY UNAVAILABLE / PHYSICS RESULT PRESERVED") or test_screen_has_label("FINAL STANDINGS / 0 ENTRANTS"):
+		standings_ui_test_fail("legacy head-to-head result presentation changed")
+		return
+	print("STANDINGSTEST variable entrant counts, first/middle/last player, long names, stored times/gaps, missing replay")
+	print("STANDINGSTEST legacy solo/head-to-head result paths preserved")
+	print("STANDINGSTEST OK")
+	get_tree().quit()
+
+
 func race_event_test(rival_only := false) -> void:
 	## End-to-end Phase 7A test using the real deterministic LOCAL CURVES bridge.
 	race_event_test_save_exists = FileAccess.file_exists(SAVE_PATH)
@@ -2787,8 +3022,24 @@ func race_event_test(rival_only := false) -> void:
 		return
 	var stored := race_result_for_event("C96_TA_LOCAL_CURVES_001")
 	show_race_event_detail("C96_TA_LOCAL_CURVES_001")
-	if not test_screen_has_button("WATCH RIVAL REPLAY"):
-		race_event_test_fail("event result does not expose the persisted rival replay")
+	if not test_screen_has_label("FINAL STANDINGS / 5 ENTRANTS") or not test_screen_has_label("CHASSIS_0001 / POSITION %d OF 5" % int(stored["player_position"])):
+		race_event_test_fail("saved standings or player placement were not shown")
+		return
+	if not test_screen_has_button("BACK TO CALENDAR") or not test_screen_has_button("BACK TO HOME"):
+		race_event_test_fail("completed event has no calendar/home return path")
+		return
+	for entrant in stored["entrants"]:
+		var expected_name := entrant_display_name(entrant)
+		if str(entrant.get("entrant_id", "")) == "PLAYER_CHASSIS_0001":
+			expected_name += " / PLAYER"
+		if not test_screen_has_label(expected_name):
+			race_event_test_fail("saved entrant %s is missing from the leaderboard" % entrant.get("entrant_id", ""))
+			return
+		if not test_screen_has_label(entrant_vehicle_label(entrant)):
+			race_event_test_fail("saved vehicle for entrant %s is missing from the leaderboard" % entrant.get("entrant_id", ""))
+			return
+	if test_screen_button_count("WATCH RECORDED RUN") != 5:
+		race_event_test_fail("valid saved entrant replays are not individually accessible")
 		return
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(replay_ref))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(rival_replay_ref))
@@ -2800,7 +3051,7 @@ func race_event_test(rival_only := false) -> void:
 		race_event_test_fail("calendar does not expose event inspection")
 		return
 	show_race_event_detail("C96_TA_LOCAL_CURVES_001")
-	if not test_screen_has_label("COMPETITIVE EVENT RESULT") or not test_screen_has_label("EVENT REPLAY FILE UNAVAILABLE / RESULT SNAPSHOT PRESERVED"):
+	if not test_screen_has_label("COMPETITIVE EVENT RESULT") or not test_screen_has_label("NO SAVED REPLAY") or test_screen_button_count("WATCH RECORDED RUN") != 3:
 		race_event_test_fail("event detail does not preserve/display result with missing replay")
 		return
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(verification_replay))

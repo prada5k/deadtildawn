@@ -58,6 +58,8 @@ def test_five_entrant_roster_and_runs_are_deterministic_and_independent(tmp_path
 
     assert first["rival"]["measurements"]["total_time_s"] == 44.426
     assert first["player"]["measurements"]["total_time_s"] == 43.369
+    assert first["standings"][3]["entrant_id"] == "PLAYER_CHASSIS_0001"
+    assert first["standings"][3]["position"] == 4
     assert first["player"]["measurements"] == second["player"]["measurements"]
     assert first["rival"]["measurements"] == second["rival"]["measurements"]
     assert [e["measurements"] for e in first["entrants"]] == [e["measurements"] for e in second["entrants"]]
