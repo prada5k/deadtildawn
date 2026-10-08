@@ -29,6 +29,7 @@ they never make the rival faster.
 Time distributions are cached per car + track + settings (runs/cache/).
 """
 import argparse
+from dataclasses import asdict
 import hashlib
 import json
 import random
@@ -55,6 +56,7 @@ QUARTER_MILE_M = 402.336
 LOCAL_CURVES_FILE = ROOT / "data" / "tracks" / "local_curves.txt"
 LOCAL_CURVES_ID = "LOCAL_CURVES"
 LOCAL_CURVES_SEED = 9605
+LOCAL_RIVAL_FILE = ROOT / "data" / "rivals" / "oxnard_eg6_time_attack.json"
 
 
 def player_car(part_ids):
@@ -212,20 +214,23 @@ def local_straight(out_file, part_ids=()):
     )
 
 
-def local_curves(out_file, part_ids=()):
-    """Fixed handling route with a deterministic, non-random reference driver."""
+def local_curves_result(out_file, part_ids=(), car=None, driver_name="Reference",
+                        driver_push="normal", driver_sigma=0.0, driver_seed=LOCAL_CURVES_SEED,
+                        definition_path=None):
+    """Run fixed LOCAL CURVES and return its complete physical/result snapshot."""
     from export_replay import build_replay
     from sim.driver import Driver
     from sim.lap import run_lap
     from sim.metrics import speed_at_distance, time_at_distance
     from sim.track import discretize, load_track
     from sim.units import AMBIENT_C, MPH_TO_MS
+    from sim.car import load_car
 
     segments = load_track(LOCAL_CURVES_FILE)
-    car = player_car(part_ids)
-    driver = Driver(name="Reference", push="normal", sigma=0.0)
+    car = car if car is not None else player_car(part_ids)
+    driver = Driver(name=driver_name, push=driver_push, sigma=driver_sigma)
     lap = run_lap(car, discretize(segments, GAME_DS), driver=driver,
-                  seed=LOCAL_CURVES_SEED)
+                  seed=driver_seed)
     telemetry = lap.telemetry
     replay_data = build_replay(car, segments, lap, LOCAL_CURVES_ID)
     out = Path(out_file)
@@ -269,7 +274,16 @@ def local_curves(out_file, part_ids=()):
         1 for i, brake in enumerate(telemetry.brake[:-1])
         if brake > 0 and (i == 0 or telemetry.brake[i - 1] == 0)
     )
-    reply(
+    source_path = Path(definition_path) if definition_path else ACTIVE_CAR_FILE
+    configuration = asdict(car)
+    configuration["torque_rpm"] = list(configuration["torque_rpm"])
+    configuration["torque_nm"] = list(configuration["torque_nm"])
+    configuration["gear_ratios"] = list(configuration["gear_ratios"])
+    configuration["definition_id"] = car.id
+    configuration["definition_path"] = str(source_path.relative_to(ROOT).as_posix())
+    configuration["definition_sha256"] = hashlib.sha256(source_path.read_bytes()).hexdigest()
+    configuration["installed_definition_ids"] = list(part_ids)
+    return dict(
         road_id=LOCAL_CURVES_ID,
         road=road_snapshot(LOCAL_CURVES_FILE, LOCAL_CURVES_ID),
         measurement_scope={
@@ -281,11 +295,14 @@ def local_curves(out_file, part_ids=()):
             "start": "standing",
             "reference_driver": "fixed normal profile",
             "driver_sigma": 0.0,
-            "driver_seed": LOCAL_CURVES_SEED,
+            "driver_seed": driver_seed,
             "integration_step_m": GAME_DS,
         },
+        driver_configuration={"name": driver.name, "push": driver.push,
+            "fraction": driver.f, "sigma": driver.sigma, "seed": driver_seed},
         installed_definition_ids=list(part_ids),
         vehicle_state=physical_vehicle_state(car),
+        vehicle_configuration=configuration,
         measurements={
             "total_time_s": round(lap.lap_time, 3),
             "peak_speed_mph": round(max(telemetry.v) / MPH_TO_MS, 1),
@@ -297,6 +314,35 @@ def local_curves(out_file, part_ids=()):
         },
         replay=str(out),
     )
+
+
+def local_curves(out_file, part_ids=()):
+    """Fixed handling route with a deterministic, non-random reference driver."""
+    reply(**local_curves_result(out_file, part_ids))
+
+
+def time_attack(player_out, rival_out, part_ids=(), rival_file=LOCAL_RIVAL_FILE):
+    """Run the EG6 and one authored rival on identical fixed road conditions."""
+    profile = json.loads(Path(rival_file).read_text(encoding="utf-8"))
+    rival_path = (ROOT / profile["vehicle"]["definition_path"]).resolve()
+    if not rival_path.is_file():
+        raise FileNotFoundError(f"Rival vehicle definition not found: {rival_path}")
+    from sim.car import load_car
+    driver = profile["driver"]
+    player = local_curves_result(player_out, part_ids)
+    rival = local_curves_result(rival_out, (), car=load_car(rival_path),
+        driver_name=str(driver["name"]), driver_push=str(driver["push"]),
+        driver_sigma=float(driver["sigma"]), driver_seed=int(driver["seed"]),
+        definition_path=rival_path)
+    if player["road"] != rival["road"]:
+        raise ValueError("Player and rival road snapshots differ")
+    conditions_match = {k: v for k, v in player["conditions"].items() if k != "reference_driver"}
+    rival_conditions_match = {k: v for k, v in rival["conditions"].items() if k != "reference_driver"}
+    if conditions_match != rival_conditions_match:
+        raise ValueError("Player and rival conditions differ")
+    reply(event_id="C96_TA_LOCAL_CURVES_001", rival_id=profile["rival_id"],
+          rival_identity={k: profile[k] for k in ("name", "home", "bio")},
+          player=player, rival=rival)
 
 
 def part_effects(car, part):
@@ -580,7 +626,7 @@ def main():
     global ACTIVE_CAR_FILE
     ap = argparse.ArgumentParser(description="deadtildawn game bridge")
     ap.add_argument("command", choices=["parts", "shop_catalog", "pull", "car_stats", "track", "rival", "street",
-                                        "practice", "odds", "race", "local_straight", "local_curves"])
+                                        "practice", "odds", "race", "local_straight", "local_curves", "time_attack"])
     ap.add_argument("--car", choices=["reference", "game"], default="reference",
                     help="reference EJ6 for engineering tools (default), game EG6 for Godot")
     ap.add_argument("--week", type=int)
@@ -593,6 +639,9 @@ def main():
     ap.add_argument("--push")
     ap.add_argument("--seed", type=int)
     ap.add_argument("--out")
+    ap.add_argument("--player-out")
+    ap.add_argument("--rival-out")
+    ap.add_argument("--rival-profile", default=str(LOCAL_RIVAL_FILE))
     a = ap.parse_args()
     ACTIVE_CAR_FILE = GAME_CAR if a.car == "game" else REFERENCE_CAR
     try:
@@ -621,6 +670,10 @@ def main():
             local_straight(a.out, part_ids)
         elif a.command == "local_curves":
             local_curves(a.out, part_ids)
+        elif a.command == "time_attack":
+            if not a.player_out or not a.rival_out:
+                raise ValueError("time_attack requires --player-out and --rival-out")
+            time_attack(a.player_out, a.rival_out, part_ids, resolve(a.rival_profile))
     except Exception as e:                         # report, don't crash the game
         fail(f"{type(e).__name__}: {e}")
 

@@ -32,13 +32,14 @@ const LOCATIONS := {
 }
 
 const SAVE_PATH := "user://save.json"
-const SAVE_VERSION := 12
+const SAVE_VERSION := 13
 const START_CASH := 2500
 const MIN_BUY_IN := 100
 const WAGER_STEP := 10
 const REP_WIN := 10
 const SKIP_REP_COST := 5 * REP_WIN   # chicken-out fee: five wins' worth of rep
 const RIVAL_FILE := "data/rivals/zed_280z.json"
+const TIME_ATTACK_RIVAL_FILE := "data/rivals/oxnard_eg6_time_attack.json"
 const PUSH_ORDER := ["safe", "normal", "hard", "flat_out"]
 
 # Calendar day is zero-based: 0 = Monday, 6 = Sunday.
@@ -97,6 +98,9 @@ func _ready() -> void:
 		return
 	if "--raceeventtest" in args:
 		race_event_test()
+		return
+	if "--rivaltest" in args:
+		race_event_test(true)
 		return
 	for a in args:
 		if a.begins_with("--gameshots="):
@@ -282,6 +286,9 @@ func migrate(data: Dictionary) -> Dictionary:
 		data["race_results"] = {"next_result_id": 1, "results": []}
 		data["calendar"] = ensure_time_attack_event(data["calendar"], int(data["week"]), int(data["day"]))
 		v = 12
+	if v < 13:                       # v12 -> v13: new race results may include rival snapshots
+		# Existing solo results intentionally remain solo; never synthesize rival data.
+		v = 13
 	var race_results: Dictionary = data.get("race_results", {})
 	var saved_results: Array = race_results.get("results", [])
 	var next_result_id := maxi(1, int(race_results.get("next_result_id", 1)))
@@ -342,7 +349,7 @@ func initial_calendar(week: int, day: int) -> Dictionary:
 			"location_id": "LOCAL_CURVES", "road_id": "LOCAL_CURVES",
 			"status": "upcoming", "entry_conditions": {"base_car_id": "eg6_sir_ii_1995",
 				"permanent_chassis": true, "garage_work_clear": true},
-			"description": "A solo timed entry on the established LOCAL CURVES route. Available only on its scheduled day; no fee or reward."},
+			"description": "Separate EG6 and local-rival simulations on the established LOCAL CURVES route. Available only on its scheduled day; no fee or reward."},
 	]}
 
 
@@ -359,7 +366,7 @@ func ensure_time_attack_event(calendar: Dictionary, week: int, day: int) -> Dict
 			"road_id": "LOCAL_CURVES", "status": "upcoming",
 			"entry_conditions": {"base_car_id": "eg6_sir_ii_1995",
 				"permanent_chassis": true, "garage_work_clear": true},
-			"description": "A solo timed entry on the established LOCAL CURVES route. Available only on its scheduled day; no fee or reward."})
+			"description": "Separate EG6 and local-rival simulations on the established LOCAL CURVES route. Available only on its scheduled day; no fee or reward."})
 		out["next_event_id"] = maxi(int(out.get("next_event_id", 1)), 4)
 	out["events"] = events
 	return out
@@ -474,7 +481,7 @@ func race_event_eligibility(event: Dictionary) -> String:
 		return "FINISH ACTIVE GARAGE WORK BEFORE ENTRY."
 	if str(event.get("road_id", "")) != "LOCAL_CURVES":
 		return "EVENT ROAD IS NOT AVAILABLE."
-	return "ELIGIBLE. ENTRY IS SOLO, COSTS NOTHING, AND DOES NOT ADVANCE THE CALENDAR."
+	return "ELIGIBLE. TWO SIMULATED RUNS, COSTS NOTHING, AND DOES NOT ADVANCE THE CALENDAR."
 
 
 func next_race_result_id() -> String:
@@ -482,29 +489,44 @@ func next_race_result_id() -> String:
 
 
 func prepare_race_event(event: Dictionary) -> bool:
-	if race_event_eligibility(event) != "ELIGIBLE. ENTRY IS SOLO, COSTS NOTHING, AND DOES NOT ADVANCE THE CALENDAR.":
+	if race_event_eligibility(event) != "ELIGIBLE. TWO SIMULATED RUNS, COSTS NOTHING, AND DOES NOT ADVANCE THE CALENDAR.":
 		return false
 	var result_id := next_race_result_id()
 	var event_id := str(event["event_id"])
 	var replay_ref := "user://replays/events/%s/%s.json" % [event_id, result_id]
+	var rival_replay_ref := "user://replays/events/%s/%s_rival.json" % [event_id, result_id]
 	pending_race_event = {"event_id": event_id, "result_id": result_id,
-		"replay": replay_ref, "chassis_id": str(state["civic"]["chassis_id"]),
+		"replay": replay_ref, "rival_replay": rival_replay_ref,
+		"chassis_id": str(state["civic"]["chassis_id"]),
 		"base_car_id": str(state["civic"]["base_car_id"]),
 		"calendar": {"week": int(state["week"]), "day": int(state["day"]),
 			"label": when(int(state["week"]), int(state["day"]))},
 		"installed": installed_configuration_snapshot()}
-	var out := ProjectSettings.globalize_path(replay_ref)
-	bridge.request("race_event", ["local_curves", "--out", out] + parts_args())
+	bridge.request("race_event", ["time_attack", "--player-out", ProjectSettings.globalize_path(replay_ref),
+		"--rival-out", ProjectSettings.globalize_path(rival_replay_ref),
+		"--rival-profile", TIME_ATTACK_RIVAL_FILE] + parts_args())
 	return true
 
 
 func complete_race_event(data: Dictionary) -> Dictionary:
 	var prepared: Dictionary = pending_race_event
 	pending_race_event = {}
-	if prepared.is_empty() or str(data.get("road_id", "")) != "LOCAL_CURVES" or str(data.get("road", {}).get("geometry_sha256", "")) == "":
+	var player: Dictionary = data.get("player", {})
+	var rival: Dictionary = data.get("rival", {})
+	if prepared.is_empty() or str(data.get("event_id", "")) != str(prepared.get("event_id", "")) or str(data.get("rival_id", "")) != "RIVAL_OXNARD_001":
+		return {}
+	if str(player.get("road_id", "")) != "LOCAL_CURVES" or str(rival.get("road_id", "")) != "LOCAL_CURVES":
+		return {}
+	if player.get("road", {}) != rival.get("road", {}) or str(player.get("road", {}).get("geometry_sha256", "")) == "":
+		return {}
+	var player_conditions: Dictionary = player.get("conditions", {}).duplicate(true)
+	var rival_conditions: Dictionary = rival.get("conditions", {}).duplicate(true)
+	player_conditions.erase("reference_driver")
+	rival_conditions.erase("reference_driver")
+	if player_conditions != rival_conditions:
 		return {}
 	var event := calendar_event(str(prepared["event_id"]))
-	if event.is_empty() or race_event_eligibility(event) != "ELIGIBLE. ENTRY IS SOLO, COSTS NOTHING, AND DOES NOT ADVANCE THE CALENDAR.":
+	if event.is_empty() or race_event_eligibility(event) != "ELIGIBLE. TWO SIMULATED RUNS, COSTS NOTHING, AND DOES NOT ADVANCE THE CALENDAR.":
 		return {}
 	if str(state["civic"]["chassis_id"]) != str(prepared["chassis_id"]) or str(state["civic"]["base_car_id"]) != str(prepared["base_car_id"]):
 		return {}
@@ -515,18 +537,35 @@ func complete_race_event(data: Dictionary) -> Dictionary:
 		return {}
 	var expected_definitions: Array = prepared["installed"].map(func(part): return str(part["definition_id"]))
 	expected_definitions.sort()
-	var simulated_definitions: Array = data.get("installed_definition_ids", []).map(func(definition): return str(definition))
+	var simulated_definitions: Array = player.get("installed_definition_ids", []).map(func(definition): return str(definition))
 	simulated_definitions.sort()
 	if simulated_definitions != expected_definitions:
 		return {}
+	var player_time := float(player.get("measurements", {}).get("total_time_s", 0.0))
+	var rival_time := float(rival.get("measurements", {}).get("total_time_s", 0.0))
+	if player_time <= 0.0 or rival_time <= 0.0:
+		return {}
+	# Positive delta means the rival took longer, so the player was faster.
+	var delta := rival_time - player_time
+	var outcome := "TIE" if is_equal_approx(rival_time, player_time) else ("WIN" if delta > 0.0 else "LOSS")
 	var result := {"result_id": prepared["result_id"], "event_id": prepared["event_id"],
 		"chassis_id": prepared["chassis_id"], "base_car_id": prepared["base_car_id"],
-		"calendar": prepared["calendar"].duplicate(true), "road_id": data["road_id"],
-		"road": data["road"].duplicate(true), "installed": prepared["installed"].duplicate(true),
-		"conditions": data["conditions"].duplicate(true),
-		"vehicle_state": data["vehicle_state"].duplicate(true),
-		"measurement_scope": data.get("measurement_scope", {}).duplicate(true),
-		"measurements": data["measurements"].duplicate(true), "replay": prepared["replay"]}
+		"calendar": prepared["calendar"].duplicate(true), "road_id": player["road_id"],
+		"road": player["road"].duplicate(true), "installed": prepared["installed"].duplicate(true),
+		"conditions": player["conditions"].duplicate(true),
+		"vehicle_state": player["vehicle_state"].duplicate(true),
+		"vehicle_configuration": player["vehicle_configuration"].duplicate(true),
+		"driver": player["driver_configuration"].duplicate(true),
+		"measurement_scope": player.get("measurement_scope", {}).duplicate(true),
+		"measurements": player["measurements"].duplicate(true), "replay": prepared["replay"],
+		"competition": {"rival_id": data["rival_id"], "identity": data["rival_identity"].duplicate(true),
+			"vehicle_configuration": rival["vehicle_configuration"].duplicate(true),
+			"vehicle_state": rival["vehicle_state"].duplicate(true),
+			"driver": rival["driver_configuration"].duplicate(true),
+			"conditions": rival["conditions"].duplicate(true),
+			"measurements": rival["measurements"].duplicate(true), "replay": prepared["rival_replay"]},
+		"time_delta_s": delta, "delta_sign_convention": "rival_time - player_time; positive means player faster",
+		"outcome": outcome}
 	var results: Array = state["race_results"]["results"]
 	if results.any(func(old): return str(old.get("event_id", "")) == str(prepared["event_id"]) or str(old.get("result_id", "")) == str(prepared["result_id"])):
 		return {}
@@ -591,7 +630,7 @@ func show_race_event_result_summary(parent: VBoxContainer, result: Dictionary) -
 	var measurements: Dictionary = result.get("measurements", {})
 	UI.label(parent, "COMPETITIVE EVENT RESULT", "HeadingLabel")
 	if measurements.has("total_time_s"):
-		UI.label(parent, "TOTAL TIME / %.3f s" % float(measurements["total_time_s"]), "BigNumberLabel")
+		UI.label(parent, "PLAYER / %.3f s" % float(measurements["total_time_s"]), "BigNumberLabel")
 	if measurements.has("peak_speed_mph"):
 		UI.stat_row(parent, "Peak speed", "%.1f mph" % float(measurements["peak_speed_mph"]))
 	UI.stat_row(parent, "Chassis", str(result.get("chassis_id", "")))
@@ -601,6 +640,21 @@ func show_race_event_result_summary(parent: VBoxContainer, result: Dictionary) -
 			str(part.get("owned_uid", "")), str(part.get("definition_id", ""))], "MutedLabel")
 	UI.stat_row(parent, "Road geometry", str(result.get("road", {}).get("geometry_sha256", "unknown")))
 	UI.stat_row(parent, "Date", test_calendar_summary(result))
+	var competition: Dictionary = result.get("competition", {})
+	if not competition.is_empty():
+		var identity: Dictionary = competition.get("identity", {})
+		var rival_measurements: Dictionary = competition.get("measurements", {})
+		UI.label(parent, "RIVAL / %s / %s" % [str(identity.get("name", competition.get("rival_id", "UNKNOWN"))),
+			str(competition.get("vehicle_configuration", {}).get("name", "UNKNOWN VEHICLE"))], "HeadingLabel")
+		if rival_measurements.has("total_time_s"):
+			UI.stat_row(parent, "Rival time", "%.3f s" % float(rival_measurements["total_time_s"]))
+		UI.stat_row(parent, "Outcome", "%s / RIVAL - PLAYER %+.3f s" % [
+			str(result.get("outcome", "UNKNOWN")), float(result.get("time_delta_s", 0.0))])
+		UI.label(parent, "DRIVER / %s / %s / f %.4f / σ %.3f" % [
+			str(competition.get("driver", {}).get("name", "")),
+			str(competition.get("driver", {}).get("push", "")),
+			float(competition.get("driver", {}).get("fraction", 0.0)),
+			float(competition.get("driver", {}).get("sigma", 0.0))], "MutedLabel")
 
 
 func show_race_event_result(result_id: String) -> void:
@@ -2126,7 +2180,7 @@ func work_test() -> void:
 		"calendar": initial_calendar(2, 6),
 		"test_log": {"next_id": 2, "runs": [{"run_id": "TEST_000001", "calendar": {"week": 1, "day": 0}, "replay": "keep.json"}]}}
 	state = migrate(v9.duplicate(true))
-	if state["version"] != 12 or state["garage_work"] != {"next_work_id": 1, "orders": []} or state["deliveries"] != {"next_delivery_id": 1, "orders": []}:
+	if state["version"] != SAVE_VERSION or state["garage_work"] != {"next_work_id": 1, "orders": []} or state["deliveries"] != {"next_delivery_id": 1, "orders": []}:
 		work_test_fail("v9 migration did not create empty garage work and delivery domains")
 		return
 	for key in v9:
@@ -2229,7 +2283,7 @@ func work_test() -> void:
 	if state["civic"]["installed"] != {"rear_sway": "p7", "shifter": "p8"} or active_work_orders().size() != 0:
 		work_test_fail("same-day jobs did not both complete")
 		return
-	print("WORKTEST v9 -> v12; WORK_000001 install, WORK_000002 remove; UID p7 preserved")
+	print("WORKTEST v9 -> v13; WORK_000001 install, WORK_000002 remove; UID p7 preserved")
 	print("WORKTEST before/after EG6 physics; multi-day rollover; parallel jobs; no duplicate completion")
 	print("WORKTEST OK")
 	get_tree().quit()
@@ -2252,7 +2306,7 @@ func delivery_test() -> void:
 		"calendar": initial_calendar(2, 3), "garage_work": {"next_work_id": 2, "orders": []},
 		"test_log": {"next_id": 2, "runs": [{"run_id": "TEST_000001", "road_id": "LOCAL_STRAIGHT", "measurements": {"quarter_mile_s": 17.2}, "replay": "keep.json"}]}}
 	var migrated := migrate(v10.duplicate(true))
-	if migrated["version"] != 12 or migrated["deliveries"] != {"next_delivery_id": 1, "orders": []}:
+	if migrated["version"] != SAVE_VERSION or migrated["deliveries"] != {"next_delivery_id": 1, "orders": []}:
 		delivery_test_fail("v10 migration did not initialize delivery state")
 		return
 	for key in ["cash", "followers", "rep", "week", "day", "history", "night", "civic", "inventory", "next_uid", "calendar", "garage_work", "test_log"]:
@@ -2384,7 +2438,7 @@ func delivery_test() -> void:
 	if int(state["cash"]) != cash_after_pickup or state["followers"] != 0 or state["rep"] != 0 or state.has("xp") or state.has("loot"):
 		delivery_test_fail("world updates changed cash, followers, REP, or progression")
 		return
-	print("DELIVERYTEST v10 -> v12; two retail UIDs in transit -> delivered once; local used pickup sold once")
+	print("DELIVERYTEST v10 -> v13; two retail UIDs in transit -> delivered once; local used pickup sold once")
 	print("DELIVERYTEST weekly refresh at week rollover; bounded stock, unique IDs, multi-week catch-up")
 	print("DELIVERYTEST work/calendar compatibility and immutable TEST LOG OK")
 	get_tree().quit()
@@ -2416,7 +2470,7 @@ func race_event_test_pass() -> void:
 	get_tree().quit()
 
 
-func race_event_test() -> void:
+func race_event_test(rival_only := false) -> void:
 	## End-to-end Phase 7A test using the real deterministic LOCAL CURVES bridge.
 	race_event_test_save_exists = FileAccess.file_exists(SAVE_PATH)
 	if race_event_test_save_exists:
@@ -2437,7 +2491,7 @@ func race_event_test() -> void:
 		"calendar": v11_calendar,
 		"test_log": {"next_id": 45, "runs": [{"run_id": "TEST_KEEP", "calendar": {"week": 2, "day": 3}, "replay": "keep.json"}]}}
 	var migrated := migrate(v11.duplicate(true))
-	if int(migrated["version"]) != 12 or migrated["race_results"] != {"next_result_id": 1, "results": []}:
+	if int(migrated["version"]) != SAVE_VERSION or migrated["race_results"] != {"next_result_id": 1, "results": []}:
 		race_event_test_fail("v11 migration did not initialize race result history")
 		return
 	for key in ["cash", "followers", "rep", "week", "day", "history", "night", "civic", "inventory", "next_uid", "market", "deliveries", "garage_work", "test_log"]:
@@ -2446,6 +2500,15 @@ func race_event_test() -> void:
 			return
 	if calendar_event_from(migrated["calendar"], "C96_TA_LOCAL_CURVES_001").is_empty():
 		race_event_test_fail("v11 migration did not add the authored event")
+		return
+	var historical_solo := {"result_id": "RACE_000004", "event_id": "OLD_SOLO_EVENT",
+		"measurements": {"total_time_s": 72.345}, "replay": "user://replays/events/solo.json"}
+	var v12_solo := migrated.duplicate(true)
+	v12_solo["version"] = 12
+	v12_solo["race_results"] = {"next_result_id": 5, "results": [historical_solo.duplicate(true)]}
+	var migrated_solo := migrate(v12_solo)
+	if migrated_solo["race_results"]["results"] != [historical_solo] or migrated_solo["race_results"]["next_result_id"] != 5 or migrated_solo["race_results"]["results"][0].has("competition"):
+		race_event_test_fail("v12 solo result was changed or given an invented rival result")
 		return
 
 	state = new_state()
@@ -2476,7 +2539,7 @@ func race_event_test() -> void:
 		race_event_test_fail("ineligible Civic was accepted")
 		return
 	state["civic"]["base_car_id"] = "eg6_sir_ii_1995"
-	if race_event_eligibility(event) != "ELIGIBLE. ENTRY IS SOLO, COSTS NOTHING, AND DOES NOT ADVANCE THE CALENDAR.":
+	if race_event_eligibility(event) != "ELIGIBLE. TWO SIMULATED RUNS, COSTS NOTHING, AND DOES NOT ADVANCE THE CALENDAR.":
 		race_event_test_fail("eligible permanent EG6 was rejected")
 		return
 
@@ -2502,9 +2565,22 @@ func race_event_test() -> void:
 	var reply: Array = await bridge.replied
 	if not game_test_reply_ok(reply):
 		return
-	var result := complete_race_event(reply[1])
+	var race_reply: Dictionary = reply[1]
+	var result := complete_race_event(race_reply)
 	if result.is_empty() or not test_replay_available(result):
 		race_event_test_fail("competitive result/replay was not saved")
+		return
+	var player_time := float(race_reply["player"]["measurements"]["total_time_s"])
+	var rival_time := float(race_reply["rival"]["measurements"]["total_time_s"])
+	var measured_delta := rival_time - player_time
+	if race_reply["player"]["vehicle_configuration"]["definition_id"] != "eg6_sir_ii_1995" or race_reply["rival"]["vehicle_configuration"]["definition_id"] != "ej6_dx_coupe_1996" or race_reply["player"]["vehicle_configuration"] == race_reply["rival"]["vehicle_configuration"]:
+		race_event_test_fail("player and rival did not use independent physical vehicle configurations")
+		return
+	if race_reply["player"]["road"] != race_reply["rival"]["road"] or race_reply["player"]["conditions"] != race_reply["rival"]["conditions"]:
+		race_event_test_fail("player and rival did not share the exact road and conditions")
+		return
+	if not is_equal_approx(float(result["time_delta_s"]), measured_delta) or result["outcome"] != ("TIE" if is_equal_approx(player_time, rival_time) else ("WIN" if measured_delta > 0.0 else "LOSS")):
+		race_event_test_fail("signed time delta or measured outcome is incorrect")
 		return
 	for key in before:
 		if key == "calendar":
@@ -2531,14 +2607,17 @@ func race_event_test() -> void:
 		race_event_test_fail("event completion changed unrelated calendar dates or instances")
 		return
 	var replay_ref := str(result["replay"])
+	var rival_replay_ref := str(result["competition"]["replay"])
 	var verification_replay := "user://replays/events/C96_TA_LOCAL_CURVES_001/VERIFY.json"
-	race_event_test_outputs = [replay_ref, verification_replay]
-	bridge.request("race_event_repeatability", ["local_curves", "--out", ProjectSettings.globalize_path(verification_replay)] + parts_args())
+	var verification_rival_replay := "user://replays/events/C96_TA_LOCAL_CURVES_001/VERIFY_RIVAL.json"
+	race_event_test_outputs = [replay_ref, rival_replay_ref, verification_replay, verification_rival_replay]
+	bridge.request("race_event_repeatability", ["time_attack", "--player-out", ProjectSettings.globalize_path(verification_replay),
+		"--rival-out", ProjectSettings.globalize_path(verification_rival_replay), "--rival-profile", TIME_ATTACK_RIVAL_FILE] + parts_args())
 	reply = await bridge.replied
 	if not game_test_reply_ok(reply):
 		return
-	if reply[1]["measurements"] != result["measurements"] or reply[1]["road"] != result["road"]:
-		race_event_test_fail("competitive measured time or road snapshot was not deterministic")
+	if reply[1]["player"]["measurements"] != result["measurements"] or reply[1]["rival"]["measurements"] != result["competition"]["measurements"] or reply[1]["player"]["road"] != result["road"]:
+		race_event_test_fail("player/rival measured time or road snapshot was not deterministic")
 		return
 	if prepare_race_event(calendar_event("C96_TA_LOCAL_CURVES_001")) or not pending_race_event.is_empty():
 		race_event_test_fail("completed event accepted a second entry")
@@ -2552,7 +2631,8 @@ func race_event_test() -> void:
 		return
 	var stored := race_result_for_event("C96_TA_LOCAL_CURVES_001")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(replay_ref))
-	if test_replay_available(stored) or not stored.has("measurements") or int(stored["measurements"].get("total_time_s", 0)) <= 0:
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(rival_replay_ref))
+	if test_replay_available(stored) or not stored.has("measurements") or int(stored["measurements"].get("total_time_s", 0)) <= 0 or float(stored.get("competition", {}).get("measurements", {}).get("total_time_s", 0)) <= 0:
 		race_event_test_fail("missing replay destroyed or hid the historical result")
 		return
 	show_calendar()
@@ -2564,10 +2644,13 @@ func race_event_test() -> void:
 		race_event_test_fail("event detail does not preserve/display result with missing replay")
 		return
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(verification_replay))
-	print("RACE EVENT TEST v11 -> v12; stable authored event, date/eligibility, one saved result")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(verification_rival_replay))
+	print("RACE EVENT TEST v11 -> v13; stable authored event, date/eligibility, one saved result")
 	print("RACE EVENT TEST deterministic LOCAL CURVES, exact EG6 configuration, separate replay, missing replay safe")
 	print("RACE EVENT TEST no TEST LOG, cash, follower, ownership, market, delivery, work, or legacy history side effects")
-	print("RACE EVENT TEST OK / total %.3f s / %s" % [float(result["measurements"]["total_time_s"]), result["result_id"]])
+	print("RACE EVENT TEST OK / player %.3f s / rival %.3f s / delta %+.3f s / %s" % [player_time, rival_time, measured_delta, result["outcome"]])
+	if rival_only:
+		print("RIVALTEST deterministic independent car / shared road + conditions / immutable solo migration / reload / replay loss OK")
 	race_event_test_pass()
 
 

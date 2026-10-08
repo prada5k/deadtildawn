@@ -1,0 +1,20 @@
+{
+  "rival_id": "RIVAL_OXNARD_001",
+  "name": "Rafa Morales",
+  "home": "Oxnard, California",
+  "bio": "A local Honda apprentice who spends weekends helping friends set up their cars for autocross.",
+  "event_id": "C96_TA_LOCAL_CURVES_001",
+  "vehicle": {
+    "description": "Stock 1996 Honda Civic DX Coupe (EJ6) simulation fixture.",
+    "definition_id": "ej6_dx_coupe_1996",
+    "definition_path": "data/cars/ej6_dx_coupe_1996.json",
+    "configuration": "stock; no aftermarket parts"
+  },
+  "driver": {
+    "name": "Rafa Morales",
+    "push": "normal",
+    "sigma": 0.0,
+    "seed": 9605,
+    "confidence": "authored deterministic simulation profile; not a claim about a real driver's ability"
+  }
+}
