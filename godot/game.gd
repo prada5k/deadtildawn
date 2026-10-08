@@ -53,6 +53,7 @@ var practice := {}
 var catalog := {}          # bridge "parts" reply (slots + parts with exact effects)
 var shop_message := ""
 var car_message := ""
+var selected_test_road := "LOCAL_STRAIGHT" # Transient list section; never saved.
 var bridge: Node
 var screen: Control        # current UI screen (the shell while in the hub)
 var shell: Control         # persistent hub shell (top rail, ribbon, bottom nav)
@@ -1250,8 +1251,15 @@ func watch_logged_test(result: Dictionary) -> void:
 		return
 	if result["road_id"] == "LOCAL_STRAIGHT":
 		show_local_straight_replay(result)
-	else:
+	elif result["road_id"] == "LOCAL_CURVES":
 		show_local_curves_replay(result)
+	else:
+		viewer = Viewer.new()
+		viewer.replay_path = result["replay"]
+		viewer.embedded = true
+		viewer.status_text = "REFERENCE DRIVER"
+		viewer.finished_viewing.connect(show_test_detail.bind(str(result["run_id"])))
+		add_child(viewer)
 
 
 func find_test_run(run_id: String) -> Dictionary:
@@ -1263,17 +1271,44 @@ func find_test_run(run_id: String) -> Dictionary:
 
 func test_measurement_summary(result: Dictionary) -> String:
 	var measurements: Dictionary = result.get("measurements", {})
+	var values := []
 	if result.get("road_id", "") == "LOCAL_STRAIGHT":
-		return "0-60 %.3f s / 1/4 %.3f s @ %.1f mph" % [
-			float(measurements.get("zero_60_s", 0.0)),
-			float(measurements.get("quarter_mile_s", 0.0)),
-			float(measurements.get("quarter_mile_trap_mph", 0.0))]
-	return "TOTAL %.3f s / PEAK %.1f mph" % [
-		float(measurements.get("total_time_s", 0.0)),
-		float(measurements.get("peak_speed_mph", 0.0))]
+		if measurements.has("quarter_mile_s"):
+			values.append("1/4 %.3f s" % float(measurements["quarter_mile_s"]))
+		if measurements.has("zero_60_s"):
+			values.append("0-60 %.3f s" % float(measurements["zero_60_s"]))
+		if measurements.has("quarter_mile_trap_mph"):
+			values.append("TRAP %.1f mph" % float(measurements["quarter_mile_trap_mph"]))
+	elif result.get("road_id", "") == "LOCAL_CURVES":
+		if measurements.has("total_time_s"):
+			values.append("TOTAL %.3f s" % float(measurements["total_time_s"]))
+		if measurements.has("peak_speed_mph"):
+			values.append("PEAK %.1f mph" % float(measurements["peak_speed_mph"]))
+	else:
+		var keys: Array = measurements.keys()
+		keys.sort()
+		for key in keys:
+			values.append("%s %s" % [str(key).to_upper().replace("_", " "), str(measurements[key])])
+	return " / ".join(values) if not values.is_empty() else "MEASUREMENTS NOT RECORDED"
+
+
+func test_runs_for_section(section: String) -> Array:
+	var runs: Array = state["test_log"]["runs"].duplicate()
+	runs.reverse()
+	if section == "OTHER":
+		return runs.filter(func(run): return str(run.get("road_id", "")) not in ["LOCAL_STRAIGHT", "LOCAL_CURVES"])
+	return runs.filter(func(run): return str(run.get("road_id", "")) == section)
+
+
+func test_run_counts() -> Dictionary:
+	return {"LOCAL_STRAIGHT": test_runs_for_section("LOCAL_STRAIGHT").size(),
+		"LOCAL_CURVES": test_runs_for_section("LOCAL_CURVES").size(),
+		"OTHER": test_runs_for_section("OTHER").size()}
 
 
 func test_configuration_summary(result: Dictionary) -> String:
+	if not result.has("installed") or typeof(result["installed"]) != TYPE_ARRAY:
+		return "CONFIGURATION NOT RECORDED"
 	var installed: Array = result.get("installed", [])
 	if installed.is_empty():
 		return "STOCK"
@@ -1284,7 +1319,11 @@ func test_configuration_summary(result: Dictionary) -> String:
 
 
 func test_calendar_summary(result: Dictionary) -> String:
+	if not result.has("calendar") or typeof(result["calendar"]) != TYPE_DICTIONARY:
+		return "DATE NOT RECORDED"
 	var calendar: Dictionary = result.get("calendar", {})
+	if not calendar.has("week") or not calendar.has("day"):
+		return "DATE NOT RECORDED"
 	var day := int(calendar.get("day", 0))
 	var day_name: String = DAY_NAMES[day] if day >= 0 and day < DAY_NAMES.size() else "DAY"
 	return "%s / WEEK %02d / DAY %02d" % [day_name, int(calendar.get("week", 0)), day + 1]
@@ -1295,11 +1334,21 @@ func show_test_log() -> void:
 	UI.spacer(col, false).custom_minimum_size.y = 24
 	UI.label(col, "TEST LOG", "TitleLabel", UI.ACCENT)
 	UI.label(col, "CONTROLLED RUN HISTORY / RAW OBSERVATIONS", "MutedLabel")
-	var runs: Array = state["test_log"]["runs"].duplicate()
+	var counts := test_run_counts()
+	var tabs := UI.hbox(col, 8)
+	for section in ["LOCAL_STRAIGHT", "LOCAL_CURVES", "OTHER"]:
+		if section == "OTHER" and int(counts[section]) == 0:
+			continue
+		var label := "%s / %d" % [section.replace("_", " "), int(counts[section])]
+		var tab := UI.button(tabs, label, select_test_log_section.bind(section),
+			"SelectedButton" if selected_test_road == section else "")
+		tab.flat = true
+		tab.focus_mode = Control.FOCUS_NONE
+	var runs := test_runs_for_section(selected_test_road)
 	if runs.is_empty():
-		UI.label(col, "No controlled tests recorded yet.", "MutedLabel")
+		var empty_text := "NO LOCAL STRAIGHT RUNS RECORDED." if selected_test_road == "LOCAL_STRAIGHT" else "NO LOCAL CURVES RUNS RECORDED." if selected_test_road == "LOCAL_CURVES" else "NO OTHER ROAD RUNS RECORDED."
+		UI.label(col, empty_text, "MutedLabel")
 	else:
-		runs.reverse()
 		for run in runs:
 			var panel := UI.vbox(UI.panel(col), 4)
 			UI.label(panel, "%s / %s" % [run.get("run_id", "UNKNOWN"), run.get("road_id", "UNKNOWN")], "HeadingLabel")
@@ -1309,6 +1358,43 @@ func show_test_log() -> void:
 	UI.button(footer, "BACK TO HOME", show_warehouse, "AccentButton")
 
 
+func select_test_log_section(section: String) -> void:
+	if section in ["LOCAL_STRAIGHT", "LOCAL_CURVES", "OTHER"]:
+		selected_test_road = section
+		show_test_log()
+
+
+func show_other_test_results(result: Dictionary, from_log := true) -> void:
+	var col := new_screen()
+	UI.spacer(col, false).custom_minimum_size.y = 24
+	UI.label(col, "TEST RESULTS / OTHER ROAD", "TitleLabel", UI.ACCENT)
+	UI.label(col, str(result.get("road_id", "UNKNOWN ROAD")), "BigNumberLabel")
+	UI.label(col, "%s / %s" % [str(result.get("run_id", "UNKNOWN RUN")), test_calendar_summary(result)], "MutedLabel")
+	var measurements: Dictionary = result.get("measurements", {})
+	var measured := UI.vbox(UI.panel(col), 6)
+	UI.label(measured, "RECORDED MEASUREMENTS", "HeadingLabel")
+	var keys: Array = measurements.keys()
+	keys.sort()
+	if keys.is_empty():
+		UI.label(measured, "MEASUREMENTS NOT RECORDED", "MutedLabel")
+	for key in keys:
+		UI.stat_row(measured, str(key).replace("_", " ").capitalize(), str(measurements[key]))
+	var installed_value = result.get("installed", null)
+	var config := UI.vbox(UI.panel(col), 6)
+	UI.label(config, "CIVIC CONFIGURATION", "HeadingLabel")
+	UI.stat_row(config, "Chassis", str(result.get("chassis_id", "NOT RECORDED")))
+	UI.stat_row(config, "Base car", str(result.get("base_car_id", "NOT RECORDED")))
+	if typeof(installed_value) == TYPE_ARRAY:
+		var installed: Array = installed_value
+		UI.stat_row(config, "Installed", "stock" if installed.is_empty() else "%d physical part%s" % [installed.size(), "" if installed.size() == 1 else "s"])
+		for part in installed:
+			UI.label(config, "%s / %s / %s" % [part.get("slot", ""), part.get("owned_uid", ""), part.get("definition_id", "")], "MutedLabel")
+	else:
+		UI.stat_row(config, "Installed", "CONFIGURATION NOT RECORDED")
+	add_historical_test_details(col, result)
+	add_test_result_footer(result, from_log)
+
+
 func show_test_detail(run_id: String) -> void:
 	var result := find_test_run(run_id)
 	if result.is_empty():
@@ -1316,8 +1402,10 @@ func show_test_detail(run_id: String) -> void:
 		return
 	if result["road_id"] == "LOCAL_STRAIGHT":
 		show_test_results(result, true)
-	else:
+	elif result["road_id"] == "LOCAL_CURVES":
 		show_curves_results(result, true)
+	else:
+		show_other_test_results(result, true)
 	reset_screen_scroll.call_deferred()
 
 
@@ -1497,9 +1585,60 @@ func test_log_test() -> void:
 			if loaded_runs[i][key] != expected_runs[i][key]:
 				test_log_fail("%s changed across save/reload for run %d" % [key, i])
 				return
+	var saved_test_log: Dictionary = state["test_log"].duplicate(true)
+	if test_runs_for_section("LOCAL_STRAIGHT").map(func(run): return run["run_id"]) != ["TEST_000002", "TEST_000001"] or test_runs_for_section("LOCAL_CURVES").map(func(run): return run["run_id"]) != ["TEST_000004", "TEST_000003"]:
+		test_log_fail("road filters or reverse-chronological ordering failed")
+		return
+	if test_run_counts() != {"LOCAL_STRAIGHT": 2, "LOCAL_CURVES": 2, "OTHER": 0}:
+		test_log_fail("road section counts failed")
+		return
+	if not test_measurement_summary(loaded_runs[0]).contains("1/4") or not test_measurement_summary(loaded_runs[0]).contains("0-60") or not test_measurement_summary(loaded_runs[0]).contains("TRAP") or not test_measurement_summary(loaded_runs[2]).contains("TOTAL") or not test_measurement_summary(loaded_runs[2]).contains("PEAK"):
+		test_log_fail("road-specific measurement emphasis failed")
+		return
+	selected_test_road = "LOCAL_CURVES"
+	show_test_log()
+	show_test_detail("TEST_000004")
+	if selected_test_road != "LOCAL_CURVES":
+		test_log_fail("opening a run lost the selected road section")
+		return
+	show_test_log()
+	state["test_log"]["runs"] = [{"run_id": "TEST_OTHER", "road_id": "LOCAL_DRAG",
+		"calendar": {}, "measurements": {}, "replay": "user://missing/other.json"}]
+	if test_run_counts() != {"LOCAL_STRAIGHT": 0, "LOCAL_CURVES": 0, "OTHER": 1} or test_measurement_summary(state["test_log"]["runs"][0]) != "MEASUREMENTS NOT RECORDED" or test_calendar_summary(state["test_log"]["runs"][0]) != "DATE NOT RECORDED" or test_configuration_summary(state["test_log"]["runs"][0]) != "CONFIGURATION NOT RECORDED" or test_replay_available(state["test_log"]["runs"][0]):
+		test_log_fail("unknown road, missing measurements, or missing replay handling failed")
+		return
+	var incomplete_straight := test_measurement_summary({"road_id": "LOCAL_STRAIGHT", "measurements": {"quarter_mile_s": 17.4, "zero_60_s": 9.1}})
+	if incomplete_straight.contains("TRAP") or incomplete_straight.contains("0.0"):
+		test_log_fail("missing straight measurement was fabricated")
+		return
+	select_test_log_section("LOCAL_STRAIGHT")
+	if not test_screen_has_label("NO LOCAL STRAIGHT RUNS RECORDED."):
+		test_log_fail("LOCAL STRAIGHT empty state is missing")
+		return
+	select_test_log_section("LOCAL_CURVES")
+	if not test_screen_has_label("NO LOCAL CURVES RUNS RECORDED."):
+		test_log_fail("LOCAL CURVES empty state is missing")
+		return
+	select_test_log_section("OTHER")
+	show_test_detail("TEST_OTHER")
+	if not test_screen_has_label("LOCAL_DRAG") or not test_screen_has_label("REPLAY FILE UNAVAILABLE") or selected_test_road != "OTHER":
+		test_log_fail("unknown road detail is inaccessible or selection was lost")
+		return
+	state["test_log"] = saved_test_log
+	selected_test_road = "LOCAL_STRAIGHT"
 	print("TESTLOGTEST runs: TEST_000001..TEST_000004; straight 2; curves 2")
+	print("TESTLOGTEST road filters, counts, ordering, empty states, OTHER, details, missing replay")
 	print("TESTLOGTEST OK")
 	get_tree().quit()
+
+
+func test_screen_has_label(expected: String) -> bool:
+	if not is_instance_valid(screen):
+		return false
+	for node in screen.find_children("*", "Label", true, false):
+		if str(node.text) == expected:
+			return true
+	return false
 
 
 func calendar_test_fail(message: String) -> void:
