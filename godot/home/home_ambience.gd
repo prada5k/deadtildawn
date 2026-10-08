@@ -13,7 +13,7 @@ const DUST_SHADER := "res://assets/shaders/dust_mote.gdshader"
 
 # ---- the aging tube ----
 const AGING_FIXTURE := "Fixture_1"          # over the Civic's left side; the other fixtures stay steady
-const AGING_LIGHT_ENERGY := 2.4             # its own small light (no shadow): the flicker dips THIS, never the main light
+const AGING_LIGHT_ENERGY := 2.0             # its own small light (no shadow): the flicker dips THIS, never the main light
 const AGING_LIGHT_RANGE := 7.0
 
 # ---- dust ----
@@ -22,7 +22,7 @@ const DUST_LIFETIME_S := 18.0
 const DUST_CENTER := Vector3(0.6, 1.5, 0.6)  # a box of air around the tube lights and above the Civic
 const DUST_HALF_EXTENTS := Vector3(3.6, 1.25, 3.0)
 const DUST_SIZE_M := 0.022               # ~1-3 px on a 390-wide screen at 4-10 m
-const BEAM_LIGHT_AT := Vector3(0.35, 2.3, 0.1)   # GarageTube: the dust glows near it
+const BEAM_LIGHT_AT := Vector3(0.0, 2.4, 0.2)   # GarageTube (under Fixture_1): the dust glows near it
 
 # ---- gnat ----
 const GNAT_FIRST_S := 5.0
@@ -78,7 +78,7 @@ func build_aging_tube(garage_root: Node) -> void:
 	var at := fixture.global_position if fixture != null else Vector3(-0.8, 3.0, 0.4)
 	aging_light = OmniLight3D.new()
 	aging_light.name = "AgingTubeLight"
-	aging_light.light_color = Color(0.82, 0.93, 1.0)
+	aging_light.light_color = Color(1.0, 0.88, 0.7)
 	aging_light.light_energy = AGING_LIGHT_ENERGY
 	aging_light.omni_range = AGING_LIGHT_RANGE
 	aging_light.light_specular = 0.2

@@ -1,0 +1,259 @@
+[gd_scene format=3]
+
+; Garage 1 PSX props: static scenery only (no scripts, no collision, no physics).
+; Frame = the HOME frame (home_garage.gd): the Civic is at the origin, nose +x, floor y = 0, the warehouse's long
+; side wall is the plane z = -2.6 (the camera is at +x +z, so props on that wall face +z), the end wall is x = -7.5.
+; Every prepared prop faces +z with its origin at the middle of its footprint on the floor
+; (art/blender/prep_garage1_props.py); tools hang with their back on the origin plane.
+; Move or swap any node freely; positions are in metres.
+
+[ext_resource type="PackedScene" path="res://assets/models/props/garage1/desk_table.glb" id="desk"]
+[ext_resource type="PackedScene" path="res://assets/models/props/garage1/crt_monitor.glb" id="monitor"]
+[ext_resource type="PackedScene" path="res://assets/models/props/garage1/pc_tower.glb" id="tower"]
+[ext_resource type="PackedScene" path="res://assets/models/props/garage1/pc_keyboard.glb" id="keyboard"]
+[ext_resource type="PackedScene" path="res://assets/models/props/garage1/pc_mouse.glb" id="mouse"]
+[ext_resource type="PackedScene" path="res://assets/models/props/garage1/radio_base.glb" id="radio"]
+[ext_resource type="PackedScene" path="res://assets/models/props/garage1/folding_chair.glb" id="chair"]
+[ext_resource type="PackedScene" path="res://assets/models/props/garage1/toolbox_steel.glb" id="toolbox"]
+[ext_resource type="PackedScene" path="res://assets/models/props/garage1/floor_jack.glb" id="jack"]
+[ext_resource type="PackedScene" path="res://assets/models/props/garage1/hand_tools_a.glb" id="tools_a"]
+[ext_resource type="PackedScene" path="res://assets/models/props/garage1/hand_tools_b.glb" id="tools_b"]
+[ext_resource type="PackedScene" path="res://assets/models/props/garage1/metal_shelf.glb" id="shelf"]
+[ext_resource type="PackedScene" path="res://assets/models/props/garage1/box_small.glb" id="box_small"]
+[ext_resource type="PackedScene" path="res://assets/models/props/garage1/box_cube.glb" id="box_cube"]
+[ext_resource type="PackedScene" path="res://assets/models/props/garage1/box_long.glb" id="box_long"]
+[ext_resource type="PackedScene" path="res://assets/models/props/garage1/box_med.glb" id="box_med"]
+[ext_resource type="PackedScene" path="res://assets/models/props/garage1/shop_rag.glb" id="rag"]
+[ext_resource type="PackedScene" path="res://assets/models/props/garage1/trashcan.glb" id="trash"]
+[ext_resource type="PackedScene" path="res://assets/models/props/garage1/broom.glb" id="broom"]
+[ext_resource type="PackedScene" path="res://assets/models/props/garage1/hanging_light.glb" id="hanglight"]
+
+[ext_resource type="PackedScene" path="res://assets/models/props/garage1/loose_wrench.glb" id="wrench"]
+[ext_resource type="Texture2D" path="res://assets/textures/floor/floor_oil.png" id="tex_oil"]
+[ext_resource type="Texture2D" path="res://assets/textures/floor/floor_grime.png" id="tex_grime"]
+[ext_resource type="Texture2D" path="res://assets/textures/floor/floor_scuffs.png" id="tex_scuffs"]
+[ext_resource type="Texture2D" path="res://assets/textures/floor/floor_fade.png" id="tex_fade"]
+
+[sub_resource type="BoxMesh" id="NotebookMesh"]
+size = Vector3(0.2, 0.02, 0.26)
+
+[sub_resource type="StandardMaterial3D" id="NotebookMaterial"]
+albedo_color = Color(0.13, 0.17, 0.15, 1)
+roughness = 0.95
+metallic_specular = 0.1
+
+[sub_resource type="PlaneMesh" id="FloorQuad"]
+size = Vector2(1, 1)
+
+[sub_resource type="StandardMaterial3D" id="Floor_oil"]
+transparency = 1
+cull_mode = 2
+albedo_texture = ExtResource("tex_oil")
+roughness = 1.0
+metallic_specular = 0.0
+texture_filter = 0
+
+[sub_resource type="StandardMaterial3D" id="Floor_grime"]
+transparency = 1
+cull_mode = 2
+albedo_texture = ExtResource("tex_grime")
+roughness = 1.0
+metallic_specular = 0.0
+texture_filter = 0
+
+[sub_resource type="StandardMaterial3D" id="Floor_scuffs"]
+transparency = 1
+cull_mode = 2
+albedo_texture = ExtResource("tex_scuffs")
+roughness = 1.0
+metallic_specular = 0.0
+texture_filter = 0
+
+[sub_resource type="StandardMaterial3D" id="Floor_fade"]
+transparency = 1
+cull_mode = 2
+albedo_texture = ExtResource("tex_fade")
+roughness = 1.0
+metallic_specular = 0.0
+texture_filter = 0
+
+[sub_resource type="BoxMesh" id="ToolBoardMesh"]
+size = Vector3(1.15, 0.66, 0.02)
+
+[sub_resource type="StandardMaterial3D" id="ToolBoardMaterial"]
+albedo_color = Color(0.27, 0.2, 0.14, 1)
+roughness = 0.95
+metallic_specular = 0.1
+
+[node name="Garage1Props" type="Node3D"]
+
+[node name="Workstation" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0, 0)
+
+[node name="DeskTable" parent="Workstation" instance=ExtResource("desk")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -0.97, 0, -2.18)
+
+[node name="CrtMonitor" parent="Workstation" instance=ExtResource("monitor")]
+transform = Transform3D(0.9848, 0, -0.1736, 0, 1, 0, 0.1736, 0, 0.9848, -0.55, 0.72, -2.32)
+
+[node name="PcKeyboard" parent="Workstation" instance=ExtResource("keyboard")]
+transform = Transform3D(0.9903, 0, -0.1392, 0, 1, 0, 0.1392, 0, 0.9903, -0.6, 0.72, -1.95)
+
+[node name="PcMouse" parent="Workstation" instance=ExtResource("mouse")]
+transform = Transform3D(0.9703, 0, 0.2419, 0, 1, 0, -0.2419, 0, 0.9703, -0.26, 0.72, -1.93)
+
+[node name="PcTower" parent="Workstation" instance=ExtResource("tower")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 0.12, 0, -2.26)
+
+[node name="RadioBase" parent="Workstation" instance=ExtResource("radio")]
+transform = Transform3D(0.9659, 0, -0.2588, 0, 1, 0, 0.2588, 0, 0.9659, -1.5, 0.72, -2.26)
+
+[node name="ShopRagOnDesk" parent="Workstation" instance=ExtResource("rag")]
+transform = Transform3D(0.766, 0, -0.6428, 0, 1, 0, 0.6428, 0, 0.766, -1.45, 0.72, -1.85)
+
+[node name="Notebook" type="MeshInstance3D" parent="Workstation"]
+transform = Transform3D(0.9703, 0, 0.2419, 0, 1, 0, -0.2419, 0, 0.9703, -0.98, 0.73, -2.12)
+mesh = SubResource("NotebookMesh")
+surface_material_override/0 = SubResource("NotebookMaterial")
+cast_shadow = 0
+
+[node name="LooseWrench" parent="Workstation" instance=ExtResource("wrench")]
+transform = Transform3D(0.1736, 0, 0.9848, 0, 1, 0, -0.9848, 0, 0.1736, -1.15, 0.72, -1.9)
+
+[node name="FoldingChair" parent="Workstation" instance=ExtResource("chair")]
+transform = Transform3D(-0.6157, 0, -0.788, 0, 1, 0, 0.788, 0, -0.6157, -0.85, 0, -1.45)
+
+[node name="ToolArea" type="Node3D" parent="."]
+
+[node name="ToolBoard" type="MeshInstance3D" parent="ToolArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -4, 1.45, -2.54)
+mesh = SubResource("ToolBoardMesh")
+surface_material_override/0 = SubResource("ToolBoardMaterial")
+
+[node name="HandToolsA" parent="ToolArea" instance=ExtResource("tools_a")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -4.3, 1.3, -2.53)
+
+[node name="HandToolsB" parent="ToolArea" instance=ExtResource("tools_b")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -3.73, 1.15, -2.53)
+
+[node name="ToolboxSteel" parent="ToolArea" instance=ExtResource("toolbox")]
+transform = Transform3D(0.9945, 0, -0.1045, 0, 1, 0, 0.1045, 0, 0.9945, -4, 0, -2.29)
+
+[node name="FloorJack" parent="ToolArea" instance=ExtResource("jack")]
+transform = Transform3D(-0.9848, 0, -0.1736, 0, 1, 0, 0.1736, 0, -0.9848, -3.3, 0, -1.35)
+
+[node name="StorageArea" type="Node3D" parent="."]
+
+[node name="MetalShelf" parent="StorageArea" instance=ExtResource("shelf")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -5.4, 0, -2.35)
+
+[node name="BoxMedLow" parent="StorageArea" instance=ExtResource("box_med")]
+transform = Transform3D(0.9976, 0, 0.0698, 0, 1, 0, -0.0698, 0, 0.9976, -5.65, 0.239, -2.36)
+
+[node name="BoxSmallLow" parent="StorageArea" instance=ExtResource("box_small")]
+transform = Transform3D(0.9945, 0, -0.1045, 0, 1, 0, 0.1045, 0, 0.9945, -5.05, 0.239, -2.36)
+
+[node name="BoxCubeMid" parent="StorageArea" instance=ExtResource("box_cube")]
+transform = Transform3D(0.8, 0, 0, 0, 0.8, 0, -0, 0, 0.8, -5.65, 0.712, -2.36)
+
+[node name="BoxSmallMid" parent="StorageArea" instance=ExtResource("box_small")]
+transform = Transform3D(0.9848, 0, 0.1736, 0, 1, 0, -0.1736, 0, 0.9848, -5.15, 0.712, -2.36)
+
+[node name="BoxLongHigh" parent="StorageArea" instance=ExtResource("box_long")]
+transform = Transform3D(0.9, 0, 0, 0, 0.9, 0, -0, 0, 0.9, -5.3, 1.185, -2.36)
+
+[node name="BoxMedTop" parent="StorageArea" instance=ExtResource("box_med")]
+transform = Transform3D(0.9962, 0, -0.0872, 0, 1, 0, 0.0872, 0, 0.9962, -5.65, 1.658, -2.36)
+
+[node name="BoxSmallTop" parent="StorageArea" instance=ExtResource("box_small")]
+transform = Transform3D(0.9962, 0, 0.0872, 0, 1, 0, -0.0872, 0, 0.9962, -5, 1.658, -2.36)
+
+[node name="FloorBoxCube" parent="StorageArea" instance=ExtResource("box_cube")]
+transform = Transform3D(0.9703, 0, 0.2419, 0, 1, 0, -0.2419, 0, 0.9703, -7, 0, -0.95)
+
+[node name="FloorBoxSmallStacked" parent="StorageArea" instance=ExtResource("box_small")]
+transform = Transform3D(0.9397, 0, -0.342, 0, 1, 0, 0.342, 0, 0.9397, -7, 0.406, -0.95)
+
+[node name="FloorBoxMed" parent="StorageArea" instance=ExtResource("box_med")]
+transform = Transform3D(0.9903, 0, 0.1392, 0, 1, 0, -0.1392, 0, 0.9903, -7.05, 0, -0.35)
+
+[node name="UtilityProps" type="Node3D" parent="."]
+
+[node name="Trashcan" parent="UtilityProps" instance=ExtResource("trash")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -2.95, 0, -2.26)
+
+[node name="Broom" parent="UtilityProps" instance=ExtResource("broom")]
+transform = Transform3D(1, 0, 0, 0, 0.9796, 0.2011, 0, -0.2011, 0.9796, -6.82, 0, -2.2)
+
+[node name="OverheadLight" type="Node3D" parent="."]
+
+[node name="HangingLight" parent="OverheadLight" instance=ExtResource("hanglight")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.0, 3.05, 0.2)
+
+[node name="FloorDetail" type="Node3D" parent="."]
+
+[node name="FadeNear" type="MeshInstance3D" parent="FloorDetail"]
+transform = Transform3D(5.37981, 0, 0.831647, 0, 1, 0, -1.14351, 0, 3.91259, 3.8, 0.012, 0.6)
+mesh = SubResource("FloorQuad")
+surface_material_override/0 = SubResource("Floor_fade")
+cast_shadow = 0
+
+[node name="FadeFar" type="MeshInstance3D" parent="FloorDetail"]
+transform = Transform3D(3.62523, 0, -1.26785, 0, 1, 0, 1.69047, 0, 2.71892, -3.3, 0.012, 1.6)
+mesh = SubResource("FloorQuad")
+surface_material_override/0 = SubResource("Floor_fade")
+cast_shadow = 0
+
+[node name="GrimeParking" type="MeshInstance3D" parent="FloorDetail"]
+transform = Transform3D(5.38685, 0, 0.237172, 0, 1, 0, -0.376685, 0, 3.39172, 0.3, 0.011, 0)
+mesh = SubResource("FloorQuad")
+surface_material_override/0 = SubResource("Floor_grime")
+cast_shadow = 0
+
+[node name="GrimeWorkstation" type="MeshInstance3D" parent="FloorDetail"]
+transform = Transform3D(2.5747, 0, -0.222677, 0, 1, 0, 0.36185, 0, 1.58443, -0.4, 0.011, -1.6)
+mesh = SubResource("FloorQuad")
+surface_material_override/0 = SubResource("Floor_grime")
+cast_shadow = 0
+
+[node name="GrimeToolArea" type="MeshInstance3D" parent="FloorDetail"]
+transform = Transform3D(2.85317, 0, 0.494427, 0, 1, 0, -0.927051, 0, 1.52169, -4, 0.011, -1.6)
+mesh = SubResource("FloorQuad")
+surface_material_override/0 = SubResource("Floor_grime")
+cast_shadow = 0
+
+[node name="OilFront" type="MeshInstance3D" parent="FloorDetail"]
+transform = Transform3D(1.45492, 0, 0.63, 0, 1, 0, -0.84, 0, 1.09119, 2.9, 0.013, -0.35)
+mesh = SubResource("FloorQuad")
+surface_material_override/0 = SubResource("Floor_oil")
+cast_shadow = 0
+
+[node name="OilEngine" type="MeshInstance3D" parent="FloorDetail"]
+transform = Transform3D(0.965926, 0, -0.207055, 0, 1, 0, 0.258819, 0, 0.772741, 1.3, 0.013, 0.3)
+mesh = SubResource("FloorQuad")
+surface_material_override/0 = SubResource("Floor_oil")
+cast_shadow = 0
+
+[node name="OilJack" type="MeshInstance3D" parent="FloorDetail"]
+transform = Transform3D(0.273616, 0, 0.563816, 0, 1, 0, -0.751754, 0, 0.205212, -3, 0.013, -1.9)
+mesh = SubResource("FloorQuad")
+surface_material_override/0 = SubResource("Floor_oil")
+cast_shadow = 0
+
+[node name="ScuffsCarSide" type="MeshInstance3D" parent="FloorDetail"]
+transform = Transform3D(4.19424, 0, 0.104672, 0, 1, 0, -0.219811, 0, 1.99726, 0.2, 0.012, 1.3)
+mesh = SubResource("FloorQuad")
+surface_material_override/0 = SubResource("Floor_scuffs")
+cast_shadow = 0
+
+[node name="ScuffsWorkstation" type="MeshInstance3D" parent="FloorDetail"]
+transform = Transform3D(2.54318, 0, -0.291076, 0, 1, 0, 0.54057, 0, 1.36941, -1, 0.012, -1.5)
+mesh = SubResource("FloorQuad")
+surface_material_override/0 = SubResource("Floor_scuffs")
+cast_shadow = 0
+
+[node name="ScuffsFront" type="MeshInstance3D" parent="FloorDetail"]
+transform = Transform3D(2.81908, 0, 0.68404, 0, 1, 0, -1.02606, 0, 1.87939, 3.4, 0.012, 1)
+mesh = SubResource("FloorQuad")
+surface_material_override/0 = SubResource("Floor_scuffs")
+cast_shadow = 0

@@ -95,13 +95,13 @@ func current_vehicle_visual_state() -> Dictionary:
 func configure_environment() -> void:
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color(0.02, 0.022, 0.026)
+	environment.background_color = Color(0.04, 0.032, 0.026)
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color(0.36, 0.4, 0.46)
-	environment.ambient_light_energy = 0.55
+	environment.ambient_light_color = Color(0.5, 0.44, 0.38)     # warm bounce from the concrete and the sun-baked walls
+	environment.ambient_light_energy = 0.58
 	environment.fog_enabled = true                      # the far end of the garage falls into the dark
-	environment.fog_light_color = Color(0.03, 0.034, 0.04)
-	environment.fog_density = 0.035
+	environment.fog_light_color = Color(0.07, 0.054, 0.04)
+	environment.fog_density = 0.02
 	%Environment.environment = environment
 
 

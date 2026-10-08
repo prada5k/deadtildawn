@@ -95,7 +95,8 @@ WH_GAIN, WH_TINT = 0.62, (1.0, 0.97, 0.9)   # the structure's brightness and war
 # ---- the props (the pack in art/models/warehouse props/) ----
 SRC_PROPS = os.path.join(REPO, "art", "models", "warehouse props")
 OUT_PROPS = os.path.join(REPO, "godot", "assets", "models", "scenes", "warehouse_props_game.glb")
-FIXTURES = ((-0.8, -0.4, 3.0), (0.8, -0.4, 3.0), (-4.4, 0.1, 3.0))    # ceiling fluorescents (game frame: x, Blender y, z)
+FIXTURE_LENGTH_M, FIXTURE_ROD_M = 1.22, 0.45                       # a 4 ft strip; hanger rod length
+FIXTURES = ((0.0, -0.2, 2.6), (3.0, -0.2, 2.6), (-6.0, -0.2, 2.6))     # an even 3 m row down the hall (the hanging shop light in garage1_props.tscn is the 4th, at x = -3)    # ceiling fluorescents (game frame: x, Blender y, z)
 SWITCH_AT = (HALL_CROP[0] + 0.03, WALL_Y - 2.0, 1.3)   # on the end wall, beside the locker
 SWITCH_SCALE = 0.035                   # the pack's switch is ~6 units wide: a real plate is ~7 cm
 LOCKER_CHROMA, LOCKER_GAIN = 0.6, 1.7
@@ -103,6 +104,7 @@ BOXES = (((0.55, 0.42, 0.38), (HALL_CROP[0] + 0.45, WALL_Y - 1.75, 0.19), 0.12),
          ((0.42, 0.42, 0.42), (HALL_CROP[0] + 0.5, WALL_Y - 2.3, 0.21), -0.2),
          ((0.46, 0.34, 0.3), (HALL_CROP[0] + 0.45, WALL_Y - 1.75, 0.55), 0.35))
 TRASH_AT = (-6.0, 2.2)                  # a placeholder bin (no model supplied) on the floor by the work area
+PLACEHOLDER_PROPS = False                # the primitive boxes / bin below; the real models live in godot/home/garage1_props.tscn (art/blender/prep_garage1_props.py)
 
 # ---- Rafa's temporary visual proxy (EG9 sedan; his simulated car is still the EJ6 DX coupe) ----
 SRC_EG9 = os.path.join(REPO, "art", "models", "cars", "eg9.glb")
@@ -907,8 +909,8 @@ def prep_warehouse():
         gm.use_nodes = True
         b = gm.node_tree.nodes.get("Principled BSDF")
         set_input(b, "Base Color", (0.02, 0.025, 0.03, 1.0))
-        set_input(b, "Emission Color", (0.7, 0.82, 1.0, 1.0))
-        set_input(b, "Emission Strength", 0.6)
+        set_input(b, "Emission Color", (1.0, 0.8, 0.52, 1.0))
+        set_input(b, "Emission Strength", 0.55)
         set_input(b, "Roughness", 1.0)
         glow.data.materials.clear()
         glow.data.materials.append(gm)
@@ -963,25 +965,47 @@ def prep_props():
     outs = []
     rng = np.random.default_rng(96)
 
-    # --- ceiling fluorescent fixtures: the pack's ON fixture (housing + diffuser), textures dropped
-    objs = import_glb(os.path.join(SRC_PROPS, "ceiling_lowpoly_fluorescent_lamps_with_diffuser.glb"))
+    # --- ceiling fixtures: the 4 ft strip from the "Fluorecent lights" pack, doubled into a twin-tube shop light on two
+    # short rods (replaces the big square diffuser panel). The pack's units are ~1/200 m. Origin = the mounting point.
+    objs = import_glb(os.path.join(SRC_PROPS, "fluorecent_lights.glb"))
     bake_world(objs)
-    meshes = [o for o in sc.objects if o.type == "MESH"]
-    for o in list(meshes):                              # the pack holds an OFF and an ON fixture side by side
-        ys = [v.co.y for v in o.data.vertices]
-        if sum(ys) / len(ys) < 0:
+    want = {"pCube19_lambert1_0": "housing", "pCylinder34_lambert1_0": "tube", "pCylinder28_lambert1_0": "housing", "pCylinder35_lambert1_0": "housing"}
+    parts = {"housing": [], "tube": []}
+    for o in [o for o in sc.objects if o.type == "MESH"]:
+        if o.name in want:
+            parts[want[o.name]].append(o)
+        elif o.name not in {x.name for x in outs}:
             bpy.data.objects.remove(o, do_unlink=True)
-    meshes = [o for o in sc.objects if o.type == "MESH"]
-    housing = next(o for o in meshes if base_name(o.data.materials[0].name) == "Metal")
-    diffuser = next(o for o in meshes if base_name(o.data.materials[0].name).startswith("Fluorescent"))
-    housing.data.materials.clear(); housing.data.materials.append(flat_material("FixtureMetal", srgb_to_linear((0.30, 0.31, 0.32)), 0.7))
-    diffuser.data.materials.clear(); diffuser.data.materials.append(
-        flat_material("TubeOn", srgb_to_linear((0.9, 0.95, 1.0)), 0.5, emission=(0.85, 0.93, 1.0, 1.0), strength=2.5))
-    fx = join([housing, diffuser], "FluorescentFixture")
-    for uvl in list(fx.data.uv_layers):
-        fx.data.uv_layers.remove(uvl)
-    fx.data.transform(Matrix.Translation((0, -0.5, 0)))                           # centered
-    fx.data.transform(Matrix.Rotation(math.pi, 4, "X"))                           # the lit face points down
+    for key, objs_ in parts.items():
+        for o in objs_:
+            for uvl in list(o.data.uv_layers):
+                o.data.uv_layers.remove(uvl)
+            o.data.materials.clear()
+    parts["housing"][0].data.materials.append(flat_material("FixtureMetal", srgb_to_linear((0.30, 0.31, 0.32)), 0.7))
+    parts["tube"][0].data.materials.append(flat_material("TubeOn", srgb_to_linear((1.0, 0.88, 0.7)), 0.5, emission=(1.0, 0.86, 0.62, 1.0), strength=1.0))
+    hs, tb = join(parts["housing"], "FixtureHousing"), parts["tube"][0]
+    for ob_, mt in ((hs, hs.data.materials[0]), (tb, tb.data.materials[0])):
+        ob_.data.materials.clear(); ob_.data.materials.append(mt)
+    lo, hi = bounds([hs])
+    cx, cy, top = (lo.x + hi.x) / 2, (lo.y + hi.y) / 2, hi.z
+    one = join([hs, tb], "StripOne")
+    one.data.transform(Matrix.Translation((-cx, -cy, -top)))
+    one.data.transform(Matrix.Scale(FIXTURE_LENGTH_M / (hi.x - lo.x), 4))       # long axis = game x (parallel with the Civic)
+    two = one.copy()
+    two.data = one.data.copy()
+    sc.collection.objects.link(two)
+    one.data.transform(Matrix.Translation((0, -0.13, 0)))
+    two.data.transform(Matrix.Translation((0, 0.13, 0)))
+    rods = []
+    for sx in (-0.4, 0.4):                                                       # two hanger rods up from the housing
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=1.0)
+        for v in bm.verts:
+            v.co.x = v.co.x * 0.012 + sx; v.co.y *= 0.012; v.co.z = v.co.z * FIXTURE_ROD_M + FIXTURE_ROD_M / 2
+        rme = bpy.data.meshes.new("Rod"); bm.to_mesh(rme); bm.free()
+        rme.materials.append(one.data.materials[0])
+        rob = bpy.data.objects.new("Rod", rme); sc.collection.objects.link(rob); rods.append(rob)
+    fx = join([one, two] + rods, "FluorescentFixture")
     fx.data.shade_flat()
     for k, (x, y, z) in enumerate(FIXTURES):
         c = fx.copy()
@@ -1064,20 +1088,21 @@ def prep_props():
     outs.append(sw)
 
     # --- placeholders (no models supplied): a few cardboard boxes and a bin, plain primitives
-    card = flat_material("Cardboard", srgb_to_linear((0.50, 0.38, 0.25)), 0.95)
-    for k, (size, loc, rz) in enumerate(BOXES):
-        outs.append(box_object(sc, f"Box_{k + 1}", size, loc, card, rz))
-    bm = bmesh.new()
-    bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=8, radius1=0.2, radius2=0.23, depth=0.62)
-    me = bpy.data.meshes.new("Trashcan")
-    bm.to_mesh(me)
-    bm.free()
-    me.materials.append(flat_material("BinGrey", srgb_to_linear((0.20, 0.21, 0.22)), 0.8))
-    me.shade_flat()
-    tc = bpy.data.objects.new("Trashcan", me)
-    tc.location = (TRASH_AT[0], TRASH_AT[1], 0.31)
-    sc.collection.objects.link(tc)
-    outs.append(tc)
+    if PLACEHOLDER_PROPS:
+        card = flat_material("Cardboard", srgb_to_linear((0.50, 0.38, 0.25)), 0.95)
+        for k, (size, loc, rz) in enumerate(BOXES):
+            outs.append(box_object(sc, f"Box_{k + 1}", size, loc, card, rz))
+        bm = bmesh.new()
+        bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=8, radius1=0.2, radius2=0.23, depth=0.62)
+        me = bpy.data.meshes.new("Trashcan")
+        bm.to_mesh(me)
+        bm.free()
+        me.materials.append(flat_material("BinGrey", srgb_to_linear((0.20, 0.21, 0.22)), 0.8))
+        me.shade_flat()
+        tc = bpy.data.objects.new("Trashcan", me)
+        tc.location = (TRASH_AT[0], TRASH_AT[1], 0.31)
+        sc.collection.objects.link(tc)
+        outs.append(tc)
 
     for o in outs:
         print(f"  {o.name:18} tris {tri_count(o):5} at {tuple(round(v, 2) for v in o.location)}")

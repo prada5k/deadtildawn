@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://cf0pavepdpxej"]
 
 [ext_resource type="Script" uid="uid://i1s2utefd5gc" path="res://home/home_garage.gd" id="1"]
+[ext_resource type="PackedScene" path="res://home/garage1_props.tscn" id="2"]
 
 [node name="HomeGarage" type="Node3D" unique_id=1577158806]
 unique_name_in_owner = true
@@ -11,6 +12,8 @@ unique_name_in_owner = true
 
 [node name="GarageVisual" type="Node3D" parent="." unique_id=1384090767]
 unique_name_in_owner = true
+
+[node name="Garage1Props" parent="." unique_id=57775226 instance=ExtResource("2")]
 
 [node name="Zones" type="Node3D" parent="." unique_id=891193254]
 
@@ -36,33 +39,67 @@ unique_name_in_owner = true
 
 [node name="KeyLight" type="DirectionalLight3D" parent="Lighting" unique_id=90671201]
 transform = Transform3D(0.8480481, -0.3938068, 0.35458517, 0, 0.66913056, 0.74314487, -0.52991927, -0.63022256, 0.5674549, 0, 0, 0)
-light_color = Color(0.7, 0.78, 0.9, 1)
-light_energy = 0.22
+light_color = Color(1, 0.89, 0.74, 1)
+light_energy = 0.209
 
 [node name="GarageTube" type="OmniLight3D" parent="Lighting" unique_id=1932210801]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.35, 2.3, 0.1)
-light_color = Color(0.82, 0.93, 1, 1)
-light_energy = 3.7
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.4, 0.2)
+light_color = Color(1, 0.91, 0.78, 1)
+light_energy = 0.976
 light_specular = 0.25
 shadow_enabled = true
-shadow_blur = 1.6
-omni_range = 10.0
+shadow_blur = 2.2
+omni_range = 13.0
+omni_attenuation = 0.6
 
-[node name="AisleFill" type="OmniLight3D" parent="Lighting" unique_id=1749163360]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.5, 2.2, 1.5)
-light_color = Color(0.85, 0.9, 1, 1)
+[node name="FixtureLight_2" type="OmniLight3D" parent="Lighting" unique_id=1749163360]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 2.4, 0.2)
+light_color = Color(1, 0.86, 0.68, 1)
+light_energy = 1.045
 light_specular = 0.2
-omni_range = 11.0
+omni_range = 14.0
+omni_attenuation = 0.6
 
 [node name="WallWash" type="OmniLight3D" parent="Lighting" unique_id=166786883]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6, 2.2, -1.6)
-light_color = Color(0.9, 0.95, 1, 1)
-light_energy = 1.4
+light_color = Color(1, 0.84, 0.64, 1)
+light_energy = 0.906
+
+[node name="WorkbenchGlow" type="OmniLight3D" parent="Lighting"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.35, 1.45, -1.75)
+light_color = Color(1, 0.72, 0.42, 1)
+light_energy = 0.627
+light_specular = 0.1
+omni_range = 2.8
+
+[node name="ShelfGlow" type="OmniLight3D" parent="Lighting"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.0, 1.7, -1.0)
+light_color = Color(1, 0.78, 0.5, 1)
+light_energy = 0.627
+light_specular = 0.1
+omni_range = 3.6
+
+[node name="FixtureLight_3" type="OmniLight3D" parent="Lighting"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 2.4, 0.2)
+light_color = Color(1, 0.86, 0.68, 1)
+light_energy = 1.185
+light_specular = 0.1
+omni_range = 12.0
+omni_attenuation = 0.6
+
+[node name="FixtureLight_4" type="OmniLight3D" parent="Lighting"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 2.4, 0.2)
+light_color = Color(1, 0.86, 0.68, 1)
+light_energy = 1.0
+light_specular = 0.1
+omni_range = 11.0
+omni_attenuation = 0.6
 
 [node name="CameraRig" type="Node3D" parent="." unique_id=451110355]
 
 [node name="GarageCamera" type="Camera3D" parent="CameraRig" unique_id=1942848649]
 unique_name_in_owner = true
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.6, 2.2, 4.3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7, 2, 4.3)
 current = true
-fov = 27.0
+fov = 37.0
+near = 0.04
