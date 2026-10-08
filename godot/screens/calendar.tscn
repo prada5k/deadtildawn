@@ -24,7 +24,13 @@ theme_override_constants/separation = 16
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
-text = "WEEK 1"
+text = "WEEK 01"
+
+[node name="CurrentDate" type="Label" parent="Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+text = "TODAY / MON, WEEK 1 / DAY 01"
 
 [node name="Days" type="HBoxContainer" parent="Column"]
 unique_name_in_owner = true
@@ -42,7 +48,7 @@ theme_override_constants/separation = 6
 [node name="UpcomingTitle" type="Label" parent="Column/UpcomingPanel/Upcoming"]
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
-text = "COMING UP"
+text = "SCHEDULED"
 
 [node name="PastPanel" type="PanelContainer" parent="Column"]
 layout_mode = 2
@@ -55,4 +61,30 @@ theme_override_constants/separation = 6
 [node name="PastTitle" type="Label" parent="Column/PastPanel/Past"]
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
-text = "PAST RACES"
+text = "PAST / CLOSED"
+
+[node name="LegacyPanel" type="PanelContainer" parent="Column"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="LegacyHistory" type="VBoxContainer" parent="Column/LegacyPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="LegacyTitle" type="Label" parent="Column/LegacyPanel/LegacyHistory"]
+layout_mode = 2
+theme_type_variation = &"HeadingLabel"
+text = "LEGACY RACE HISTORY"
+
+[node name="DevelopmentNote" type="Label" parent="Column"]
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+text = "DEVELOPMENT CONTROL / browsing and garage actions do not consume time"
+autowrap_mode = 3
+
+[node name="AdvanceDayButton" type="Button" parent="Column"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+text = "ADVANCE ONE DAY"

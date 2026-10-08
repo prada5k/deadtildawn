@@ -32,7 +32,7 @@ const LOCATIONS := {
 }
 
 const SAVE_PATH := "user://save.json"
-const SAVE_VERSION := 8
+const SAVE_VERSION := 9
 const START_CASH := 2500
 const MIN_BUY_IN := 100
 const WAGER_STEP := 10
@@ -41,9 +41,10 @@ const SKIP_REP_COST := 5 * REP_WIN   # chicken-out fee: five wins' worth of rep
 const RIVAL_FILE := "data/rivals/zed_280z.json"
 const PUSH_ORDER := ["safe", "normal", "hard", "flat_out"]
 
-# Calendar: a week is 7 days; race nights fall on these days (0 = Monday)
+# Calendar day is zero-based: 0 = Monday, 6 = Sunday.
 const DAY_NAMES := ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
-const RACE_DAYS := [4, 5]        # Friday and Saturday nights
+const CALENDAR_ACTIVE_STATUSES := ["upcoming", "available"]
+const CALENDAR_TERMINAL_STATUSES := ["completed", "cancelled"]
 
 var state := {}            # saved: cash, followers, week, day, history, night
 var car_stats := {}        # bridge replies, cached for the session
@@ -78,6 +79,9 @@ func _ready() -> void:
 	if "--testlogtest" in args:
 		test_log_test()
 		return
+	if "--calendartest" in args:
+		calendar_test()
+		return
 	for a in args:
 		if a.begins_with("--gameshots="):
 			game_shots(a.trim_prefix("--gameshots="))
@@ -96,6 +100,7 @@ func new_state() -> Dictionary:
 		"history": [], "night": {},
 		"inventory": [], "next_uid": 1,
 		"market": {"seeded": false, "used_listings": []},
+		"calendar": initial_calendar(1, 0),
 		"test_log": {"next_id": 1, "runs": []}}
 
 
@@ -208,6 +213,13 @@ func migrate(data: Dictionary) -> Dictionary:
 	test_log["runs"] = runs
 	test_log["next_id"] = next_test_id
 	data["test_log"] = test_log
+	data["week"] = maxi(1, int(data.get("week", 1)))
+	data["day"] = clampi(int(data.get("day", 0)), 0, 6)
+	if v < 9:                        # v8 -> v9: persistent calendar events
+		data["calendar"] = initial_calendar(int(data["week"]), int(data["day"]))
+		v = 9
+	data["calendar"] = normalize_calendar_data(data.get("calendar", {}),
+		int(data["week"]), int(data["day"]))
 	data["civic"] = civic
 	data["version"] = v
 	return data
@@ -227,12 +239,138 @@ func reset_game() -> void:
 
 # ------------------------------------------------------------------ calendar
 
-## Events in a given week: [{"day", "type", "title"}]. Friday: the rival on
-## his home road. Saturday: this week's generated open road vs a street racer.
 const OPEN_STYLES := ["technical", "balanced", "flowing"]
 
 
-func events_for_week(week: int) -> Array:
+func absolute_day(week: int, day: int) -> int:
+	return (week - 1) * 7 + day
+
+
+func calendar_date_after(week: int, day: int, offset: int) -> Dictionary:
+	var ordinal := absolute_day(week, day) + offset
+	return {"week": floori(float(ordinal) / 7.0) + 1, "day": ordinal % 7}
+
+
+func initial_calendar(week: int, day: int) -> Dictionary:
+	## Minimal deterministic fixtures for the persistent calendar foundation.
+	## They communicate world texture only; neither event grants an action or reward.
+	var garage_date := calendar_date_after(week, day, 1)
+	var meet_date := calendar_date_after(week, day, 3)
+	return {"next_event_id": 3, "events": [
+		{"event_id": "EVENT_000001", "type": "garage", "title": "GARAGE NIGHT",
+			"scheduled_week": garage_date["week"], "scheduled_day": garage_date["day"],
+			"location_id": "GARAGE_1", "road_id": "", "status": "upcoming",
+			"description": "An open evening at the garage."},
+		{"event_id": "EVENT_000002", "type": "meet", "title": "OXNARD PARKING LOT MEET",
+			"scheduled_week": meet_date["week"], "scheduled_day": meet_date["day"],
+			"location_id": "OXNARD_MEET", "road_id": "", "status": "upcoming",
+			"description": "A local meet notice. No competition is scheduled."},
+	]}
+
+
+func calendar_status_for_date(event: Dictionary, week: int, day: int) -> String:
+	var current := absolute_day(week, day)
+	var scheduled := absolute_day(int(event["scheduled_week"]), int(event["scheduled_day"]))
+	if scheduled > current:
+		return "upcoming"
+	if scheduled == current:
+		return "available"
+	return "missed"
+
+
+func normalize_calendar_data(value, week: int, day: int) -> Dictionary:
+	var calendar: Dictionary = value if typeof(value) == TYPE_DICTIONARY else {}
+	var source_events = calendar.get("events", [])
+	if typeof(source_events) != TYPE_ARRAY:
+		source_events = []
+	var events := []
+	var known_ids := {}
+	var next_id := maxi(1, int(calendar.get("next_event_id", 1)))
+	for raw in source_events:
+		if typeof(raw) != TYPE_DICTIONARY:
+			continue
+		var event: Dictionary = raw.duplicate(true)
+		var event_id := str(event.get("event_id", ""))
+		if event_id == "" or known_ids.has(event_id):
+			continue
+		known_ids[event_id] = true
+		if event_id.begins_with("EVENT_") and event_id.trim_prefix("EVENT_").is_valid_int():
+			next_id = maxi(next_id, int(event_id.trim_prefix("EVENT_")) + 1)
+		event["type"] = str(event.get("type", "world"))
+		event["title"] = str(event.get("title", "UNTITLED EVENT"))
+		event["scheduled_week"] = maxi(1, int(event.get("scheduled_week", week)))
+		event["scheduled_day"] = clampi(int(event.get("scheduled_day", day)), 0, 6)
+		event["location_id"] = str(event.get("location_id", ""))
+		event["road_id"] = str(event.get("road_id", ""))
+		event["description"] = str(event.get("description", ""))
+		var status := str(event.get("status", "upcoming"))
+		if status not in CALENDAR_TERMINAL_STATUSES:
+			status = calendar_status_for_date(event, week, day)
+		event["status"] = status
+		events.append(event)
+	return {"next_event_id": next_id, "events": events}
+
+
+func refresh_calendar_event_statuses() -> void:
+	state["calendar"] = normalize_calendar_data(state.get("calendar", {}),
+		int(state["week"]), int(state["day"]))
+
+
+func sorted_calendar_events() -> Array:
+	var events: Array = state["calendar"]["events"].duplicate(true)
+	events.sort_custom(func(a, b):
+		var a_date := absolute_day(int(a["scheduled_week"]), int(a["scheduled_day"]))
+		var b_date := absolute_day(int(b["scheduled_week"]), int(b["scheduled_day"]))
+		return a_date < b_date or (a_date == b_date and str(a["event_id"]) < str(b["event_id"])))
+	return events
+
+
+func next_calendar_event() -> Dictionary:
+	refresh_calendar_event_statuses()
+	for event in sorted_calendar_events():
+		if event["status"] in CALENDAR_ACTIVE_STATUSES:
+			return event
+	return {}
+
+
+func upcoming_calendar_events(limit: int) -> Array:
+	refresh_calendar_event_statuses()
+	var out := []
+	for event in sorted_calendar_events():
+		if event["status"] in CALENDAR_ACTIVE_STATUSES:
+			out.append(event)
+			if out.size() >= limit:
+				break
+	return out
+
+
+func calendar_events_for_week(week: int) -> Array:
+	refresh_calendar_event_statuses()
+	return sorted_calendar_events().filter(func(event): return int(event["scheduled_week"]) == week)
+
+
+func advance_days(days, reason: String) -> bool:
+	## The only authoritative clock mutation. Events are available for their
+	## scheduled day and become missed, without a penalty, once that day passes.
+	if typeof(days) != TYPE_INT or int(days) < 0 or reason.strip_edges() == "":
+		return false
+	if int(days) == 0:
+		return true
+	var target := calendar_date_after(int(state["week"]), int(state["day"]), int(days))
+	state["week"] = target["week"]
+	state["day"] = target["day"]
+	refresh_calendar_event_statuses()
+	# A cached legacy race night cannot survive an intentional date change.
+	state["night"] = {}
+	track_info = {}
+	practice = {}
+	save_game()
+	return true
+
+
+## Dormant prototype race scheduling. It remains available to existing
+## regression tooling but no longer supplies HOME or CALENDAR content.
+func legacy_race_events_for_week(week: int) -> Array:
 	return [
 		{"day": 4, "type": "rival", "title": "Zed (280Z) on his home road"},
 		{"day": 5, "type": "open", "title": "Open road (%s), street racer" % OPEN_STYLES[(week - 1) % 3]},
@@ -243,41 +381,20 @@ func when(week: int, day: int) -> String:
 	return "%s, WEEK %d" % [DAY_NAMES[day], week]
 
 
-## The next event at or after today: {"week", "day", "type", "title"}
-func next_event() -> Dictionary:
+func next_legacy_race_event() -> Dictionary:
 	var week := int(state["week"])
 	for w in range(week, week + 52):
-		for e in events_for_week(w):
+		for e in legacy_race_events_for_week(w):
 			if w > week or int(e["day"]) >= int(state["day"]):
 				var ev: Dictionary = e.duplicate()
 				ev["week"] = w
 				return ev
 	return {}
 
-
-func upcoming_events(n: int) -> Array:
-	var out := []
-	var week := int(state["week"])
-	for w in range(week, week + 52):
-		for e in events_for_week(w):
-			if w > week or int(e["day"]) >= int(state["day"]):
-				var ev: Dictionary = e.duplicate()
-				ev["week"] = w
-				out.append(ev)
-				if out.size() >= n:
-					return out
-	return out
-
-
-## Move time to the day after an event.
-func advance_past(event: Dictionary) -> void:
-	var day := int(event["day"]) + 1
-	var week := int(event["week"])
-	if day > 6:
-		day = 0
-		week += 1
-	state["week"] = week
-	state["day"] = day
+func advance_past_legacy_race(event: Dictionary) -> bool:
+	var current := absolute_day(int(state["week"]), int(state["day"]))
+	var after_event := absolute_day(int(event["week"]), int(event["day"])) + 1
+	return advance_days(maxi(0, after_event - current), "legacy race resolved")
 
 
 func event_key(event: Dictionary) -> String:
@@ -399,7 +516,7 @@ func show_intro() -> void:
 
 
 func show_warehouse() -> void:
-	var ev := next_event()
+	var ev := next_calendar_event()
 	var info := common_info()
 	info["civic"] = state["civic"].duplicate(true)
 	var installed_uids: Array = state["civic"]["installed"].values()
@@ -410,7 +527,8 @@ func show_warehouse() -> void:
 	info["owned_spares"] = owned_spares
 	info["today"] = when(state["week"], state["day"])
 	info["tape_date"] = "%s / WEEK %02d" % [DAY_NAMES[int(state["day"])], int(state["week"])]
-	info["next_calendar"] = "%s / %s" % [when(ev["week"], ev["day"]), ev["title"]]
+	info["next_calendar"] = "NO SCHEDULED ITEMS" if ev.is_empty() else "%s / %s" % [
+		when(int(ev["scheduled_week"]), int(ev["scheduled_day"])), ev["title"]]
 	info["test_count"] = state["test_log"]["runs"].size()
 	open_hub(WarehouseScene, "home").setup(info)
 
@@ -662,25 +780,37 @@ func show_calendar() -> void:
 	var week := int(state["week"])
 	info["week"] = week
 	info["day"] = int(state["day"])
+	info["today"] = when(week, int(state["day"]))
 	var week_events := {}
-	for e in events_for_week(week):
-		week_events[int(e["day"])] = "RIVAL" if e["type"] == "rival" else "OPEN"
+	for event in calendar_events_for_week(week):
+		var event_day := int(event["scheduled_day"])
+		var labels: Array = week_events.get(event_day, [])
+		labels.append(str(event["type"]).to_upper())
+		week_events[event_day] = labels
 	info["week_events"] = week_events
-	var upcoming := []
-	for e in upcoming_events(5):
-		upcoming.append([when(e["week"], e["day"]), e["title"]])
-	info["upcoming"] = upcoming
-	var past := []
+	info["upcoming"] = upcoming_calendar_events(8)
+	var past_events := []
+	for event in sorted_calendar_events():
+		if event["status"] not in CALENDAR_ACTIVE_STATUSES:
+			past_events.append(event)
+	info["past_events"] = past_events
+	var legacy_history := []
 	var hist: Array = state["history"]
 	for i in range(hist.size() - 1, maxi(hist.size() - 6, -1), -1):
 		var r: Dictionary = hist[i]
+		if not r.has("rival"):
+			continue
 		if r.get("skipped", false):
-			past.append([r.get("when", "-"), "vs %s" % r["rival"], "SKIPPED  %d rep" % int(r["rep_change"])])
+			legacy_history.append([r.get("when", "-"), "vs %s" % r["rival"], "SKIPPED"])
 		else:
-			past.append([r.get("when", "-"), "vs %s" % r["rival"],
+			legacy_history.append([r.get("when", "-"), "vs %s" % r["rival"],
 				"%s  %+d" % ["W" if r["won"] else "L", int(r["cash_change"])]])
-	info["past"] = past
-	open_hub(CalendarScene, "calendar").setup(info)
+	info["legacy_history"] = legacy_history
+	var calendar: Control = open_hub(CalendarScene, "calendar")
+	calendar.advance_day.connect(func():
+		if advance_days(1, "calendar development control"):
+			show_calendar())
+	calendar.setup(info)
 
 
 func wins_losses() -> Vector2i:
@@ -701,7 +831,7 @@ func show_briefing() -> void:
 		show_message("RACE NIGHT", "The current wager needs %s. Your Civic and garage remain available." % UI.money(MIN_BUY_IN),
 			"BACK TO HOME", show_warehouse)
 		return
-	var ev := next_event()
+	var ev := next_legacy_race_event()
 	# A saved night belongs to one calendar event; a stale one gets redrawn
 	if not state["night"].is_empty() and state["night"].get("event") != event_key(ev):
 		state["night"] = {}
@@ -791,12 +921,11 @@ func skip_night() -> void:
 		return
 	state["rep"] = int(state["rep"]) - SKIP_REP_COST
 	state["followers"] = int(state["rep"])
-	var ev := next_event()
+	var ev := next_legacy_race_event()
 	state["history"].append({"when": when(ev["week"], ev["day"]), "rival": state["night"].get("name", "Zed"),
 		"won": false, "skipped": true, "cash_change": 0, "rep_change": -SKIP_REP_COST})
-	advance_past(ev)
 	state["night"] = {}
-	save_game()
+	advance_past_legacy_race(ev)
 	show_warehouse()
 
 
@@ -822,7 +951,7 @@ func practice_beat(push: String, posted: float) -> Vector2i:
 func apply_result(r: Dictionary) -> Dictionary:
 	## Settle the bet, move the calendar, and save immediately (before the replay).
 	var night: Dictionary = state["night"]
-	var ev := next_event()
+	var ev := next_legacy_race_event()
 	var won: bool = float(r["lap_time"]) < float(night["posted_time"])
 	var wager := int(choice["wager"])
 	var beat := practice_beat(r["push"], float(night["posted_time"]))
@@ -839,8 +968,7 @@ func apply_result(r: Dictionary) -> Dictionary:
 	state["followers"] = int(state["rep"])
 	state["history"].append(result)
 	state["night"] = {}
-	advance_past(ev)
-	save_game()
+	advance_past_legacy_race(ev)
 	return result
 
 
@@ -1136,7 +1264,7 @@ func _on_reply(tag: String, data: Dictionary) -> void:
 			accept_shop_catalog(data)
 			_go(after_catalog)
 		"night":
-			data["event"] = event_key(next_event())
+			data["event"] = event_key(next_legacy_race_event())
 			state["night"] = data
 			save_game()
 			track_info = {}            # a new night can be a new road:
@@ -1192,8 +1320,8 @@ func test_log_test() -> void:
 		"next_uid": 8, "market": {"seeded": true, "used_listings": [{"listing_id": "KEEP"}]},
 	}
 	var migrated := migrate(legacy_v7.duplicate(true))
-	if int(migrated["version"]) != 8 or migrated["test_log"] != {"next_id": 1, "runs": []}:
-		test_log_fail("v7 migration did not create one empty v8 test_log")
+	if int(migrated["version"]) != SAVE_VERSION or migrated["test_log"] != {"next_id": 1, "runs": []}:
+		test_log_fail("v7 migration did not preserve the empty test_log")
 		return
 	for key in ["cash", "followers", "rep", "week", "day", "history", "night", "civic", "inventory", "next_uid", "market"]:
 		if migrated[key] != legacy_v7[key]:
@@ -1293,6 +1421,116 @@ func test_log_test() -> void:
 	get_tree().quit()
 
 
+func calendar_test_fail(message: String) -> void:
+	var full := "CALENDARTEST FAIL %s" % message
+	push_error(full)
+	print(full)
+	get_tree().quit(1)
+
+
+func calendar_test() -> void:
+	## Headless save-v9 and day-level calendar regression:
+	##   godot --headless --path godot -- --calendartest
+	var historical_test := {
+		"run_id": "TEST_000044", "road_id": "LOCAL_STRAIGHT",
+		"calendar": {"week": 2, "day": 6, "label": "SUN, WEEK 2"},
+		"replay": "user://replays/tests/TEST_000044.json",
+	}
+	var legacy_v8 := {
+		"version": 8, "cash": 1875, "followers": 19, "rep": 19,
+		"week": 2, "day": 6, "history": [{"legacy": true}], "night": {"saved": true},
+		"civic": {"chassis_id": "CHASSIS_0001", "base_car_id": "eg6_sir_ii_1995",
+			"installed": {"rear_sway": "p9"}},
+		"inventory": [{"uid": "p9", "part": "rsb_19", "source": "used"}],
+		"next_uid": 10,
+		"market": {"seeded": true, "used_listings": [{"listing_id": "USED_KEEP"}]},
+		"test_log": {"next_id": 45, "runs": [historical_test.duplicate(true)]},
+	}
+	var migrated := migrate(legacy_v8.duplicate(true))
+	if int(migrated["version"]) != 9 or migrated["calendar"].has("week") or migrated["calendar"].has("day"):
+		calendar_test_fail("v8 migration did not create a calendar with top-level time authority")
+		return
+	for key in ["cash", "followers", "rep", "week", "day", "history", "night", "civic",
+		"inventory", "next_uid", "market", "test_log"]:
+		if migrated[key] != legacy_v8[key]:
+			calendar_test_fail("v8 migration changed %s" % key)
+			return
+	var events: Array = migrated["calendar"]["events"]
+	if events.size() != 2 or events.map(func(event): return event["event_id"]) != ["EVENT_000001", "EVENT_000002"]:
+		calendar_test_fail("fixture event IDs are missing or unstable")
+		return
+	var migrated_again := migrate(migrated.duplicate(true))
+	if migrated_again["calendar"]["events"].size() != 2:
+		calendar_test_fail("reload migration duplicated calendar events")
+		return
+
+	state = migrated
+	var protected := {
+		"cash": state["cash"], "followers": state["followers"], "rep": state["rep"],
+		"history": state["history"].duplicate(true), "inventory": state["inventory"].duplicate(true),
+		"market": state["market"].duplicate(true), "civic": state["civic"].duplicate(true),
+		"test_log": state["test_log"].duplicate(true),
+	}
+	var starting_date := [state["week"], state["day"]]
+	if advance_days(-1, "invalid negative") or advance_days(1.5, "invalid fractional") or advance_days(1, ""):
+		calendar_test_fail("invalid day advancement was accepted")
+		return
+	if [state["week"], state["day"]] != starting_date:
+		calendar_test_fail("invalid advancement changed the canonical date")
+		return
+	show_warehouse()
+	show_calendar()
+	show_test_log()
+	if [state["week"], state["day"]] != starting_date:
+		calendar_test_fail("HOME, CALENDAR, or TEST LOG browsing advanced time")
+		return
+
+	if events[0]["status"] != "upcoming" or events[1]["status"] != "upcoming":
+		calendar_test_fail("new event status is not upcoming")
+		return
+	if not advance_days(1, "calendar regression rollover"):
+		calendar_test_fail("valid advancement was rejected")
+		return
+	if int(state["week"]) != 3 or int(state["day"]) != 0 or state["calendar"]["events"][0]["status"] != "available":
+		calendar_test_fail("Sunday-to-Monday rollover or available status failed")
+		return
+	advance_days(1, "calendar regression pass first event")
+	if state["calendar"]["events"][0]["status"] != "missed" or state["calendar"]["events"][1]["status"] != "upcoming":
+		calendar_test_fail("passed event did not become missed deterministically")
+		return
+	advance_days(1, "calendar regression reach second event")
+	if state["calendar"]["events"][1]["status"] != "available":
+		calendar_test_fail("second event did not become available on its date")
+		return
+	advance_days(1, "calendar regression pass second event")
+	if state["calendar"]["events"][1]["status"] != "missed":
+		calendar_test_fail("second event did not become missed after its date")
+		return
+	for key in protected:
+		if state[key] != protected[key]:
+			calendar_test_fail("day advancement changed protected state %s" % key)
+			return
+	if state.has("xp") or state.has("loot"):
+		calendar_test_fail("calendar introduced progression or loot state")
+		return
+	var expected_calendar := normalize_calendar_data(
+		JSON.parse_string(JSON.stringify(state["calendar"])), int(state["week"]), int(state["day"]))
+	save_game()
+	load_game()
+	if state["calendar"] != expected_calendar or int(state["week"]) != 3 or int(state["day"]) != 3:
+		calendar_test_fail("calendar IDs, statuses, or date changed across reload")
+		return
+	var loaded_test: Dictionary = state["test_log"]["runs"][0]
+	var loaded_stamp: Dictionary = loaded_test["calendar"]
+	if int(loaded_stamp["week"]) != 2 or int(loaded_stamp["day"]) != 6 or loaded_stamp["label"] != "SUN, WEEK 2" or loaded_test["replay"] != historical_test["replay"]:
+		calendar_test_fail("historical TEST LOG timestamp or replay reference changed")
+		return
+	print("CALENDARTEST events: EVENT_000001, EVENT_000002; upcoming -> available -> missed")
+	print("CALENDARTEST rollover: SUN WEEK 02 -> MON WEEK 03")
+	print("CALENDARTEST OK")
+	get_tree().quit()
+
+
 func game_test() -> void:
 	## Headless end-to-end check: one full race night, printed. Run with
 	##   godot --headless --path godot -- --gametest
@@ -1319,7 +1557,7 @@ func game_test() -> void:
 		get_tree().quit(1)
 		return
 	print("GAMETEST migrate v5: followers %d, rep %d" % [v5["followers"], v5["rep"]])
-	var ev := next_event()
+	var ev := next_legacy_race_event()
 	print("GAMETEST next event: %s, %s" % [when(ev["week"], ev["day"]), ev["title"]])
 	bridge.request("car_stats", ["car_stats"])
 	var r: Array = await bridge.replied
@@ -1388,6 +1626,7 @@ func game_test() -> void:
 	state["cash"] = START_CASH
 	state["rep"] = 0
 	shop_message = ""
+	var market_date := [state["week"], state["day"]]
 	buy_retail("rsb_19")
 	if state["cash"] != START_CASH - 320 or state["inventory"].size() != 1 or not state["civic"]["installed"].is_empty():
 		push_error("GAMETEST FAIL retail cash, instance, or spare state")
@@ -1419,6 +1658,10 @@ func game_test() -> void:
 	install_part("rear_sway", retail_uid, false)
 	if state["civic"]["installed"].get("rear_sway", "") != retail_uid or parts_args() != ["--parts", "rsb_19"]:
 		push_error("GAMETEST FAIL owned UID to installed definition")
+		get_tree().quit(1)
+		return
+	if [state["week"], state["day"]] != market_date:
+		push_error("GAMETEST FAIL buying or installing advanced calendar time")
 		get_tree().quit(1)
 		return
 	var before_test := {
@@ -1494,6 +1737,7 @@ func game_test() -> void:
 		return
 	car_stats = retail_stats
 	show_warehouse()
+	var browse_date := [state["week"], state["day"]]
 	var home_civic: Dictionary = hub_content.current_civic_state()
 	if not shell.is_home_mode() or shell.navigation_labels() != ["CAR", "CALENDAR", "HOME", "TEAM", "SHOP"] or not hub_content.has_node("%LocalStraightButton") or not hub_content.has_node("%LocalCurvesButton") or not hub_content.has_node("%TestLogButton") or home_civic != state["civic"] or hub_content.current_vehicle_visual_state() != state["civic"]:
 		push_error("GAMETEST FAIL HOME Civic state or navigation")
@@ -1522,6 +1766,12 @@ func game_test() -> void:
 	_go("calendar")
 	if shell == null or shell.is_home_mode():
 		push_error("GAMETEST FAIL CALENDAR inherited HOME overlay mode")
+		get_tree().quit(1)
+		return
+	show_test_log()
+	show_warehouse()
+	if [state["week"], state["day"]] != browse_date:
+		push_error("GAMETEST FAIL HOME, CAR, SHOP, CALENDAR, or TEST LOG browsing advanced time")
 		get_tree().quit(1)
 		return
 	_go("team")
