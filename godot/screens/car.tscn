@@ -62,6 +62,13 @@ layout_mode = 2
 theme_type_variation = &"HeadingLabel"
 text = "PARTS"
 
+[node name="WorkMessage" type="Label" parent="Scroll/Column/PartsPanel/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+text = "INSTALL OR REMOVE / WHOLE-DAY GARAGE WORK"
+autowrap_mode = 3
+
 [node name="PartsList" type="VBoxContainer" parent="Scroll/Column/PartsPanel/Box"]
 unique_name_in_owner = true
 layout_mode = 2

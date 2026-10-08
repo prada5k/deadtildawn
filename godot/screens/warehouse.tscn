@@ -200,6 +200,13 @@ theme_type_variation = &"MutedLabel"
 text = "NEXT CALENDAR / FRI, WEEK 1"
 autowrap_mode = 3
 
+[node name="GarageWork" type="Label" parent="Column/HomeInformation/InformationColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+text = "GARAGE WORK / NO ACTIVE JOBS"
+autowrap_mode = 3
+
 [node name="TestLabel" type="Label" parent="Column/HomeInformation/InformationColumn"]
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"

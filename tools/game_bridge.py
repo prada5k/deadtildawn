@@ -370,7 +370,13 @@ def shop_catalog():
         raise ValueError("duplicate used listing IDs")
     if any(listing["part"] not in eligible or listing["price"] <= 0 for listing in used):
         raise ValueError("used listing has incompatible part or invalid price")
+    work_days = market["work_days_by_slot"]
+    if any(p["slot"] not in work_days or any(
+        type(work_days[p["slot"]].get(op)) is not int or work_days[p["slot"]][op] < 1
+        for op in ("install", "remove")) for p in eligible.values()):
+        raise ValueError("every EG6-compatible slot needs positive whole-day work durations")
     reply(slots=slots, retail_ids=retail, initial_used=used,
+          work_days_by_slot=work_days, work_notes=market["work_notes"],
           parts=[{**{k: v for k, v in p.items() if k != "rarity"},
                   "effects_text": part_effects(car, p)} for p in eligible.values()])
 

@@ -28,6 +28,17 @@ func setup(info: Dictionary) -> void:
 	%SpareState.text = "%d OWNED SPARE %s" % [spares, "PART" if spares == 1 else "PARTS"]
 	%Today.text = str(info.get("today", ""))
 	%NextCalendar.text = "NEXT CALENDAR / %s" % str(info.get("next_calendar", ""))
+	var active: Array = civic.get("work_in_progress", [])
+	if active.is_empty():
+		%GarageWork.text = "GARAGE WORK / NO ACTIVE JOBS"
+	else:
+		var lines := []
+		for order in active:
+			lines.append("%s %s (%s) / DUE %s, WEEK %d" % [
+				str(order["operation"]).to_upper(), str(order["definition_id"]), str(order["work_id"]),
+				["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"][int(order["due_day"])],
+				int(order["due_week"])])
+		%GarageWork.text = "GARAGE WORK / " + "\n".join(lines)
 	%TapeDate.text = str(info.get("tape_date", ""))
 	%CashOnHand.text = home_money(int(info.get("cash", 0)))
 	%Followers.text = str(int(info.get("followers", 0)))

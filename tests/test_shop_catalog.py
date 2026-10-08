@@ -42,3 +42,12 @@ def test_acquisition_source_does_not_change_eg6_physical_effect():
     used_car = apply_parts(car, [definitions[used["part"]]])
     assert retail_car == used_car
     assert retail_car.roll_front == 0.48 != car.roll_front
+
+
+def test_garage_work_durations_cover_compatible_slots():
+    reply = shop_reply()
+    durations = reply["work_days_by_slot"]
+    assert {part["slot"] for part in reply["parts"]} <= durations.keys()
+    assert all(type(value) is int and value >= 1
+               for slot in durations.values() for value in slot.values())
+    assert "provisional" in reply["work_notes"].lower()

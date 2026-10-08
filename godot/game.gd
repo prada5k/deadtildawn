@@ -32,7 +32,7 @@ const LOCATIONS := {
 }
 
 const SAVE_PATH := "user://save.json"
-const SAVE_VERSION := 9
+const SAVE_VERSION := 10
 const START_CASH := 2500
 const MIN_BUY_IN := 100
 const WAGER_STEP := 10
@@ -52,6 +52,7 @@ var track_info := {}
 var practice := {}
 var catalog := {}          # bridge "parts" reply (slots + parts with exact effects)
 var shop_message := ""
+var car_message := ""
 var bridge: Node
 var screen: Control        # current UI screen (the shell while in the hub)
 var shell: Control         # persistent hub shell (top rail, ribbon, bottom nav)
@@ -82,6 +83,9 @@ func _ready() -> void:
 	if "--calendartest" in args:
 		calendar_test()
 		return
+	if "--worktest" in args:
+		work_test()
+		return
 	for a in args:
 		if a.begins_with("--gameshots="):
 			game_shots(a.trim_prefix("--gameshots="))
@@ -101,6 +105,7 @@ func new_state() -> Dictionary:
 		"inventory": [], "next_uid": 1,
 		"market": {"seeded": false, "used_listings": []},
 		"calendar": initial_calendar(1, 0),
+		"garage_work": {"next_work_id": 1, "orders": []},
 		"test_log": {"next_id": 1, "runs": []}}
 
 
@@ -220,6 +225,17 @@ func migrate(data: Dictionary) -> Dictionary:
 		v = 9
 	data["calendar"] = normalize_calendar_data(data.get("calendar", {}),
 		int(data["week"]), int(data["day"]))
+	if v < 10:                       # v9 -> v10: pending physical garage work
+		data["garage_work"] = {"next_work_id": 1, "orders": []}
+		v = 10
+	var work: Dictionary = data.get("garage_work", {})
+	var orders: Array = work.get("orders", [])
+	var next_work_id := maxi(1, int(work.get("next_work_id", 1)))
+	for order in orders:
+		var work_id := str(order.get("work_id", ""))
+		if work_id.begins_with("WORK_") and work_id.trim_prefix("WORK_").is_valid_int():
+			next_work_id = maxi(next_work_id, int(work_id.trim_prefix("WORK_")) + 1)
+	data["garage_work"] = {"next_work_id": next_work_id, "orders": orders}
 	data["civic"] = civic
 	data["version"] = v
 	return data
@@ -360,6 +376,7 @@ func advance_days(days, reason: String) -> bool:
 	state["week"] = target["week"]
 	state["day"] = target["day"]
 	refresh_calendar_event_statuses()
+	complete_due_work()
 	# A cached legacy race night cannot survive an intentional date change.
 	state["night"] = {}
 	track_info = {}
@@ -519,6 +536,7 @@ func show_warehouse() -> void:
 	var ev := next_calendar_event()
 	var info := common_info()
 	info["civic"] = state["civic"].duplicate(true)
+	info["civic"]["work_in_progress"] = active_work_orders()
 	var installed_uids: Array = state["civic"]["installed"].values()
 	var owned_spares := 0
 	for owned in state["inventory"]:
@@ -556,7 +574,8 @@ func show_car() -> void:
 	var car: Control = open_hub(CarScene, "car")
 	car.part_changed.connect(install_part)
 	car.setup(common_info(), car_stats,
-		{"slots": catalog["slots"], "options": options, "installed": state["civic"]["installed"]})
+		{"slots": catalog["slots"], "options": options, "installed": state["civic"]["installed"],
+		"active_work": active_work_orders(), "message": car_message})
 
 
 func show_shop() -> void:
@@ -756,21 +775,83 @@ func buy_used(listing_id: String) -> void:
 		return
 
 
-## Swap what's in a slot ("" = back to stock). The car changed, so its stats
-## and practice runs are stale.
-func install_part(slot: String, uid: String, refresh := true) -> void:
-	if uid == "":
-		state["civic"]["installed"].erase(slot)
-	else:
-		var inst := instance(uid)
-		if inst.is_empty() or part_by_id(inst["part"]).get("slot", "") != slot:
-			return
-		if uid in state["civic"]["installed"].values() and state["civic"]["installed"].get(slot, "") != uid:
-			return
-		state["civic"]["installed"][slot] = uid
-	car_stats = {}
-	practice = {}
+## Whole-day, provisional garage reservations are supplied by the active
+## market data. There is no sub-day clock or daily action cap.
+func active_work_orders() -> Array:
+	return state["garage_work"]["orders"].filter(func(order): return order["status"] == "active")
+
+
+func queue_part_work(slot: String, uid: String) -> bool:
+	if catalog.is_empty() or not catalog["slots"].has(slot):
+		return false
+	var installed: Dictionary = state["civic"]["installed"]
+	var operation := "remove" if uid == "" else "install"
+	var owned_uid := str(installed.get(slot, "")) if operation == "remove" else uid
+	if owned_uid == "":
+		return false
+	var owned := instance(owned_uid)
+	var part := {} if owned.is_empty() else part_by_id(str(owned["part"]))
+	if part.is_empty() or part.get("slot", "") != slot:
+		return false
+	if operation == "install" and (installed.has(slot) or owned_uid in installed.values()):
+		return false
+	for pending in active_work_orders():
+		if pending["slot"] == slot or pending["owned_uid"] == owned_uid:
+			return false
+	var duration := int(catalog.get("work_days_by_slot", {}).get(slot, {}).get(operation, 0))
+	if duration < 1:
+		return false
+	var due := calendar_date_after(int(state["week"]), int(state["day"]), duration)
+	var work: Dictionary = state["garage_work"]
+	var order := {"work_id": "WORK_%06d" % int(work["next_work_id"]),
+		"chassis_id": str(state["civic"]["chassis_id"]), "operation": operation,
+		"slot": slot, "owned_uid": owned_uid, "definition_id": str(owned["part"]),
+		"start_week": int(state["week"]), "start_day": int(state["day"]),
+		"duration_days": duration, "due_week": int(due["week"]), "due_day": int(due["day"]),
+		"status": "active"}
+	work["next_work_id"] = int(work["next_work_id"]) + 1
+	work["orders"].append(order)
 	save_game()
+	return true
+
+
+func complete_due_work() -> void:
+	var today := absolute_day(int(state["week"]), int(state["day"]))
+	for order in state["garage_work"]["orders"]:
+		if order["status"] != "active" or absolute_day(int(order["due_week"]), int(order["due_day"])) > today:
+			continue
+		var slot := str(order["slot"])
+		var uid := str(order["owned_uid"])
+		var owned := instance(uid)
+		var installed: Dictionary = state["civic"]["installed"]
+		var valid := str(order["chassis_id"]) == str(state["civic"]["chassis_id"])
+		valid = valid and not owned.is_empty() and str(owned.get("part", "")) == str(order["definition_id"])
+		if order["operation"] == "install":
+			valid = valid and not installed.has(slot) and uid not in installed.values()
+			if valid:
+				installed[slot] = uid
+		elif order["operation"] == "remove":
+			valid = valid and str(installed.get(slot, "")) == uid
+			if valid:
+				installed.erase(slot)
+		else:
+			valid = false
+		order["status"] = "completed" if valid else "cancelled"
+		order["finished_week"] = int(order["due_week"])
+		order["finished_day"] = int(order["due_day"])
+		if valid:
+			car_stats = {}
+			practice = {}
+
+
+## CAR requests a job; only complete_due_work mutates civic.installed.
+func install_part(slot: String, uid: String, refresh := true) -> void:
+	if queue_part_work(slot, uid):
+		var order: Dictionary = state["garage_work"]["orders"].back()
+		car_message = "%s QUEUED / %s / DUE %s" % [str(order["operation"]).to_upper(),
+			str(order["work_id"]), when(int(order["due_week"]), int(order["due_day"]))]
+	else:
+		car_message = "WORK NOT QUEUED / REMOVE AN INSTALLED PART FIRST OR FINISH ACTIVE WORK."
 	if refresh:
 		show_car()
 
@@ -1428,6 +1509,126 @@ func calendar_test_fail(message: String) -> void:
 	get_tree().quit(1)
 
 
+func work_test_fail(message: String) -> void:
+	var full := "WORKTEST FAIL %s" % message
+	push_error(full)
+	print(full)
+	get_tree().quit(1)
+
+
+func work_test() -> void:
+	## Headless save-v10 and physical installation regression.
+	var v9 := {"version": 9, "week": 2, "day": 6, "cash": 1912,
+		"followers": 12, "rep": 12, "history": [{"old": true}], "night": {},
+		"civic": {"chassis_id": "CHASSIS_0001", "base_car_id": "eg6_sir_ii_1995", "installed": {}},
+		"inventory": [{"uid": "p7", "part": "rsb_19", "source": "retail"}], "next_uid": 8,
+		"market": {"seeded": true, "used_listings": [{"listing_id": "USED_KEEP", "part": "rsb_19", "seller_name": "Local", "note": "Used bar", "price": 200}]},
+		"calendar": initial_calendar(2, 6),
+		"test_log": {"next_id": 2, "runs": [{"run_id": "TEST_000001", "calendar": {"week": 1, "day": 0}, "replay": "keep.json"}]}}
+	state = migrate(v9.duplicate(true))
+	if state["version"] != 10 or state["garage_work"] != {"next_work_id": 1, "orders": []}:
+		work_test_fail("v9 migration did not create empty garage work")
+		return
+	for key in v9:
+		if key != "version" and state[key] != v9[key]:
+			work_test_fail("v9 migration changed %s" % key)
+			return
+	var protected := {"cash": state["cash"], "followers": state["followers"],
+		"rep": state["rep"], "history": state["history"].duplicate(true),
+		"inventory": state["inventory"].duplicate(true), "market": state["market"].duplicate(true),
+		"test_log": state["test_log"].duplicate(true)}
+	protected = JSON.parse_string(JSON.stringify(protected))
+	bridge.request("work_catalog", ["shop_catalog"])
+	var response: Array = await bridge.replied
+	if not game_test_reply_ok(response):
+		return
+	accept_shop_catalog(response[1])
+	bridge.request("work_car_stats", ["car_stats"])
+	response = await bridge.replied
+	if not game_test_reply_ok(response):
+		return
+	car_stats = response[1]
+	var start_date := [state["week"], state["day"]]
+	show_warehouse()
+	show_car()
+	show_shop()
+	show_test_log()
+	if [state["week"], state["day"]] != start_date:
+		work_test_fail("browsing advanced time")
+		return
+	if not queue_part_work("rear_sway", "p7") or queue_part_work("rear_sway", "p7") or queue_part_work("shifter", "p7"):
+		work_test_fail("install or conflicting work validation")
+		return
+	var first: Dictionary = state["garage_work"]["orders"][0]
+	if first["work_id"] != "WORK_000001" or first["due_week"] != 3 or first["due_day"] != 0 or not state["civic"]["installed"].is_empty() or parts_args() != []:
+		work_test_fail("install changed physical state before completion or wrong rollover")
+		return
+	show_warehouse()
+	if hub_content.current_civic_state().get("work_in_progress", []).size() != 1:
+		work_test_fail("HOME did not receive active work state")
+		return
+	save_game()
+	load_game()
+	if active_work_orders().size() != 1 or state["garage_work"]["orders"][0]["work_id"] != "WORK_000001":
+		work_test_fail("mid-job reload lost or duplicated work")
+		return
+	first = state["garage_work"]["orders"][0]
+	advance_days(3, "work regression multi-day")
+	if state["week"] != 3 or state["day"] != 2 or state["civic"]["installed"] != {"rear_sway": "p7"} or parts_args() != ["--parts", "rsb_19"]:
+		work_test_fail("multi-day completion did not install the owned UID")
+		return
+	if first["status"] != "completed" or first["finished_week"] != 3 or first["finished_day"] != 0:
+		work_test_fail("completion status/date is wrong")
+		return
+	bridge.request("work_stock_stats", ["car_stats"])
+	response = await bridge.replied
+	if not game_test_reply_ok(response):
+		return
+	var stock_roll := float(response[1]["skidpad_g"])
+	bridge.request("work_installed_stats", ["car_stats"] + parts_args())
+	response = await bridge.replied
+	if not game_test_reply_ok(response):
+		return
+	if float(response[1]["skidpad_g"]) <= stock_roll:
+		work_test_fail("installed UID did not reach EG6 physics")
+		return
+	if not queue_part_work("rear_sway", "") or queue_part_work("rear_sway", ""):
+		work_test_fail("remove or conflicting remove validation")
+		return
+	if state["civic"]["installed"] != {"rear_sway": "p7"}:
+		work_test_fail("removal happened before completion")
+		return
+	advance_days(1, "work regression remove")
+	advance_days(2, "work regression no duplicate completion")
+	if not state["civic"]["installed"].is_empty() or parts_args() != [] or state["inventory"] != protected["inventory"] or active_work_orders().size() != 0:
+		work_test_fail("removal lost ownership or completion repeated")
+		return
+	if state["garage_work"]["orders"].size() != 2 or state["garage_work"]["next_work_id"] != 3:
+		work_test_fail("work IDs or order history changed")
+		return
+	for key in protected:
+		if JSON.parse_string(JSON.stringify(state[key])) != protected[key]:
+			work_test_fail("work changed protected state %s" % key)
+			return
+	save_game()
+	load_game()
+	if state["garage_work"]["orders"].size() != 2 or state["garage_work"]["orders"][0]["status"] != "completed" or state["garage_work"]["orders"][1]["status"] != "completed":
+		work_test_fail("completed orders changed on reload")
+		return
+	state["inventory"].append({"uid": "p8", "part": "shifter_short", "source": "test"})
+	if not queue_part_work("rear_sway", "p7") or not queue_part_work("shifter", "p8") or active_work_orders().size() != 2:
+		work_test_fail("non-conflicting same-day jobs were not allowed")
+		return
+	advance_days(1, "work regression concurrent jobs")
+	if state["civic"]["installed"] != {"rear_sway": "p7", "shifter": "p8"} or active_work_orders().size() != 0:
+		work_test_fail("same-day jobs did not both complete")
+		return
+	print("WORKTEST v9 -> v10; WORK_000001 install, WORK_000002 remove; UID p7 preserved")
+	print("WORKTEST before/after EG6 physics; multi-day rollover; parallel jobs; no duplicate completion")
+	print("WORKTEST OK")
+	get_tree().quit()
+
+
 func calendar_test() -> void:
 	## Headless save-v9 and day-level calendar regression:
 	##   godot --headless --path godot -- --calendartest
@@ -1447,7 +1648,7 @@ func calendar_test() -> void:
 		"test_log": {"next_id": 45, "runs": [historical_test.duplicate(true)]},
 	}
 	var migrated := migrate(legacy_v8.duplicate(true))
-	if int(migrated["version"]) != 9 or migrated["calendar"].has("week") or migrated["calendar"].has("day"):
+	if int(migrated["version"]) != SAVE_VERSION or migrated["calendar"].has("week") or migrated["calendar"].has("day"):
 		calendar_test_fail("v8 migration did not create a calendar with top-level time authority")
 		return
 	for key in ["cash", "followers", "rep", "week", "day", "history", "night", "civic",
@@ -1656,12 +1857,17 @@ func game_test() -> void:
 		get_tree().quit(1)
 		return
 	install_part("rear_sway", retail_uid, false)
-	if state["civic"]["installed"].get("rear_sway", "") != retail_uid or parts_args() != ["--parts", "rsb_19"]:
-		push_error("GAMETEST FAIL owned UID to installed definition")
+	if not state["civic"]["installed"].is_empty() or parts_args() != [] or active_work_orders().size() != 1:
+		push_error("GAMETEST FAIL installation did not remain pending")
 		get_tree().quit(1)
 		return
 	if [state["week"], state["day"]] != market_date:
-		push_error("GAMETEST FAIL buying or installing advanced calendar time")
+		push_error("GAMETEST FAIL buying or queueing work advanced calendar time")
+		get_tree().quit(1)
+		return
+	advance_days(1, "gametest complete installation")
+	if state["civic"]["installed"].get("rear_sway", "") != retail_uid or parts_args() != ["--parts", "rsb_19"]:
+		push_error("GAMETEST FAIL owned UID to installed definition at completion")
 		get_tree().quit(1)
 		return
 	var before_test := {
@@ -1739,7 +1945,9 @@ func game_test() -> void:
 	show_warehouse()
 	var browse_date := [state["week"], state["day"]]
 	var home_civic: Dictionary = hub_content.current_civic_state()
-	if not shell.is_home_mode() or shell.navigation_labels() != ["CAR", "CALENDAR", "HOME", "TEAM", "SHOP"] or not hub_content.has_node("%LocalStraightButton") or not hub_content.has_node("%LocalCurvesButton") or not hub_content.has_node("%TestLogButton") or home_civic != state["civic"] or hub_content.current_vehicle_visual_state() != state["civic"]:
+	var expected_home_civic: Dictionary = state["civic"].duplicate(true)
+	expected_home_civic["work_in_progress"] = []
+	if not shell.is_home_mode() or shell.navigation_labels() != ["CAR", "CALENDAR", "HOME", "TEAM", "SHOP"] or not hub_content.has_node("%LocalStraightButton") or not hub_content.has_node("%LocalCurvesButton") or not hub_content.has_node("%TestLogButton") or home_civic != expected_home_civic or hub_content.current_vehicle_visual_state() != expected_home_civic:
 		push_error("GAMETEST FAIL HOME Civic state or navigation")
 		get_tree().quit(1)
 		return
@@ -1782,7 +1990,10 @@ func game_test() -> void:
 	show_warehouse()
 	print("GAMETEST HOME Civic: %s / %s / %s" % [
 		home_civic["chassis_id"], home_civic["base_car_id"], home_civic["installed"]])
+	install_part("rear_sway", "", false)
+	advance_days(1, "gametest remove retail bar")
 	install_part("rear_sway", used_uid, false)
+	advance_days(1, "gametest install used bar")
 	if state["inventory"].size() != 2 or parts_args() != ["--parts", "rsb_19"]:
 		push_error("GAMETEST FAIL replacement duplicated/destroyed an item")
 		get_tree().quit(1)
@@ -1796,11 +2007,13 @@ func game_test() -> void:
 		get_tree().quit(1)
 		return
 	install_part("rear_sway", "", false)
+	advance_days(1, "gametest remove used bar")
 	if state["inventory"].size() != 2 or not state["civic"]["installed"].is_empty():
 		push_error("GAMETEST FAIL uninstall destroyed an owned item")
 		get_tree().quit(1)
 		return
 	install_part("rear_sway", used_uid, false)
+	advance_days(1, "gametest reinstall used bar")
 	print("GAMETEST physical parts: retail %s, used %s, installed %s, cash %d" % [
 		retail_uid, used_uid, state["civic"]["installed"], state["cash"]])
 	var old_save := migrate({"version": 6, "cash": 400, "rep": 0, "week": 2, "day": 1,

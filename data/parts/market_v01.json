@@ -1,5 +1,12 @@
 {
   "notes": "Curated v0.1 EG6 offerings. Retail price is the physical catalog definition price. Used listings are one-off objects seeded once into the save, without rolled quality or condition-based physics.",
+  "work_days_by_slot": {
+    "flywheel": {"install": 2, "remove": 2},
+    "shifter": {"install": 1, "remove": 1},
+    "rear_sway": {"install": 1, "remove": 1},
+    "springs": {"install": 2, "remove": 2}
+  },
+  "work_notes": "Provisional whole-day garage reservations, not factory labor estimates. Completion occurs at the start of the due day; several non-conflicting jobs may start on one day.",
   "retail_ids": ["flywheel_light", "shifter_short", "rsb_19", "springs_lowering", "coilovers_street"],
   "initial_used": [
     {"listing_id": "USED_0001", "part": "shifter_race", "seller_id": "SELLER_0001", "seller_name": "Local seller", "price": 315, "note": "Used shifter and bushings."},

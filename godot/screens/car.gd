@@ -16,6 +16,9 @@ func _ready() -> void:
 ## parts: {"slots": {slot: name}, "options": {slot: [[id, name], ...]}, "installed": {slot: id}}
 func setup(info: Dictionary, stats: Dictionary, parts := {}) -> void:
 	%CarName.text = stats["name"]
+	%WorkMessage.text = str(parts.get("message", ""))
+	if %WorkMessage.text == "":
+		%WorkMessage.text = "SELECT A PART OR STOCK TO QUEUE GARAGE WORK. ADVANCE THE CALENDAR TO FINISH IT."
 	var dyno = %Dyno
 	dyno.dyno = stats["dyno"]
 	dyno.redline = float(stats["redline"])
@@ -36,6 +39,9 @@ func setup(info: Dictionary, stats: Dictionary, parts := {}) -> void:
 ## One row per slot: slot name + a dropdown of Stock and every owned part.
 func build_parts_list(parts: Dictionary) -> void:
 	var list: VBoxContainer = %PartsList
+	var pending_by_slot := {}
+	for order in parts.get("active_work", []):
+		pending_by_slot[order["slot"]] = order
 	for slot in parts["slots"]:
 		var row := UI.hbox(list, 10)
 		var name := UI.label(row, parts["slots"][slot], "MutedLabel")
@@ -50,6 +56,12 @@ func build_parts_list(parts: Dictionary) -> void:
 			pick.set_item_metadata(i + 1, options[i][0])
 			if parts["installed"].get(slot, "") == options[i][0]:
 				pick.select(i + 1)
-		pick.disabled = options.is_empty()
+		pick.disabled = pending_by_slot.has(slot) or (options.is_empty() and not parts["installed"].has(slot))
 		pick.item_selected.connect(func(i): part_changed.emit(slot, pick.get_item_metadata(i)))
 		row.add_child(pick)
+		if pending_by_slot.has(slot):
+			var order: Dictionary = pending_by_slot[slot]
+			UI.label(list, "%s %s / %s / DUE %s, WEEK %d" % [
+				str(order["operation"]).to_upper(), str(order["definition_id"]),
+				str(order["work_id"]), ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"][int(order["due_day"])],
+				int(order["due_week"])], "MutedLabel")
