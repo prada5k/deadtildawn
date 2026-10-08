@@ -57,6 +57,7 @@ LOCAL_CURVES_FILE = ROOT / "data" / "tracks" / "local_curves.txt"
 LOCAL_CURVES_ID = "LOCAL_CURVES"
 LOCAL_CURVES_SEED = 9605
 LOCAL_RIVAL_FILE = ROOT / "data" / "rivals" / "oxnard_eg6_time_attack.json"
+LOCAL_CURVES_ROSTER_FILE = ROOT / "data" / "rivals" / "local_curves_roster_v1.json"
 
 
 def player_car(part_ids):
@@ -323,28 +324,101 @@ def local_curves(out_file, part_ids=()):
     reply(**local_curves_result(out_file, part_ids))
 
 
-def time_attack(player_out, rival_out, part_ids=(), rival_file=LOCAL_RIVAL_FILE):
-    """Run the EG6 and one authored rival on identical fixed road conditions."""
+def time_attack(player_out, rival_out, part_ids=(), rival_file=LOCAL_RIVAL_FILE,
+                roster_file=LOCAL_CURVES_ROSTER_FILE, entrant_out_dir=None):
+    """Independently simulate the player and the authored LOCAL CURVES roster."""
+    roster = json.loads(Path(roster_file).read_text(encoding="utf-8"))
+    if roster.get("event_id") != "C96_TA_LOCAL_CURVES_001":
+        raise ValueError("Entrant roster is for a different event")
     profile = json.loads(Path(rival_file).read_text(encoding="utf-8"))
-    rival_path = (ROOT / profile["vehicle"]["definition_path"]).resolve()
-    if not rival_path.is_file():
-        raise FileNotFoundError(f"Rival vehicle definition not found: {rival_path}")
+    if profile.get("event_id") != roster["event_id"]:
+        raise ValueError("Rafa profile and entrant roster event IDs differ")
     from sim.car import load_car
-    driver = profile["driver"]
+    from sim.parts import parts_by_ids, apply_parts
+
+    out_dir = Path(entrant_out_dir) if entrant_out_dir else Path(player_out).parent / "entrants"
+    out_dir.mkdir(parents=True, exist_ok=True)
     player = local_curves_result(player_out, part_ids)
-    rival = local_curves_result(rival_out, (), car=load_car(rival_path),
-        driver_name=str(driver["name"]), driver_push=str(driver["push"]),
-        driver_sigma=float(driver["sigma"]), driver_seed=int(driver["seed"]),
-        definition_path=rival_path, vehicle_visual=profile.get("vehicle_visual", {}))
-    if player["road"] != rival["road"]:
-        raise ValueError("Player and rival road snapshots differ")
-    conditions_match = {k: v for k, v in player["conditions"].items() if k != "reference_driver"}
-    rival_conditions_match = {k: v for k, v in rival["conditions"].items() if k != "reference_driver"}
-    if conditions_match != rival_conditions_match:
-        raise ValueError("Player and rival conditions differ")
-    reply(event_id="C96_TA_LOCAL_CURVES_001", rival_id=profile["rival_id"],
-          rival_identity={k: profile[k] for k in ("name", "home", "bio")},
-          player=player, rival=rival)
+    player_entry = _event_entrant("PLAYER_CHASSIS_0001", "PLAYER", "Player Civic",
+        "CHASSIS_0001", player, 9605)
+
+    entries = []
+    runs_by_id = {}
+    for entry in roster["entrants"]:
+        if "profile_path" in entry:
+            entrant_profile = json.loads((ROOT / entry["profile_path"]).read_text(encoding="utf-8"))
+            entrant_profile["entrant_id"] = str(entry["entrant_id"])
+            entrant_profile["vehicle"]["vehicle_id"] = str(entry["vehicle_id"])
+        else:
+            entrant_profile = entry
+        vehicle = entrant_profile["vehicle"]
+        vehicle_path = (ROOT / vehicle["definition_path"]).resolve()
+        if not vehicle_path.is_file():
+            raise FileNotFoundError(f"Entrant vehicle definition not found: {vehicle_path}")
+        car = load_car(vehicle_path)
+        if car.id != vehicle["definition_id"]:
+            raise ValueError(f"{entrant_profile['entrant_id']}: vehicle definition ID mismatch")
+        part_ids_for_entrant = list(vehicle.get("part_ids", []))
+        parts = parts_by_ids(part_ids_for_entrant)
+        for part in parts:
+            compatible = part.get("compatible_base_car_ids", [])
+            if car.id not in compatible:
+                raise ValueError(f"{entrant_profile['entrant_id']}: {part['id']} is not explicitly compatible with {car.id}")
+        configured_car = apply_parts(car, parts) if parts else car
+        driver = entrant_profile["driver"]
+        seed = int(driver["seed"])
+        replay_path = (Path(rival_out) if str(entrant_profile["entrant_id"]) == str(profile["rival_id"])
+                       else out_dir / f"{entrant_profile['entrant_id']}.json")
+        run = local_curves_result(replay_path, part_ids_for_entrant, car=configured_car,
+            driver_name=str(driver["name"]), driver_push=str(driver["push"]),
+            driver_sigma=float(driver["sigma"]), driver_seed=seed,
+            definition_path=vehicle_path, vehicle_visual=entrant_profile.get("vehicle_visual", {}))
+        runs_by_id[str(entrant_profile["entrant_id"])] = run
+        entries.append(_event_entrant(str(entrant_profile["entrant_id"]), "RIVAL",
+            str(entrant_profile["name"]), str(vehicle.get("vehicle_id", car.id)), run, seed,
+            identity={k: entrant_profile[k] for k in ("name", "home", "bio")}))
+
+    if not any(e["entrant_id"] == profile["rival_id"] for e in entries):
+        raise ValueError("Roster must include the established Rafa Morales entrant")
+    if len({e["entrant_id"] for e in entries + [player_entry]}) != len(entries) + 1:
+        raise ValueError("Entrant IDs must be unique, including the player")
+    # Entrants are assembled in the same stable roster order; compare every run against the frozen player route.
+    for entry in entries:
+        if entry["road"] != player["road"]:
+            raise ValueError(f"{entry['entrant_id']} road snapshot differs from player")
+        if entry["event_conditions"] != player_entry["event_conditions"]:
+            raise ValueError(f"{entry['entrant_id']} event conditions differ from player")
+    standings = _event_standings([player_entry] + entries)
+    rafa = next(e for e in entries if e["entrant_id"] == profile["rival_id"])
+    reply(event_id=roster["event_id"], roster_id=roster["roster_id"],
+          roster_version=roster["version"], event_seed=int(roster["event_seed"]),
+          rival_id=profile["rival_id"],
+          rival_identity=rafa["identity"], player=player, rival=runs_by_id[profile["rival_id"]],
+          entrants=[player_entry] + entries,
+          standings=standings, player_entrant=player_entry)
+
+
+def _event_entrant(entrant_id, entrant_type, display_name, vehicle_id, run, seed, identity=None):
+    event_conditions = {k: v for k, v in run["conditions"].items()
+                        if k not in ("reference_driver", "driver_seed")}
+    return {"entrant_id": entrant_id, "entrant_type": entrant_type,
+        "display_name": display_name, "vehicle_id": vehicle_id,
+        "identity": identity or {}, "road": run["road"], "event_conditions": event_conditions,
+        "conditions": run["conditions"], "simulation_seed": int(seed),
+        "vehicle_configuration": run["vehicle_configuration"],
+        "vehicle_state": run["vehicle_state"], "driver": run["driver_configuration"],
+        "measurements": run["measurements"], "replay": run["replay"]}
+
+
+def _event_standings(entries):
+    ordered = sorted(entries, key=lambda e: (float(e["measurements"]["total_time_s"]), e["entrant_id"]))
+    leader = float(ordered[0]["measurements"]["total_time_s"])
+    return [{"position": i + 1, "entrant_id": e["entrant_id"],
+        "time_s": float(e["measurements"]["total_time_s"]),
+        "gap_to_leader_s": round(float(e["measurements"]["total_time_s"]) - leader, 3)}
+        for i, e in enumerate(ordered)]
+
+
 
 
 def part_effects(car, part):
@@ -644,6 +718,8 @@ def main():
     ap.add_argument("--player-out")
     ap.add_argument("--rival-out")
     ap.add_argument("--rival-profile", default=str(LOCAL_RIVAL_FILE))
+    ap.add_argument("--roster-profile", default=str(LOCAL_CURVES_ROSTER_FILE))
+    ap.add_argument("--entrant-out-dir")
     a = ap.parse_args()
     ACTIVE_CAR_FILE = GAME_CAR if a.car == "game" else REFERENCE_CAR
     try:
@@ -675,7 +751,8 @@ def main():
         elif a.command == "time_attack":
             if not a.player_out or not a.rival_out:
                 raise ValueError("time_attack requires --player-out and --rival-out")
-            time_attack(a.player_out, a.rival_out, part_ids, resolve(a.rival_profile))
+            time_attack(a.player_out, a.rival_out, part_ids, resolve(a.rival_profile),
+                        resolve(a.roster_profile), resolve(a.entrant_out_dir) if a.entrant_out_dir else None)
     except Exception as e:                         # report, don't crash the game
         fail(f"{type(e).__name__}: {e}")
 

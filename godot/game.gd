@@ -32,7 +32,7 @@ const LOCATIONS := {
 }
 
 const SAVE_PATH := "user://save.json"
-const SAVE_VERSION := 13
+const SAVE_VERSION := 14
 const START_CASH := 2500
 const MIN_BUY_IN := 100
 const WAGER_STEP := 10
@@ -289,6 +289,9 @@ func migrate(data: Dictionary) -> Dictionary:
 	if v < 13:                       # v12 -> v13: new race results may include rival snapshots
 		# Existing solo results intentionally remain solo; never synthesize rival data.
 		v = 13
+	if v < 14:                       # v13 -> v14: new results may store full multi-entrant standings
+		# Existing solo and player-versus-Rafa results remain byte-for-byte data snapshots.
+		v = 14
 	var race_results: Dictionary = data.get("race_results", {})
 	var saved_results: Array = race_results.get("results", [])
 	var next_result_id := maxi(1, int(race_results.get("next_result_id", 1)))
@@ -495,8 +498,10 @@ func prepare_race_event(event: Dictionary) -> bool:
 	var event_id := str(event["event_id"])
 	var replay_ref := "user://replays/events/%s/%s.json" % [event_id, result_id]
 	var rival_replay_ref := "user://replays/events/%s/%s_rival.json" % [event_id, result_id]
+	var entrants_dir := "user://replays/events/%s/%s_entrants" % [event_id, result_id]
 	pending_race_event = {"event_id": event_id, "result_id": result_id,
 		"replay": replay_ref, "rival_replay": rival_replay_ref,
+		"entrants_dir": entrants_dir,
 		"chassis_id": str(state["civic"]["chassis_id"]),
 		"base_car_id": str(state["civic"]["base_car_id"]),
 		"calendar": {"week": int(state["week"]), "day": int(state["day"]),
@@ -504,6 +509,7 @@ func prepare_race_event(event: Dictionary) -> bool:
 		"installed": installed_configuration_snapshot()}
 	bridge.request("race_event", ["time_attack", "--player-out", ProjectSettings.globalize_path(replay_ref),
 		"--rival-out", ProjectSettings.globalize_path(rival_replay_ref),
+		"--entrant-out-dir", ProjectSettings.globalize_path(entrants_dir),
 		"--rival-profile", TIME_ATTACK_RIVAL_FILE] + parts_args())
 	return true
 
@@ -515,6 +521,9 @@ func complete_race_event(data: Dictionary) -> Dictionary:
 	var rival: Dictionary = data.get("rival", {})
 	if prepared.is_empty() or str(data.get("event_id", "")) != str(prepared.get("event_id", "")) or str(data.get("rival_id", "")) != "RIVAL_OXNARD_001":
 		return {}
+	var entrants: Array = data.get("entrants", [])
+	if entrants.size() != 5 or int(data.get("roster_version", 0)) != 1 or not data.has("standings") or str(data.get("roster_id", "")) == "":
+		return {}
 	if str(player.get("road_id", "")) != "LOCAL_CURVES" or str(rival.get("road_id", "")) != "LOCAL_CURVES":
 		return {}
 	if player.get("road", {}) != rival.get("road", {}) or str(player.get("road", {}).get("geometry_sha256", "")) == "":
@@ -525,6 +534,51 @@ func complete_race_event(data: Dictionary) -> Dictionary:
 	rival_conditions.erase("reference_driver")
 	if player_conditions != rival_conditions:
 		return {}
+	var event_conditions: Dictionary = data.get("player_entrant", {}).get("event_conditions", {})
+	if event_conditions.is_empty() or data.get("player_entrant", {}).get("measurements", {}) != player.get("measurements", {}):
+		return {}
+	var entrant_ids := {}
+	var vehicle_ids := {}
+	var entrants_by_id := {}
+	var entrant_times := []
+	for entrant in entrants:
+		if typeof(entrant) != TYPE_DICTIONARY:
+			return {}
+		var entrant_id := str(entrant.get("entrant_id", ""))
+		var vehicle_id := str(entrant.get("vehicle_id", ""))
+		var entrant_time := float(entrant.get("measurements", {}).get("total_time_s", 0.0))
+		if entrant_id == "" or entrant_ids.has(entrant_id) or vehicle_id == "" or vehicle_ids.has(vehicle_id) or entrant_time <= 0.0 or entrant.get("vehicle_configuration", {}).is_empty() or entrant.get("driver", {}).is_empty():
+			return {}
+		if entrant.get("road", {}) != player.get("road", {}) or entrant.get("event_conditions", {}) != event_conditions:
+			return {}
+		if str(entrant.get("replay", "")) == "" or not FileAccess.file_exists(str(entrant.get("replay", ""))):
+			return {}
+		entrant_ids[entrant_id] = true
+		vehicle_ids[vehicle_id] = true
+		entrants_by_id[entrant_id] = entrant
+		entrant_times.append(entrant)
+	if not entrant_ids.has("PLAYER_CHASSIS_0001") or not entrant_ids.has("RIVAL_OXNARD_001"):
+		return {}
+	if entrants_by_id["PLAYER_CHASSIS_0001"].get("vehicle_configuration", {}) != player.get("vehicle_configuration", {}) or entrants_by_id["RIVAL_OXNARD_001"].get("vehicle_configuration", {}) != rival.get("vehicle_configuration", {}) or entrants_by_id["RIVAL_OXNARD_001"].get("measurements", {}) != rival.get("measurements", {}):
+		return {}
+	entrant_times.sort_custom(func(a, b):
+		var at := float(a["measurements"]["total_time_s"])
+		var bt := float(b["measurements"]["total_time_s"])
+		return at < bt if not is_equal_approx(at, bt) else str(a["entrant_id"]) < str(b["entrant_id"]))
+	var event_standings := []
+	var leader_time := float(entrant_times[0]["measurements"]["total_time_s"])
+	for i in entrant_times.size():
+		var standing_time := float(entrant_times[i]["measurements"]["total_time_s"])
+		event_standings.append({"position": i + 1, "entrant_id": str(entrant_times[i]["entrant_id"]),
+			"time_s": standing_time, "gap_to_leader_s": snappedf(standing_time - leader_time, 0.001)})
+	var reported_standings: Array = data.get("standings", [])
+	if reported_standings.size() != event_standings.size():
+		return {}
+	for i in event_standings.size():
+		var expected_standing: Dictionary = event_standings[i]
+		var reported_standing: Dictionary = reported_standings[i]
+		if int(reported_standing.get("position", 0)) != int(expected_standing["position"]) or str(reported_standing.get("entrant_id", "")) != str(expected_standing["entrant_id"]) or not is_equal_approx(float(reported_standing.get("time_s", -1.0)), float(expected_standing["time_s"])) or not is_equal_approx(float(reported_standing.get("gap_to_leader_s", -1.0)), float(expected_standing["gap_to_leader_s"])):
+			return {}
 	var event := calendar_event(str(prepared["event_id"]))
 	if event.is_empty() or race_event_eligibility(event) != "ELIGIBLE. TWO SIMULATED RUNS, COSTS NOTHING, AND DOES NOT ADVANCE THE CALENDAR.":
 		return {}
@@ -548,6 +602,15 @@ func complete_race_event(data: Dictionary) -> Dictionary:
 	# Positive delta means the rival took longer, so the player was faster.
 	var delta := rival_time - player_time
 	var outcome := "TIE" if is_equal_approx(rival_time, player_time) else ("WIN" if delta > 0.0 else "LOSS")
+	var saved_entrants: Array = entrants.duplicate(true)
+	for entrant in saved_entrants:
+		var entrant_id := str(entrant["entrant_id"])
+		if entrant_id == "PLAYER_CHASSIS_0001":
+			entrant["replay"] = str(prepared["replay"])
+		elif entrant_id == "RIVAL_OXNARD_001":
+			entrant["replay"] = str(prepared["rival_replay"])
+		else:
+			entrant["replay"] = "%s/%s.json" % [str(prepared["entrants_dir"]), entrant_id]
 	var result := {"result_id": prepared["result_id"], "event_id": prepared["event_id"],
 		"chassis_id": prepared["chassis_id"], "base_car_id": prepared["base_car_id"],
 		"calendar": prepared["calendar"].duplicate(true), "road_id": player["road_id"],
@@ -558,6 +621,12 @@ func complete_race_event(data: Dictionary) -> Dictionary:
 		"driver": player["driver_configuration"].duplicate(true),
 		"measurement_scope": player.get("measurement_scope", {}).duplicate(true),
 		"measurements": player["measurements"].duplicate(true), "replay": prepared["replay"],
+		"event_format_version": 2, "roster_id": str(data["roster_id"]),
+		"roster_version": int(data.get("roster_version", 0)), "event_seed": int(data.get("event_seed", 0)),
+		"event_conditions": event_conditions.duplicate(true),
+		"entrants": saved_entrants, "standings": event_standings.duplicate(true),
+		"entrant_count": event_standings.size(),
+		"player_position": int(event_standings[event_standings.find_custom(func(row): return str(row["entrant_id"]) == "PLAYER_CHASSIS_0001")]["position"]),
 		"competition": {"rival_id": data["rival_id"], "identity": data["rival_identity"].duplicate(true),
 			"vehicle_configuration": rival["vehicle_configuration"].duplicate(true),
 			"vehicle_state": rival["vehicle_state"].duplicate(true),
@@ -2315,7 +2384,7 @@ func work_test() -> void:
 	if state["civic"]["installed"] != {"rear_sway": "p7", "shifter": "p8"} or active_work_orders().size() != 0:
 		work_test_fail("same-day jobs did not both complete")
 		return
-	print("WORKTEST v9 -> v13; WORK_000001 install, WORK_000002 remove; UID p7 preserved")
+	print("WORKTEST v9 -> v14; WORK_000001 install, WORK_000002 remove; UID p7 preserved")
 	print("WORKTEST before/after EG6 physics; multi-day rollover; parallel jobs; no duplicate completion")
 	print("WORKTEST OK")
 	get_tree().quit()
@@ -2470,7 +2539,7 @@ func delivery_test() -> void:
 	if int(state["cash"]) != cash_after_pickup or state["followers"] != 0 or state["rep"] != 0 or state.has("xp") or state.has("loot"):
 		delivery_test_fail("world updates changed cash, followers, REP, or progression")
 		return
-	print("DELIVERYTEST v10 -> v13; two retail UIDs in transit -> delivered once; local used pickup sold once")
+	print("DELIVERYTEST v10 -> v14; two retail UIDs in transit -> delivered once; local used pickup sold once")
 	print("DELIVERYTEST weekly refresh at week rollover; bounded stock, unique IDs, multi-week catch-up")
 	print("DELIVERYTEST work/calendar compatibility and immutable TEST LOG OK")
 	get_tree().quit()
@@ -2542,6 +2611,17 @@ func race_event_test(rival_only := false) -> void:
 	if migrated_solo["race_results"]["results"] != [historical_solo] or migrated_solo["race_results"]["next_result_id"] != 5 or migrated_solo["race_results"]["results"][0].has("competition"):
 		race_event_test_fail("v12 solo result was changed or given an invented rival result")
 		return
+	var historical_rival := {"result_id": "RACE_000007", "event_id": "OLD_RIVAL_EVENT",
+		"measurements": {"total_time_s": 43.107}, "competition": {"rival_id": "RIVAL_OXNARD_001",
+			"measurements": {"total_time_s": 44.426}}, "outcome": "WIN",
+		"replay": "user://replays/events/old_player.json"}
+	var v13_rival := migrated_solo.duplicate(true)
+	v13_rival["version"] = 13
+	v13_rival["race_results"] = {"next_result_id": 8, "results": [historical_rival.duplicate(true)]}
+	var migrated_rival := migrate(v13_rival)
+	if int(migrated_rival["version"]) != 14 or migrated_rival["race_results"]["results"] != [historical_rival] or migrated_rival["race_results"]["next_result_id"] != 8:
+		race_event_test_fail("v13 player-versus-Rafa history changed during v14 migration")
+		return
 
 	state = new_state()
 	var event := calendar_event("C96_TA_LOCAL_CURVES_001")
@@ -2598,10 +2678,26 @@ func race_event_test(rival_only := false) -> void:
 	if not game_test_reply_ok(reply):
 		return
 	var race_reply: Dictionary = reply[1]
+	for entrant in race_reply.get("entrants", []):
+		race_event_test_outputs.append(str(entrant.get("replay", "")))
 	var result := complete_race_event(race_reply)
-	if result.is_empty() or not test_replay_available(result):
-		race_event_test_fail("competitive result/replay was not saved")
+	if result.is_empty():
+		var replay_checks := []
+		for entrant in race_reply.get("entrants", []):
+			replay_checks.append("%s=%s" % [str(entrant.get("entrant_id", "")), str(FileAccess.file_exists(str(entrant.get("replay", ""))))])
+		race_event_test_fail("competitive result was rejected; entrants=%d standings=%s replays=%s" % [race_reply.get("entrants", []).size(), str(race_reply.get("standings", [])), str(replay_checks)])
 		return
+	if not test_replay_available(result):
+		race_event_test_fail("competitive player replay reference was not saved")
+		return
+	if int(result.get("entrant_count", 0)) != 5 or int(result.get("player_position", 0)) < 1:
+		race_event_test_fail("saved result did not preserve entrant count or player placement")
+		return
+	for entrant in result.get("entrants", []):
+		var replay_ref := str(entrant.get("replay", ""))
+		if not replay_ref.begins_with("user://") or not FileAccess.file_exists(replay_ref):
+			race_event_test_fail("saved entrant replay reference is not a persistent user:// path")
+			return
 	var player_time := float(race_reply["player"]["measurements"]["total_time_s"])
 	var rival_time := float(race_reply["rival"]["measurements"]["total_time_s"])
 	var measured_delta := rival_time - player_time
@@ -2611,6 +2707,34 @@ func race_event_test(rival_only := false) -> void:
 	if race_reply["player"]["road"] != race_reply["rival"]["road"] or race_reply["player"]["conditions"] != race_reply["rival"]["conditions"]:
 		race_event_test_fail("player and rival did not share the exact road and conditions")
 		return
+	var entrants: Array = result.get("entrants", [])
+	var entrant_ids := {}
+	var vehicle_ids := {}
+	if entrants.size() != 5 or result.get("standings", []).size() != 5 or str(result.get("roster_id", "")) != "LOCAL_CURVES_OXNARD_1996_V1":
+		race_event_test_fail("multi-entrant roster/result did not contain five entrants")
+		return
+	for entrant in entrants:
+		var entrant_id := str(entrant.get("entrant_id", ""))
+		if entrant_id == "" or entrant_ids.has(entrant_id) or int(entrant.get("simulation_seed", -1)) < 0 or float(entrant.get("measurements", {}).get("total_time_s", 0.0)) <= 0.0:
+			race_event_test_fail("entrant identity, deterministic seed, or measured time is invalid")
+			return
+		if entrant.get("road", {}) != result["road"] or entrant.get("event_conditions", {}) != result["event_conditions"] or not FileAccess.file_exists(str(entrant.get("replay", ""))):
+			race_event_test_fail("entrant did not preserve the event road, conditions, or replay")
+			return
+		entrant_ids[entrant_id] = true
+		vehicle_ids[str(entrant.get("vehicle_id", ""))] = true
+	if not entrant_ids.has("PLAYER_CHASSIS_0001") or not entrant_ids.has("RIVAL_OXNARD_001") or vehicle_ids.size() != 5:
+		race_event_test_fail("permanent player and distinct stable physical vehicle identities were not preserved")
+		return
+	var prev_time := -1.0
+	var leader_time := float(result["standings"][0]["time_s"])
+	for index in result["standings"].size():
+		var standing: Dictionary = result["standings"][index]
+		var standing_time := float(standing["time_s"])
+		if int(standing["position"]) != index + 1 or standing_time < prev_time or not is_equal_approx(float(standing["gap_to_leader_s"]), standing_time - leader_time):
+			race_event_test_fail("measured standings sort or leader gap is incorrect")
+			return
+		prev_time = standing_time
 	if not is_equal_approx(float(result["time_delta_s"]), measured_delta) or result["outcome"] != ("TIE" if is_equal_approx(player_time, rival_time) else ("WIN" if measured_delta > 0.0 else "LOSS")):
 		race_event_test_fail("signed time delta or measured outcome is incorrect")
 		return
@@ -2642,7 +2766,7 @@ func race_event_test(rival_only := false) -> void:
 	var rival_replay_ref := str(result["competition"]["replay"])
 	var verification_replay := "user://replays/events/C96_TA_LOCAL_CURVES_001/VERIFY.json"
 	var verification_rival_replay := "user://replays/events/C96_TA_LOCAL_CURVES_001/VERIFY_RIVAL.json"
-	race_event_test_outputs = [replay_ref, rival_replay_ref, verification_replay, verification_rival_replay]
+	race_event_test_outputs.append_array([replay_ref, rival_replay_ref, verification_replay, verification_rival_replay])
 	bridge.request("race_event_repeatability", ["time_attack", "--player-out", ProjectSettings.globalize_path(verification_replay),
 		"--rival-out", ProjectSettings.globalize_path(verification_rival_replay), "--rival-profile", TIME_ATTACK_RIVAL_FILE] + parts_args())
 	reply = await bridge.replied
@@ -2681,10 +2805,11 @@ func race_event_test(rival_only := false) -> void:
 		return
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(verification_replay))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(verification_rival_replay))
-	print("RACE EVENT TEST v11 -> v13; stable authored event, date/eligibility, one saved result")
-	print("RACE EVENT TEST deterministic LOCAL CURVES, exact EG6 configuration, separate replay, missing replay safe")
+	print("RACE EVENT TEST v11 -> v14; stable authored event, date/eligibility, one saved result")
+	print("RACE EVENT TEST five independent LOCAL CURVES entrants, stable identities, exact configurations, sorted standings")
+	print("RACE EVENT TEST deterministic simulation, separate valid replays, missing replay safe")
 	print("RACE EVENT TEST no TEST LOG, cash, follower, ownership, market, delivery, work, or legacy history side effects")
-	print("RACE EVENT TEST OK / player %.3f s / rival %.3f s / delta %+.3f s / %s" % [player_time, rival_time, measured_delta, result["outcome"]])
+	print("RACE EVENT TEST OK / five entrants / player %.3f s / Rafa %.3f s / player position %d" % [player_time, rival_time, result["standings"].find_custom(func(row): return row["entrant_id"] == "PLAYER_CHASSIS_0001") + 1])
 	if rival_only:
 		print("RIVALTEST deterministic independent car / shared road + conditions / immutable solo migration / reload / replay loss OK")
 	race_event_test_pass()

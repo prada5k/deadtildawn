@@ -1,0 +1,77 @@
+{
+  "roster_id": "LOCAL_CURVES_OXNARD_1996_V1",
+  "version": 1,
+  "event_id": "C96_TA_LOCAL_CURVES_001",
+  "event_seed": 9605,
+  "notes": "Fixed authored roster. Every vehicle uses an existing validated car definition; EG6 aftermarket parts are restricted to definitions that explicitly list eg6_sir_ii_1995 compatibility. Driver push, consistency and seed use the existing deterministic sim.driver model. This roster is not a set of playable cars.",
+  "entrants": [
+    {
+      "entrant_id": "RIVAL_OXNARD_001",
+      "vehicle_id": "VEHICLE_RAFA_EJ6_001",
+      "profile_path": "data/rivals/oxnard_eg6_time_attack.json"
+    },
+    {
+      "entrant_id": "RIVAL_VENTURA_002",
+      "name": "Maya Torres",
+      "home": "Ventura, California",
+      "bio": "A community-college machine-shop student who brings her EG hatch to local autocross days.",
+      "vehicle": {
+        "vehicle_id": "VEHICLE_MAYA_EG6_001",
+        "definition_id": "eg6_sir_ii_1995",
+        "definition_path": "data/cars/eg6_sir_ii_1995.json",
+        "part_ids": ["springs_lowering", "shifter_short"],
+        "configuration": "1995 EG6 SiR-II with catalog-defined lowering springs and short shifter"
+      },
+      "driver": {
+        "name": "Maya Torres",
+        "push": "normal",
+        "sigma": 0.0,
+        "seed": 9606,
+        "confidence": "authored deterministic simulation profile; fictional identity"
+      },
+      "vehicle_visual": {}
+    },
+    {
+      "entrant_id": "RIVAL_OXNARD_003",
+      "name": "Luis Ortega",
+      "home": "Oxnard, California",
+      "bio": "A body-shop prepper who runs a tidy EG hatch with a mild rear-bar and flywheel setup.",
+      "vehicle": {
+        "vehicle_id": "VEHICLE_LUIS_EG6_001",
+        "definition_id": "eg6_sir_ii_1995",
+        "definition_path": "data/cars/eg6_sir_ii_1995.json",
+        "part_ids": ["rsb_19", "flywheel_light"],
+        "configuration": "1995 EG6 SiR-II with catalog-defined 19 mm rear sway bar and lightweight flywheel"
+      },
+      "driver": {
+        "name": "Luis Ortega",
+        "push": "hard",
+        "sigma": 0.0,
+        "seed": 9607,
+        "confidence": "authored deterministic simulation profile; fictional identity"
+      },
+      "vehicle_visual": {}
+    },
+    {
+      "entrant_id": "RIVAL_CAMARILLO_004",
+      "name": "Ana Reyes",
+      "home": "Camarillo, California",
+      "bio": "A quiet Honda regular whose street EG hatch has coilovers and a quick-shifting setup.",
+      "vehicle": {
+        "vehicle_id": "VEHICLE_ANA_EG6_001",
+        "definition_id": "eg6_sir_ii_1995",
+        "definition_path": "data/cars/eg6_sir_ii_1995.json",
+        "part_ids": ["coilovers_street", "shifter_race"],
+        "configuration": "1995 EG6 SiR-II with catalog-defined street coilovers and race shifter"
+      },
+      "driver": {
+        "name": "Ana Reyes",
+        "push": "normal",
+        "sigma": 0.0,
+        "seed": 9608,
+        "confidence": "authored deterministic simulation profile; fictional identity"
+      },
+      "vehicle_visual": {}
+    }
+  ]
+}
