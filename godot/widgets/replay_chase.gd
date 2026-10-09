@@ -9,8 +9,9 @@ extends Node
 ## restart and playback speed cannot change a frame. The player never steers.
 ##
 ## MODEL HIERARCHY (one subject car):
-##   car_pivot    the AUTHORITATIVE replay transform: position + yaw from the recorded x / y / heading. Nothing else.
-##    +- BodyRoll       visual body: roll, pitch, heave about a roll axis 0.30 m above the road
+##   car_pivot    the AUTHORITATIVE replay transform: x / y / road height / yaw.
+##    +- RoadPitch      road grade once; applies to body and wheels, not the visual dynamics
+##        +- BodyRoll   visual body: roll, braking pitch, heave about a roll axis 0.30 m above the road
 ##    |    +- Body          the model's body mesh (+ the car's headlamp)
 ##    +- Suspension     the wheels, which stay planted on the road while the body moves above them
 ##         +- Wheel_FL / FR / RL / RR   spin from the recorded distance, front pair steered (kinematic, see vehicle_dynamics.gd)
@@ -21,6 +22,7 @@ extends Node
 const OverlayScript := preload("res://widgets/camcorder_overlay.gd")
 const VehicleDynamics := preload("res://widgets/vehicle_dynamics.gd")
 const CameraCar := preload("res://widgets/camera_car.gd")
+const RoadElevation := preload("res://widgets/road_elevation.gd")
 const EG6_MODEL := "res://assets/models/cars/eg6_game.glb"
 ## replay metadata's stable visual id -> the prepared model (the rival profile is not edited to change it)
 const PREPARED_VISUALS := {"eg9_ferio_temp_proxy": "res://assets/models/cars/eg9_game.glb"}
@@ -43,7 +45,9 @@ var container: SubViewportContainer
 var viewport: SubViewport
 var world: Node3D
 var camera: Camera3D
+var road_mesh: ArrayMesh
 var car_pivot: Node3D
+var road_pitch: Node3D
 var body_roll: Node3D
 var suspension: Node3D
 var model_label := ""                  # which model is on the road ("EG6 GAME MODEL", "EG9 TEMPORARY VISUAL PROXY", ...)
@@ -57,12 +61,17 @@ var brake_base_energy: Array[float] = []
 var camera_light: SpotLight3D
 var dynamics := VehicleDynamics.new()  # the subject's body dynamics (visual only), from the recorded run
 var rig := CameraCar.new()             # the filming car
+var elevation := RoadElevation.new()
 var debug_exaggerate := 1.0             # QA stills only (main.gd --exaggerate=5): multiplies roll / pitch / steer so their DIRECTION is visible; 1 = real
 var debug_view := ""                   # QA stills only (main.gd --view=): "side" | "rear_close" | "front34" put a camera beside the posed car; "" = the footage
 
 
 ## replay: the loaded replay dictionary. Builds the world and precomputes every visual series once.
 func build(replay: Dictionary) -> void:
+	elevation = RoadElevation.new()
+	if not elevation.load_track(replay["track"], int(replay["version"])):
+		push_error("Replay elevation profile is invalid")
+		return
 	layer = CanvasLayer.new()
 	layer.name = "RearChaseLayer"
 	layer.layer = 1
@@ -83,7 +92,9 @@ func build(replay: Dictionary) -> void:
 	var s: Dictionary = replay["samples"]
 	dynamics.wheelbase_m = wheelbase_m
 	dynamics.build(s["t"], s["s"], s["heading"], s["v"])
-	rig.build(replay["track"]["centerline"], s["t"], s["s"], s["x"], s["y"], s["heading"], s["v"])
+	rig.build(replay["track"]["centerline"], s["t"], s["s"], s["x"], s["y"], s["heading"], s["v"], elevation)
+	if elevation.elevated:
+		rig.fov_deg = 58.0 # portrait-safe coverage through the tight crest; v1 framing is unchanged
 	build_road(rig.road_pts, int(rig.road_extension_m))
 	camera = Camera3D.new()
 	camera.near = 0.1
@@ -180,7 +191,7 @@ func build_road(pts: Array[Vector2], start_index: int) -> void:
 		right.append(Vector2(t.y, -t.x))
 	add_ribbon(pts, right, -ROAD_HALF_M - SHOULDER_M, -ROAD_HALF_M, -0.01, SHOULDER, 0.08)
 	add_ribbon(pts, right, ROAD_HALF_M, ROAD_HALF_M + SHOULDER_M, -0.01, SHOULDER, 0.08)
-	add_ribbon(pts, right, -ROAD_HALF_M, ROAD_HALF_M, 0.0, ASPHALT, 0.07)
+	road_mesh = add_ribbon(pts, right, -ROAD_HALF_M, ROAD_HALF_M, 0.0, ASPHALT, 0.07)
 	add_ribbon(pts, right, -ROAD_HALF_M + 0.35, -ROAD_HALF_M + 0.5, 0.012, LINE_WHITE, 0.0)
 	add_ribbon(pts, right, ROAD_HALF_M - 0.5, ROAD_HALF_M - 0.35, 0.012, LINE_WHITE, 0.0)
 	add_ribbon(pts, right, -0.07, 0.07, 0.012, LINE_YELLOW, 0.0, 9, 3)     # dashed: 3 m on, 6 m off
@@ -190,7 +201,7 @@ func build_road(pts: Array[Vector2], start_index: int) -> void:
 	for i in range(0, n, int(POST_EVERY_M)):
 		for side in [-1.0, 1.0]:
 			var p2: Vector2 = pts[i] + right[i] * (ROAD_HALF_M + 1.6) * side
-			posts.append(Transform3D(Basis.IDENTITY, Vector3(p2.x, 0.45, -p2.y)))
+			posts.append(Transform3D(Basis.IDENTITY, Vector3(p2.x, elevation.at(rig.road_s[i]).x + 0.45, -p2.y)))
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	var box := BoxMesh.new()
@@ -211,7 +222,7 @@ func build_road(pts: Array[Vector2], start_index: int) -> void:
 ## A strip along the road between two offsets (m, + = right), flat-shaded quads with a little per-quad tone
 ## variation (low-poly asphalt). every/on/first/last pick which quads exist (dashes, the short start line).
 func add_ribbon(pts: Array[Vector2], right: Array[Vector2], off0: float, off1: float, y: float, color: Color,
-		jitter: float, every := 1, on := 1, first := 0, last := -1) -> void:
+		jitter: float, every := 1, on := 1, first := 0, last := -1) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var end_i := (pts.size() - 1) if last < 0 else mini(last, pts.size() - 1)
@@ -220,13 +231,17 @@ func add_ribbon(pts: Array[Vector2], right: Array[Vector2], off0: float, off1: f
 			continue
 		var tone := 1.0 + jitter * (fposmod(sin(float(i) * 12.9898) * 43758.5453, 1.0) - 0.5) * 2.0
 		st.set_color(Color(color.r * tone, color.g * tone, color.b * tone))
-		st.set_normal(Vector3.UP)
 		var a0 := pts[i] + right[i] * off0
 		var a1 := pts[i] + right[i] * off1
 		var b0 := pts[i + 1] + right[i + 1] * off0
 		var b1 := pts[i + 1] + right[i + 1] * off1
-		for v: Vector2 in [a0, a1, b1, a0, b1, b0]:
-			st.add_vertex(Vector3(v.x, y, -v.y))
+		for vertex in [[a0, i], [a1, i], [b1, i + 1], [a0, i], [b1, i + 1], [b0, i + 1]]:
+			var j: int = vertex[1]
+			var v: Vector2 = vertex[0]
+			var vertical := elevation.at(rig.road_s[j])
+			var h: float = rig.road_h[j]
+			st.set_normal(Vector3(-cos(h) * vertical.y, 1.0, sin(h) * vertical.y).normalized())
+			st.add_vertex(Vector3(v.x, vertical.x + y, -v.y))
 	var mesh := st.commit()
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
@@ -234,6 +249,21 @@ func add_ribbon(pts: Array[Vector2], right: Array[Vector2], off0: float, off1: f
 	m.vertex_color_use_as_albedo = true
 	mi.material_override = m
 	world.add_child(mi)
+	return mesh
+
+
+## Stable visual road query for the replay viewer and later roadside placement.
+## s is horizontal centerline distance; edges are on the same unbanked surface.
+func road_geometry(s: float) -> Dictionary:
+	var road := rig.road_at(s)
+	var p: Vector2 = road["pos"]
+	var h: float = road["heading"]
+	var q: float = road["grade"]
+	var right := Vector3(sin(h), 0.0, cos(h))
+	var center := Vector3(p.x, float(road["height"]), -p.y)
+	return {"s": s, "center": center, "tangent": Vector3(cos(h), q, -sin(h)).normalized(),
+		"normal": Vector3(-cos(h) * q, 1.0, sin(h) * q).normalized(),
+		"left_edge": center - right * ROAD_HALF_M, "right_edge": center + right * ROAD_HALF_M}
 
 
 # ------------------------------------------------------------------ the car
@@ -260,13 +290,16 @@ func build_car(selection: Dictionary, car_name: String) -> void:
 	car_pivot = Node3D.new()                         # the authoritative replay transform (set in sync, nothing else touches it)
 	car_pivot.name = "ReplayCar"
 	world.add_child(car_pivot)
+	road_pitch = Node3D.new()
+	road_pitch.name = "RoadPitch"
+	car_pivot.add_child(road_pitch)
 	body_roll = Node3D.new()                         # visual-only body motion lives here
 	body_roll.name = "BodyRoll"
 	body_roll.position = Vector3(0.0, ROLL_AXIS_Y, 0.0)
-	car_pivot.add_child(body_roll)
+	road_pitch.add_child(body_roll)
 	suspension = Node3D.new()                        # the wheels: planted on the road, steered and spun
 	suspension.name = "Suspension"
-	car_pivot.add_child(suspension)
+	road_pitch.add_child(suspension)
 
 	var body := model.get_node_or_null("Body") as Node3D
 	if body != null:
@@ -371,17 +404,20 @@ func generic_car() -> Node3D:
 
 ## Pose the subject and the filming car for playback time t. Pure in t (and the recorded values for t): nothing
 ## here keeps state between calls, so seeking, pausing and restarting give the same picture every time.
-func sync(t: float, x: float, y: float, heading: float, distance: float, brake: float) -> void:
-	# the AUTHORITATIVE transform: the recorded position and heading (+ the lane offset), nothing else
-	car_pivot.position = Vector3(x + sin(heading) * LANE_OFFSET_M, 0.0, -y + cos(heading) * LANE_OFFSET_M)
+func sync(t: float, x: float, y: float, heading: float, distance: float, brake: float, path_distance := -1.0) -> void:
+	# The recorded horizontal path and the replay's authoritative road profile.
+	var vertical := elevation.at(distance)
+	car_pivot.position = Vector3(x + sin(heading) * LANE_OFFSET_M, vertical.x, -y + cos(heading) * LANE_OFFSET_M)
 	car_pivot.rotation = Vector3(0.0, heading, 0.0)
+	road_pitch.rotation.z = atan(vertical.y)
 	# visual-only body motion (roll / pitch / heave) on its own node
 	var body := dynamics.at(t)
 	body_roll.position = Vector3(0.0, ROLL_AXIS_Y + float(body["heave"]), 0.0)
 	body_roll.rotation = Vector3(float(body["roll"]), 0.0, float(body["pitch"])) * debug_exaggerate
 	# wheels: rolling from the recorded distance; the front pair steered by the kinematic angle
 	for i in wheels.size():
-		wheels[i].rotation = Vector3(0.0, float(body["steer"]) * debug_exaggerate if wheel_is_front[i] else 0.0, -distance / wheel_radius[i])
+		wheels[i].rotation = Vector3(0.0, float(body["steer"]) * debug_exaggerate if wheel_is_front[i] else 0.0,
+			-(path_distance if path_distance >= 0.0 else distance) / wheel_radius[i])
 	# brake lights from the RECORDED brake input
 	var lit := 1.0 if brake > 0.0 else 0.0
 	for i in brake_materials.size():

@@ -68,9 +68,16 @@ competitive event still uses flat LOCAL CURVES.
 Flat replays remain `deadtildawn-replay` version 1 with their original
 structure. Elevated replays use version 2: the same 2D `centerline`, plus
 `centerline_z`, spline control samples/endpoint grades, and per-sample `z`,
-`grade`, and 3D `path_s`. The current Godot viewer accepts versions 1 and 2
-but projects both onto its existing 2D/flat visual road. Version 2's vertical
-data is authoritative for future geometry; the current flattened display is
-not evidence of a flat physical run. Save version 14 is unchanged. Saved
-historical event/results and replay files are read as recorded and are never
-resimulated by this feature.
+`grade`, and 3D `path_s`. The Godot 3D rear view evaluates the same clamped
+profile at horizontal `s` for the road mesh, subject, and virtual camera car;
+the four 2D cameras intentionally remain plan-view projections. Road grade
+rotates the car's wheels and body as a single parent, while recorded-input
+body motion remains on its separate child. On this unbanked road the lateral
+lane offset has the centerline height. The road is sampled at approximately
+1 m horizontal intervals for the mesh, so curvature between mesh vertices is
+a visual polygonal approximation of the continuous spline. There is no
+terrain deformation, airborne animation, or physical bank in this milestone.
+The elevated rear camera uses a wider fixed field of view for 390×844 portrait
+framing; v1 camera parameters stay unchanged. Save version 14 is unchanged.
+Saved historical event/results and replay files are read as recorded and are
+never resimulated by this feature.

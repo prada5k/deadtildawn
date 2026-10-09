@@ -19,6 +19,7 @@ extends RefCounted
 ## function of playback time (seek, pause, restart and speed changes cannot change a frame).
 
 const VehicleDynamics := preload("res://widgets/vehicle_dynamics.gd")
+const RoadElevation := preload("res://widgets/road_elevation.gd")
 
 const GRID_S := 1.0 / 60.0
 const SUBSTEPS := 2
@@ -47,6 +48,7 @@ var dynamics := VehicleDynamics.new()
 var road_pts: Array[Vector2] = []
 var road_s := PackedFloat64Array()
 var road_h := PackedFloat64Array()
+var elevation := RoadElevation.new()
 
 # the camera car, on the grid
 var t0 := 0.0
@@ -72,7 +74,8 @@ func _init() -> void:
 
 
 ## centerline: the replay's road points ([x, y] every ~1 m from s = 0). The other arrays are the recorded run.
-func build(centerline: Array, ts_in: Array, ss_in: Array, xs_in: Array, ys_in: Array, hs_in: Array, vs_in: Array) -> void:
+func build(centerline: Array, ts_in: Array, ss_in: Array, xs_in: Array, ys_in: Array, hs_in: Array, vs_in: Array, elevation_in = null) -> void:
+	elevation = elevation_in if elevation_in != null else RoadElevation.new()
 	build_road(centerline)
 	var n := ts_in.size()
 	var ts := PackedFloat64Array()
@@ -118,7 +121,7 @@ func build(centerline: Array, ts_in: Array, ss_in: Array, xs_in: Array, ys_in: A
 		cam_gap[k] = VehicleDynamics.lerp_series(ts, ss, t) - s_cam
 		var on_road := road_at(s_cam)
 		var pos2: Vector2 = on_road["pos"] + on_road["right"] * lane_offset_m
-		cam_pos[k] = Vector3(pos2.x, 0.0, -pos2.y)
+		cam_pos[k] = Vector3(pos2.x, float(on_road["height"]), -pos2.y)
 		cam_heading[k] = on_road["heading"]
 
 	# 2. the camera car's own body motion, from the same dynamics layer
@@ -139,7 +142,8 @@ func build(centerline: Array, ts_in: Array, ss_in: Array, xs_in: Array, ys_in: A
 		var t := t0 + k * GRID_S
 		var eye := eye_position(k)
 		var h_sub := VehicleDynamics.lerp_series(ts, hs, t)
-		var subject := Vector3(VehicleDynamics.lerp_series(ts, xs, t) + sin(h_sub) * subject_lane_m, subject_aim_height_m,
+		var sub_height := elevation.at(VehicleDynamics.lerp_series(ts, ss, t)).x
+		var subject := Vector3(VehicleDynamics.lerp_series(ts, xs, t) + sin(h_sub) * subject_lane_m, sub_height + subject_aim_height_m,
 			-VehicleDynamics.lerp_series(ts, ys, t) + cos(h_sub) * subject_lane_m)
 		var d := subject - eye
 		var want_yaw := atan2(-d.z, d.x)
@@ -155,7 +159,8 @@ func build(centerline: Array, ts_in: Array, ss_in: Array, xs_in: Array, ys_in: A
 ## The lens position before body motion: ahead of the camera car's centre, at windshield height.
 func eye_position(k: int) -> Vector3:
 	var h: float = cam_heading[k]
-	return cam_pos[k] + Vector3(cos(h), 0.0, -sin(h)) * dash_forward_m + Vector3(0.0, dash_height_m, 0.0)
+	var grade := elevation.at(cam_s[k]).y
+	return cam_pos[k] + Vector3(cos(h), grade, -sin(h)).normalized() * dash_forward_m + Vector3(0.0, dash_height_m, 0.0)
 
 
 # ------------------------------------------------------------------ the road
@@ -177,7 +182,10 @@ func build_road(centerline: Array) -> void:
 	var s := -float(ext_count)
 	road_s[0] = s
 	for i in range(1, n):
-		s += road_pts[i].distance_to(road_pts[i - 1])
+		# v2's axis is the exported horizontal sampling distance. Rounded XY points
+		# are only a drawing approximation and must not redefine the elevation axis.
+		s = (minf(float(i - ext_count), elevation.length) if elevation.elevated and i >= ext_count
+			else s + road_pts[i].distance_to(road_pts[i - 1]))
 		road_s[i] = s
 	for i in n:                                         # heading: a short central difference, unwrapped
 		var d := road_pts[mini(i + 2, n - 1)] - road_pts[maxi(i - 2, 0)]
@@ -194,7 +202,8 @@ func road_at(s: float) -> Dictionary:
 		var over := s - road_s[i]
 		var h: float = road_h[i]
 		var p := road_pts[i] + Vector2(cos(h), sin(h)) * over
-		return {"pos": p, "heading": h, "right": Vector2(sin(h), -cos(h))}
+		var vertical := elevation.at(s)
+		return {"pos": p, "heading": h, "right": Vector2(sin(h), -cos(h)), "height": vertical.x, "grade": vertical.y}
 	var lo := 0
 	var hi := n - 1
 	while hi - lo > 1:
@@ -205,7 +214,9 @@ func road_at(s: float) -> Dictionary:
 			hi = mid
 	var f := (s - road_s[lo]) / maxf(road_s[hi] - road_s[lo], 1e-6)
 	var heading := lerpf(road_h[lo], road_h[hi], f)
-	return {"pos": road_pts[lo].lerp(road_pts[hi], f), "heading": heading, "right": Vector2(sin(heading), -cos(heading))}
+	var vertical := elevation.at(s)
+	return {"pos": road_pts[lo].lerp(road_pts[hi], f), "heading": heading,
+		"right": Vector2(sin(heading), -cos(heading)), "height": vertical.x, "grade": vertical.y}
 
 
 # ------------------------------------------------------------------ playback
@@ -241,7 +252,8 @@ func at(t: float) -> Dictionary:
 	var yaw := lerp_angle(aim_yaw[i], aim_yaw[j], w)
 	var pitch: float = lerpf(aim_pitch[i], aim_pitch[j], w) + float(body["pitch"]) * pitch_share + vib.x
 	var roll: float = float(body["roll"]) * roll_share + vib.y
-	var eye := centre + Vector3(cos(heading), 0.0, -sin(heading)) * dash_forward_m + Vector3(0.0, dash_height_m + vib.z, 0.0)
+	var grade := elevation.at(lerpf(cam_s[i], cam_s[j], w)).y
+	var eye := centre + Vector3(cos(heading), grade, -sin(heading)).normalized() * dash_forward_m + Vector3(0.0, dash_height_m + vib.z, 0.0)
 	# basis: yaw about +Y (a forward of (cos yaw, 0, -sin yaw) is a Godot rotation.y of yaw - 90 deg), then pitch, then roll
 	# (roof to the right = clockwise seen from behind = negative rotation about the view axis)
 	var basis := Basis.from_euler(Vector3(pitch, yaw - PI / 2.0, -roll), EULER_ORDER_YXZ)

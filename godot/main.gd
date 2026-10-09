@@ -18,7 +18,7 @@ extends Node2D
 
 const REPLAY_PATH := "res://replays/latest.json"
 const REPLAY_FORMAT := "deadtildawn-replay"
-const SUPPORTED_VERSIONS := [1, 2] # v2 adds elevation channels; current visuals use the 2D projection.
+const SUPPORTED_VERSIONS := [1, 2] # v2 adds authoritative elevation; 2D cameras remain plan-view maps.
 
 const PX_PER_M := 4.0            # world scale: 1 m = 4 px
 const ROAD_WIDTH_M := 8.0        # two-lane mountain road (two 4 m lanes)
@@ -39,6 +39,7 @@ const CHASE_LOOKAHEAD_M := 22.0  # chase camera looks ahead so the car sits low 
 const PEDAL_H := 210.0
 const GaugeScript := preload("res://gauge.gd")
 const ChaseScript := preload("res://widgets/replay_chase.gd")
+const RoadElevation := preload("res://widgets/road_elevation.gd")
 const GearBoxScript := preload("res://widgets/gear_box.gd")
 
 signal finished_viewing     # embedded mode: player pressed Continue after the finish
@@ -129,17 +130,28 @@ func load_replay(path: String) -> String:
 			return "Elevated replay is missing road geometry or telemetry."
 		var track: Dictionary = data.get("track", {})
 		var vertical_samples: Dictionary = data.get("samples", {})
-		if not track.has_all(["centerline", "centerline_z", "elevation_profile", "distance_axis"]) or not vertical_samples.has_all(["t", "z", "grade", "path_s"]):
+		if not track.has_all(["centerline", "centerline_z", "elevation_profile", "distance_axis"]) or not vertical_samples.has_all(["t", "s", "z", "grade", "path_s"]):
 			return "Elevated replay is missing road geometry or telemetry."
 		if str(track["distance_axis"]) != "horizontal_centerline_m" or typeof(track["elevation_profile"]) != TYPE_DICTIONARY:
 			return "Elevated replay has an unsupported road profile."
 		if typeof(track["centerline"]) != TYPE_ARRAY or typeof(track["centerline_z"]) != TYPE_ARRAY or typeof(vertical_samples["t"]) != TYPE_ARRAY:
 			return "Elevated replay has invalid road or time samples."
-		if track["centerline_z"].size() != track["centerline"].size():
+		if track["centerline"].size() < 2 or track["centerline_z"].size() != track["centerline"].size():
 			return "Elevated replay centerline heights do not match its road points."
-		for channel in ["z", "grade", "path_s"]:
+		for channel in ["s", "z", "grade", "path_s"]:
 			if typeof(vertical_samples[channel]) != TYPE_ARRAY or vertical_samples[channel].size() != vertical_samples["t"].size():
 				return "Elevated replay telemetry channels have different lengths."
+		var profile := RoadElevation.new()
+		if not profile.load_track(track, 2):
+			return "Elevated replay has an invalid elevation spline."
+		for i in track["centerline_z"].size():
+			var s := minf(float(i), profile.length)
+			if absf(profile.at(s).x - float(track["centerline_z"][i])) > 0.0011:
+				return "Elevated replay road heights disagree with its profile."
+		for i in vertical_samples["t"].size():
+			var point := profile.at(float(vertical_samples["s"][i]))
+			if absf(point.x - float(vertical_samples["z"][i])) > 0.0011 or absf(point.y - float(vertical_samples["grade"][i])) > 0.0000011:
+				return "Elevated replay telemetry disagrees with its road profile."
 	replay = data
 	samples = data["samples"]
 	corners = data["track"]["corners"]
@@ -762,7 +774,9 @@ func sync_rear() -> void:
 		return
 	chase.set_area(view_area())
 	var heading := lerp_angle(float(samples["heading"][idx]), float(samples["heading"][idx + 1]), frac())
-	chase.sync(t, value_at("x"), value_at("y"), heading, value_at("s"), value_at("brake") if has_channel("brake") else 0.0)
+	chase.sync(t, value_at("x"), value_at("y"), heading, value_at("s"),
+		value_at("brake") if has_channel("brake") else 0.0,
+		value_at("path_s") if has_channel("path_s") else -1.0)
 
 
 ## Keep corner labels and the car marker a constant size on screen
@@ -851,9 +865,63 @@ func self_test() -> void:
 			value_at("v") * 3.6, str(int(samples["gear"][idx])) if has_channel("gear") else "n/a", active_corner])
 	var rear_ok := rear_camera_check()
 	var motion_ok := motion_check(samples_hash_before, file_hash_before)
+	var road_ok := elevation_check()
 	var cluster_ok := cluster_check()
-	print("SELFTEST OK" if rear_ok and motion_ok and cluster_ok else "SELFTEST FAIL (camera %s, motion %s, cluster %s)" % [rear_ok, motion_ok, cluster_ok])
+	print("SELFTEST OK" if rear_ok and motion_ok and road_ok and cluster_ok else "SELFTEST FAIL (camera %s, motion %s, road %s, cluster %s)" % [rear_ok, motion_ok, road_ok, cluster_ok])
 	get_tree().quit()
+
+
+## The drawing path must agree with the exported v2 spline, and the subject and
+## filming car must remain above it. Legacy v1 has zero elevation and pitch.
+func elevation_check() -> bool:
+	set_cam_mode(CamMode.REAR)
+	var constant := RoadElevation.new()
+	if not constant.load_track({"elevation_profile": {"interpolation": "clamped_cubic_spline_c2",
+		"samples": [[0.0, 0.0], [100.0, 10.0]], "start_grade": 0.1, "end_grade": 0.1}}, 2):
+		return false
+	if absf(constant.at(30.0).x - 3.0) > 0.000001 or absf(constant.at(30.0).y - 0.1) > 0.000001:
+		return false
+	var elevated := int(replay["version"]) == 2
+	var max_height_error := 0.0
+	var max_grade_error := 0.0
+	var max_vertex_gap := 0.0
+	var max_normal_angle := 0.0
+	var max_mesh_seam := 0.0
+	var max_mesh_height_error := 0.0
+	var min_lens_clearance := INF
+	var prev: Dictionary = {}
+	for i in chase.rig.road_pts.size():
+		var s := float(chase.rig.road_s[i])
+		var point: Dictionary = chase.road_geometry(s)
+		var width: float = (point["right_edge"] - point["left_edge"]).length()
+		if absf(width - ROAD_WIDTH_M) > 0.0001:
+			print("ROAD3D width mismatch at s=%.2f: %.6f m" % [s, width])
+			return false
+		if not prev.is_empty():
+			max_vertex_gap = maxf(max_vertex_gap, (point["center"] - prev["center"]).length())
+			max_normal_angle = maxf(max_normal_angle, (point["normal"] as Vector3).angle_to(prev["normal"]))
+		prev = point
+	var verts: PackedVector3Array = chase.road_mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	for i in range(chase.rig.road_pts.size() - 1):
+		max_mesh_height_error = maxf(max_mesh_height_error,
+			absf(verts[6 * i].y - chase.elevation.at(chase.rig.road_s[i]).x))
+	for i in range(1, chase.rig.road_pts.size() - 1):
+		max_mesh_seam = maxf(max_mesh_seam, verts[6 * i].distance_to(verts[6 * (i - 1) + 5]))
+		max_mesh_seam = maxf(max_mesh_seam, verts[6 * i + 1].distance_to(verts[6 * (i - 1) + 2]))
+	for i in range(0, samples["t"].size(), 17):
+		t = float(samples["t"][i])
+		update_car()
+		sync_rear()
+		var recorded_height := float(samples["z"][i]) if elevated else 0.0
+		var recorded_grade := float(samples["grade"][i]) if elevated else 0.0
+		max_height_error = maxf(max_height_error, absf(chase.car_pivot.position.y - recorded_height))
+		max_grade_error = maxf(max_grade_error, absf(tan(chase.road_pitch.rotation.z) - recorded_grade))
+		var cam_s: float = chase.rig.cam_s[mini(int((t - chase.rig.t0) / chase.rig.GRID_S), chase.rig.count - 1)]
+		min_lens_clearance = minf(min_lens_clearance, chase.camera.global_position.y - chase.elevation.at(cam_s).x)
+	var ok := max_height_error < 0.002 and max_grade_error < 0.000002 and max_vertex_gap < 1.2 and max_normal_angle < 0.01 and max_mesh_seam < 0.000001 and max_mesh_height_error < 0.0001 and min_lens_clearance > 0.9
+	print("ROAD3D version=%d | car height error %.4f m | grade error %.7f | mesh height error %.6f m | step max %.3f m | seam max %.7f m | normal step max %.4f rad | lens clearance min %.3f m  %s" % [
+		int(replay["version"]), max_height_error, max_grade_error, max_mesh_height_error, max_vertex_gap, max_mesh_seam, max_normal_angle, min_lens_clearance, "OK" if ok else "FAIL"])
+	return ok
 
 
 ## The cluster must show the recorded telemetry at the playback time: needles = rpm and speed, gear box = gear.
@@ -988,9 +1056,13 @@ func motion_check(samples_hash_before: int, file_hash_before: String) -> bool:
 ## A string of the visual state at time t (subject body, steer, and the filming car), for the determinism check:
 ## equal strings = bit-identical poses.
 func pose_signature(tq: float) -> String:
+	t = tq
+	update_car()
+	sync_rear()
 	var body: Dictionary = chase.dynamics.at(tq)
 	var shot: Dictionary = chase.rig.at(tq)
-	return "%s|%s|%s" % [var_to_str(body), var_to_str(shot["transform"]), var_to_str(shot["gap"])]
+	return "%s|%s|%s|%s|%s" % [var_to_str(body), var_to_str(shot["transform"]), var_to_str(shot["gap"]),
+		var_to_str(chase.car_pivot.transform), var_to_str(chase.road_pitch.rotation)]
 
 
 ## Save stills: every camera at a few moments in the run, then quit.
