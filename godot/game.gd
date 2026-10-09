@@ -3128,6 +3128,27 @@ func calendar_test() -> void:
 		return
 	show_warehouse()
 	show_calendar()
+	var calendar_screen := hub_content
+	var advance_button := calendar_screen.get_node("%AdvanceDayButton") as Button
+	var calendar_scroll := calendar_screen.get_node("%CalendarScroll") as ScrollContainer
+	var calendar_columns: Array = shell.navigation_labels()
+	var scrolling_calendar_sections: Array[NodePath] = ["%WeekLabel", "%Upcoming", "%Past", "%LegacyHistory"]
+	if advance_button == null or calendar_scroll == null:
+		calendar_test_fail("calendar content is not in the expected scroll layout")
+		return
+	for section_path in scrolling_calendar_sections:
+		if not calendar_scroll.is_ancestor_of(calendar_screen.get_node(section_path)):
+			calendar_test_fail("calendar content is not in the expected scroll layout")
+			return
+	if calendar_scroll.is_ancestor_of(advance_button) or float(advance_button.custom_minimum_size.y) < 80.0:
+		calendar_test_fail("advance-day control is not a touch-sized fixed action outside calendar scrolling")
+		return
+	if not advance_button.is_visible_in_tree() or calendar_screen.find_children("AdvanceDayButton", "Button", true, false).size() != 1:
+		calendar_test_fail("calendar must expose exactly one visible advance-day button")
+		return
+	if advance_button.pressed.get_connections().size() != 1 or calendar_columns != ["CAR", "CALENDAR", "HOME", "TEAM", "SHOP"]:
+		calendar_test_fail("calendar action callback or hub navigation changed")
+		return
 	show_test_log()
 	if [state["week"], state["day"]] != starting_date:
 		calendar_test_fail("HOME, CALENDAR, or TEST LOG browsing advanced time")

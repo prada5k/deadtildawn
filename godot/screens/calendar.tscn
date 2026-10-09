@@ -11,80 +11,105 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1")
 
-[node name="Column" type="VBoxContainer" parent="."]
+[node name="Column" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+
+[node name="CalendarScroll" type="ScrollContainer" parent="Column"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_bottom = -96.0
+grow_horizontal = 2
+grow_vertical = 2
+horizontal_scroll_mode = 2
+
+[node name="CalendarContent" type="VBoxContainer" parent="Column/CalendarScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 16
 
-[node name="WeekLabel" type="Label" parent="Column"]
+[node name="WeekLabel" type="Label" parent="Column/CalendarScroll/CalendarContent"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
 text = "WEEK 01"
 
-[node name="CurrentDate" type="Label" parent="Column"]
+[node name="CurrentDate" type="Label" parent="Column/CalendarScroll/CalendarContent"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"MutedLabel"
 text = "TODAY / MON, WEEK 1 / DAY 01"
 
-[node name="Days" type="HBoxContainer" parent="Column"]
+[node name="Days" type="HBoxContainer" parent="Column/CalendarScroll/CalendarContent"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="UpcomingPanel" type="PanelContainer" parent="Column"]
+[node name="UpcomingPanel" type="PanelContainer" parent="Column/CalendarScroll/CalendarContent"]
 layout_mode = 2
 
-[node name="Upcoming" type="VBoxContainer" parent="Column/UpcomingPanel"]
+[node name="Upcoming" type="VBoxContainer" parent="Column/CalendarScroll/CalendarContent/UpcomingPanel"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="UpcomingTitle" type="Label" parent="Column/UpcomingPanel/Upcoming"]
+[node name="UpcomingTitle" type="Label" parent="Column/CalendarScroll/CalendarContent/UpcomingPanel/Upcoming"]
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
 text = "SCHEDULED"
 
-[node name="PastPanel" type="PanelContainer" parent="Column"]
+[node name="PastPanel" type="PanelContainer" parent="Column/CalendarScroll/CalendarContent"]
 layout_mode = 2
 
-[node name="Past" type="VBoxContainer" parent="Column/PastPanel"]
+[node name="Past" type="VBoxContainer" parent="Column/CalendarScroll/CalendarContent/PastPanel"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="PastTitle" type="Label" parent="Column/PastPanel/Past"]
+[node name="PastTitle" type="Label" parent="Column/CalendarScroll/CalendarContent/PastPanel/Past"]
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
 text = "PAST / CLOSED"
 
-[node name="LegacyPanel" type="PanelContainer" parent="Column"]
+[node name="LegacyPanel" type="PanelContainer" parent="Column/CalendarScroll/CalendarContent"]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="LegacyHistory" type="VBoxContainer" parent="Column/LegacyPanel"]
+[node name="LegacyHistory" type="VBoxContainer" parent="Column/CalendarScroll/CalendarContent/LegacyPanel"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="LegacyTitle" type="Label" parent="Column/LegacyPanel/LegacyHistory"]
+[node name="LegacyTitle" type="Label" parent="Column/CalendarScroll/CalendarContent/LegacyPanel/LegacyHistory"]
 layout_mode = 2
 theme_type_variation = &"HeadingLabel"
 text = "LEGACY RACE HISTORY"
 
-[node name="DevelopmentNote" type="Label" parent="Column"]
+[node name="DevelopmentNote" type="Label" parent="Column/CalendarScroll/CalendarContent"]
 layout_mode = 2
 theme_type_variation = &"MutedLabel"
 text = "DEVELOPMENT CONTROL / browsing and garage actions do not consume time"
 autowrap_mode = 3
 
-[node name="AdvanceDayButton" type="Button" parent="Column"]
+[node name="AdvanceAction" type="PanelContainer" parent="Column"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -96.0
+grow_horizontal = 2
+
+[node name="AdvanceDayButton" type="Button" parent="Column/AdvanceAction"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 44)
+custom_minimum_size = Vector2(0, 80)
 layout_mode = 2
+theme_type_variation = &"AccentButton"
 text = "ADVANCE ONE DAY"
