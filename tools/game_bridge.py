@@ -22,6 +22,8 @@ Commands:
                                            run the fixed controlled test, write the replay
   local_curves --out FILE.json [--parts a,b]
                                            run the fixed handling test, write the replay
+  local_curves_elevated --out FILE.json [--parts a,b]
+                                           run the separate versioned elevation fixture
 
 Odds and races use the SAME solver settings (GAME_DS), so the odds are honest.
 Rival times are anchored to the STOCK car: upgrades make the player faster,
@@ -55,6 +57,7 @@ LOCAL_STRAIGHT_ID = "LOCAL_STRAIGHT"
 QUARTER_MILE_M = 402.336
 LOCAL_CURVES_FILE = ROOT / "data" / "tracks" / "local_curves.txt"
 LOCAL_CURVES_ID = "LOCAL_CURVES"
+LOCAL_CURVES_ELEVATED_FILE = ROOT / "data" / "tracks" / "local_curves_elevated_v2.json"
 LOCAL_CURVES_SEED = 9605
 LOCAL_RIVAL_FILE = ROOT / "data" / "rivals" / "oxnard_eg6_time_attack.json"
 LOCAL_CURVES_ROSTER_FILE = ROOT / "data" / "rivals" / "local_curves_roster_v1.json"
@@ -217,7 +220,7 @@ def local_straight(out_file, part_ids=()):
 
 def local_curves_result(out_file, part_ids=(), car=None, driver_name="Reference",
                         driver_push="normal", driver_sigma=0.0, driver_seed=LOCAL_CURVES_SEED,
-                        definition_path=None, vehicle_visual=None):
+                        definition_path=None, vehicle_visual=None, course=None):
     """Run fixed LOCAL CURVES and return its complete physical/result snapshot."""
     from export_replay import build_replay
     from sim.driver import Driver
@@ -227,13 +230,16 @@ def local_curves_result(out_file, part_ids=(), car=None, driver_name="Reference"
     from sim.units import AMBIENT_C, MPH_TO_MS
     from sim.car import load_car
 
-    segments = load_track(LOCAL_CURVES_FILE)
+    segments = load_track(LOCAL_CURVES_FILE) if course is None else course.segments
+    elevation = None if course is None else course.elevation
+    road_id = LOCAL_CURVES_ID if course is None else course.road_id
     car = car if car is not None else player_car(part_ids)
     driver = Driver(name=driver_name, push=driver_push, sigma=driver_sigma)
-    lap = run_lap(car, discretize(segments, GAME_DS), driver=driver,
+    grid = discretize(segments, GAME_DS, elevation=elevation)
+    lap = run_lap(car, grid, driver=driver,
                   seed=driver_seed)
     telemetry = lap.telemetry
-    replay_data = build_replay(car, segments, lap, LOCAL_CURVES_ID)
+    replay_data = build_replay(car, segments, lap, road_id, elevation=elevation)
     if vehicle_visual:
         replay_data["vehicle_visual"] = dict(vehicle_visual)
     out = Path(out_file)
@@ -265,8 +271,9 @@ def local_curves_result(out_file, part_ids=(), car=None, driver_name="Reference"
             })
         start = end
 
+    distance_nodes = grid.s if elevation is None else grid.path_s
     braking_distance = sum(
-        telemetry.s[i + 1] - telemetry.s[i]
+        distance_nodes[i + 1] - distance_nodes[i]
         for i in range(len(telemetry.s) - 1) if telemetry.brake[i] > 0
     )
     braking_time = sum(
@@ -287,8 +294,9 @@ def local_curves_result(out_file, part_ids=(), car=None, driver_name="Reference"
     configuration["definition_sha256"] = hashlib.sha256(source_path.read_bytes()).hexdigest()
     configuration["installed_definition_ids"] = list(part_ids)
     return dict(
-        road_id=LOCAL_CURVES_ID,
-        road=road_snapshot(LOCAL_CURVES_FILE, LOCAL_CURVES_ID),
+        road_id=road_id,
+        road=(road_snapshot(LOCAL_CURVES_FILE, LOCAL_CURVES_ID) if course is None
+              else course.snapshot()),
         measurement_scope={
             "corners": "geometric corner arcs; approach and braking sectors excluded",
         },
@@ -322,6 +330,13 @@ def local_curves_result(out_file, part_ids=(), car=None, driver_name="Reference"
 def local_curves(out_file, part_ids=()):
     """Fixed handling route with a deterministic, non-random reference driver."""
     reply(**local_curves_result(out_file, part_ids))
+
+
+def local_curves_elevated(out_file, part_ids=()):
+    """Development-only elevated variant; scheduled events keep flat LOCAL CURVES."""
+    from sim.track import load_elevated_course
+    course = load_elevated_course(LOCAL_CURVES_ELEVATED_FILE)
+    reply(**local_curves_result(out_file, part_ids, course=course))
 
 
 def time_attack(player_out, rival_out, part_ids=(), rival_file=LOCAL_RIVAL_FILE,
@@ -702,7 +717,8 @@ def main():
     global ACTIVE_CAR_FILE
     ap = argparse.ArgumentParser(description="deadtildawn game bridge")
     ap.add_argument("command", choices=["parts", "shop_catalog", "pull", "car_stats", "track", "rival", "street",
-                                        "practice", "odds", "race", "local_straight", "local_curves", "time_attack"])
+                                        "practice", "odds", "race", "local_straight", "local_curves",
+                                        "local_curves_elevated", "time_attack"])
     ap.add_argument("--car", choices=["reference", "game"], default="reference",
                     help="reference EJ6 for engineering tools (default), game EG6 for Godot")
     ap.add_argument("--week", type=int)
@@ -748,6 +764,8 @@ def main():
             local_straight(a.out, part_ids)
         elif a.command == "local_curves":
             local_curves(a.out, part_ids)
+        elif a.command == "local_curves_elevated":
+            local_curves_elevated(a.out, part_ids)
         elif a.command == "time_attack":
             if not a.player_out or not a.rival_out:
                 raise ValueError("time_attack requires --player-out and --rival-out")

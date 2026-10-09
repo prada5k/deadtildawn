@@ -761,7 +761,7 @@ func entrant_replay_compatible(entrant: Dictionary) -> bool:
 	var parsed = JSON.parse_string(FileAccess.get_file_as_string(replay_ref))
 	if typeof(parsed) != TYPE_DICTIONARY or typeof(parsed.get("car", {})) != TYPE_DICTIONARY:
 		return false
-	if str(parsed.get("format", "")) != "deadtildawn-replay" or int(parsed.get("version", 0)) != 1:
+	if str(parsed.get("format", "")) != "deadtildawn-replay" or int(parsed.get("version", 0)) not in [1, 2]:
 		return false
 	if typeof(parsed.get("samples", {})) != TYPE_DICTIONARY or typeof(parsed.get("track", {})) != TYPE_DICTIONARY:
 		return false
@@ -769,6 +769,18 @@ func entrant_replay_compatible(entrant: Dictionary) -> bool:
 	var track: Dictionary = parsed["track"]
 	if not samples.has_all(["t", "s", "heading", "v"]) or not track.has("centerline") or not track.has("corners"):
 		return false
+	if int(parsed["version"]) == 2:
+		if not samples.has_all(["z", "grade", "path_s"]) or not track.has_all(["centerline_z", "elevation_profile", "distance_axis"]):
+			return false
+		if str(track["distance_axis"]) != "horizontal_centerline_m" or typeof(track["elevation_profile"]) != TYPE_DICTIONARY:
+			return false
+		if typeof(track["centerline"]) != TYPE_ARRAY or typeof(track["centerline_z"]) != TYPE_ARRAY or typeof(samples["t"]) != TYPE_ARRAY:
+			return false
+		if track["centerline_z"].size() != track["centerline"].size():
+			return false
+		for channel in ["z", "grade", "path_s"]:
+			if typeof(samples[channel]) != TYPE_ARRAY or samples[channel].size() != samples["t"].size():
+				return false
 	var visual: Dictionary = parsed.get("vehicle_visual", {})
 	var visual_id := str(visual.get("visual_id", ""))
 	if visual_id == "eg9_ferio_temp_proxy":

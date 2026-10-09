@@ -10,6 +10,7 @@ See docs/PHYSICS.md sections 4 and 5.
 from dataclasses import dataclass
 
 from .forces import (axle_grip, axle_loads, drag, max_lateral_accel,
+                     road_axle_loads, road_rolling_resistance, road_traction_limit_fwd,
                      rolling_resistance, static_mu, traction_limit_fwd_ls)
 from .powertrain import (effective_mass, is_clutch_slipping, overall_ratio,
                          rpm_from_speed, speed_from_rpm, wheel_force)
@@ -103,9 +104,16 @@ def spin_absorption(car, gear, engine_coupled):
     return m
 
 
-def drive_accel(car, k, v, gear, shifting):
+def road_resistance(car, k, v, road=None):
+    """Tangential drag, tire rolling loss, and gravity (once each)."""
+    if road is None:
+        return drag(car, v) + k.f_roll
+    return drag(car, v) + road_rolling_resistance(car, road, v) + car.mass * G * road.sin_angle
+
+
+def drive_accel(car, k, v, gear, shifting, road=None):
     """Acceleration [m/s^2] under full throttle, and what limits it."""
-    resist = drag(car, v) + k.f_roll
+    resist = road_resistance(car, k, v, road)
     if shifting:
         return -resist / effective_mass(car, gear, engine_coupled=False), "shift"
 
@@ -113,8 +121,9 @@ def drive_accel(car, k, v, gear, shifting):
     f_engine = wheel_force(car, v, gear)
     a = (f_engine - resist) / effective_mass(car, gear, engine_coupled=coupled)
     f_tire = f_engine - spin_absorption(car, gear, coupled) * a
-    if f_tire > k.f_traction:
-        return (k.f_traction - resist) / k.m_free, "traction"
+    traction = k.f_traction if road is None else road_traction_limit_fwd(car, road, v)
+    if f_tire > traction:
+        return (traction - resist) / k.m_free, "traction"
     return a, "power"
 
 
@@ -124,7 +133,7 @@ def front_brake_capacity(car, k, temp):
     return k.f_brake_cap * pad_mu(car, temp) / car.pad_mu
 
 
-def brake_forces(car, k, v, temp=AMBIENT_C, tol=1e-10):
+def brake_forces(car, k, v, temp=AMBIENT_C, tol=1e-10, road=None):
     """Max braking at speed v with front rotors at `temp` [C] (PHYSICS.md 5.1-5.3).
 
     Returns (decel, front_force, rear_force), decel positive [m/s^2].
@@ -135,11 +144,12 @@ def brake_forces(car, k, v, temp=AMBIENT_C, tol=1e-10):
     Deceleration sets the load transfer, which sets the grip, which sets the
     deceleration, so it is solved by fixed-point iteration from the static guess.
     """
-    resist = drag(car, v) + k.f_roll
+    resist = road_resistance(car, k, v, road)
     cap = front_brake_capacity(car, k, temp)
     a = (k.mu * car.mass * G + resist) / k.m_brake
     for _ in range(100):
-        front, rear = axle_loads(car, -a)
+        front, rear = (axle_loads(car, -a) if road is None else
+                       road_axle_loads(car, -a, road, v))
         f_front = min(axle_grip(car, front), cap)
         f_rear = axle_grip(car, rear)
         a_new = (f_front + f_rear + resist) / k.m_brake
@@ -149,14 +159,14 @@ def brake_forces(car, k, v, temp=AMBIENT_C, tol=1e-10):
     raise RuntimeError("brake_forces did not converge")
 
 
-def brake_decel(car, k, v, temp=AMBIENT_C):
+def brake_decel(car, k, v, temp=AMBIENT_C, road=None):
     """Max braking deceleration [m/s^2, positive]. See brake_forces."""
-    return brake_forces(car, k, v, temp)[0]
+    return brake_forces(car, k, v, temp, road=road)[0]
 
 
 # ---------------------------------------------------------------- stepping
 
-def advance(car, k, st, dist, s0=0.0, events=None):
+def advance(car, k, st, dist, s0=0.0, events=None, road=None):
     """Advance the car `dist` meters at full throttle, starting at position s0.
 
     Splits the step exactly at events so results don't depend on step size:
@@ -187,7 +197,7 @@ def advance(car, k, st, dist, s0=0.0, events=None):
                 shift_left = car.shift_time
 
         shifting = shift_left > 0
-        a, limit = drive_accel(car, k, v, gear, shifting)
+        a, limit = drive_accel(car, k, v, gear, shifting, road)
         if first_limit is None:
             first_limit, first_a = limit, a
 

@@ -18,7 +18,7 @@ extends Node2D
 
 const REPLAY_PATH := "res://replays/latest.json"
 const REPLAY_FORMAT := "deadtildawn-replay"
-const SUPPORTED_VERSION := 1
+const SUPPORTED_VERSIONS := [1, 2] # v2 adds elevation channels; current visuals use the 2D projection.
 
 const PX_PER_M := 4.0            # world scale: 1 m = 4 px
 const ROAD_WIDTH_M := 8.0        # two-lane mountain road (two 4 m lanes)
@@ -121,9 +121,25 @@ func load_replay(path: String) -> String:
 	var data = JSON.parse_string(FileAccess.get_file_as_string(path))
 	if typeof(data) != TYPE_DICTIONARY or data.get("format") != REPLAY_FORMAT:
 		return "%s is not a deadtildawn replay." % path
-	if int(data.get("version", 0)) != SUPPORTED_VERSION:
-		return "Replay format version %s, but this viewer reads version %d.\nUpdate the viewer or re-export the replay." \
-			% [str(data.get("version")), SUPPORTED_VERSION]
+	if int(data.get("version", 0)) not in SUPPORTED_VERSIONS:
+		return "Replay format version %s is unsupported by this viewer.\nUpdate the viewer or re-export the replay." \
+			% str(data.get("version"))
+	if int(data["version"]) == 2:
+		if typeof(data.get("track")) != TYPE_DICTIONARY or typeof(data.get("samples")) != TYPE_DICTIONARY:
+			return "Elevated replay is missing road geometry or telemetry."
+		var track: Dictionary = data.get("track", {})
+		var vertical_samples: Dictionary = data.get("samples", {})
+		if not track.has_all(["centerline", "centerline_z", "elevation_profile", "distance_axis"]) or not vertical_samples.has_all(["t", "z", "grade", "path_s"]):
+			return "Elevated replay is missing road geometry or telemetry."
+		if str(track["distance_axis"]) != "horizontal_centerline_m" or typeof(track["elevation_profile"]) != TYPE_DICTIONARY:
+			return "Elevated replay has an unsupported road profile."
+		if typeof(track["centerline"]) != TYPE_ARRAY or typeof(track["centerline_z"]) != TYPE_ARRAY or typeof(vertical_samples["t"]) != TYPE_ARRAY:
+			return "Elevated replay has invalid road or time samples."
+		if track["centerline_z"].size() != track["centerline"].size():
+			return "Elevated replay centerline heights do not match its road points."
+		for channel in ["z", "grade", "path_s"]:
+			if typeof(vertical_samples[channel]) != TYPE_ARRAY or vertical_samples[channel].size() != vertical_samples["t"].size():
+				return "Elevated replay telemetry channels have different lengths."
 	replay = data
 	samples = data["samples"]
 	corners = data["track"]["corners"]

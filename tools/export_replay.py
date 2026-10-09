@@ -24,6 +24,7 @@ from sim.track import track_xy                     # noqa: E402
 
 REPLAY_FORMAT = "deadtildawn-replay"
 REPLAY_VERSION = 1
+ELEVATED_REPLAY_VERSION = 2
 SAMPLE_STEP = 0.5        # m between telemetry samples (Godot interpolates between them)
 TRACK_POINT_STEP = 1.0   # m between road outline points
 GODOT_REPLAY = ROOT / "godot" / "replays" / "latest.json"
@@ -33,7 +34,7 @@ def _r(x, nd=3):
     return round(x, nd)
 
 
-def build_replay(car, segments, lap, track_name):
+def build_replay(car, segments, lap, track_name, elevation=None):
     tel = lap.telemetry
     length = sum(seg.length for seg in segments)
 
@@ -78,7 +79,7 @@ def build_replay(car, segments, lap, track_name):
         "brake_temp": [_r(tel.brake_temp[i], 1) for i in idx],
     }
 
-    return {
+    replay = {
         "format": REPLAY_FORMAT,
         "version": REPLAY_VERSION,
         "units": {"distance": "m", "speed": "m/s", "time": "s", "angle": "rad",
@@ -98,6 +99,31 @@ def build_replay(car, segments, lap, track_name):
                         for c in lap.corner_log]},
         "samples": samples,
     }
+    if elevation is not None:
+        # Version 2 retains the complete v1 2D projection for current viewers.
+        # These additional channels are the authoritative vertical geometry;
+        # no 3D road mesh is implied by this export.
+        replay["version"] = ELEVATED_REPLAY_VERSION
+        replay["units"].update({"elevation": "m", "grade": "rise/run",
+                                "path_distance": "m"})
+        replay["track"].update({
+            "distance_axis": "horizontal_centerline_m",
+            "path_length": _r(elevation.path_length(0.0, length), 3),
+            "centerline_z": [_r(elevation.point(s).z, 3) for s in s_road],
+            "elevation_profile": {"interpolation": "clamped_cubic_spline_c2",
+                                  "samples": [list(pair) for pair in elevation.samples],
+                                  "start_grade": elevation.start_grade,
+                                  "end_grade": elevation.end_grade},
+        })
+        selected_s = [tel.s[i] for i in idx]
+        sample_points = [elevation.point(s) for s in selected_s]
+        samples["z"] = [_r(point.z, 3) for point in sample_points]
+        samples["grade"] = [_r(point.grade, 6) for point in sample_points]
+        path_s = [0.0]
+        for a, b in zip(selected_s, selected_s[1:]):
+            path_s.append(path_s[-1] + elevation.path_length(a, b))
+        samples["path_s"] = [_r(s, 3) for s in path_s]
+    return replay
 
 
 def write_replay(car, segments, lap, track_name, out_path, copy_to_godot=True):

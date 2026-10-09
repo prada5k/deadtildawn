@@ -14,6 +14,8 @@ class ShiftEvent:
 @dataclass
 class Telemetry:
     s: list = field(default_factory=list)      # m
+    z: list = field(default_factory=list)      # m, elevation at horizontal s
+    grade: list = field(default_factory=list)  # dz/ds (horizontal)
     t: list = field(default_factory=list)      # s
     v: list = field(default_factory=list)      # m/s
     gear: list = field(default_factory=list)   # 0 = mid-shift

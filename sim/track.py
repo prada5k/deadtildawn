@@ -9,8 +9,12 @@ segment, instead of being silently misread.
 """
 import math
 import re
+import hashlib
+import json
 from dataclasses import dataclass
 from pathlib import Path
+
+from .elevation import ElevationProfile
 
 R_MIN = 15.0    # m, severity 1
 R_MAX = 500.0   # m, severity 10
@@ -82,15 +86,60 @@ def load_track(path):
 
 
 @dataclass(frozen=True)
+class ElevatedCourse:
+    road_id: str
+    geometry_version: int
+    segments: tuple
+    elevation: ElevationProfile
+    geometry_sha256: str
+
+    def snapshot(self):
+        return {"road_id": self.road_id, "geometry_version": self.geometry_version,
+                "geometry_sha256": self.geometry_sha256}
+
+
+def load_elevated_course(path):
+    """Load a versioned elevation fixture without changing legacy pace-note files."""
+    path = Path(path)
+    raw = path.read_bytes()
+    data = json.loads(raw)
+    if not isinstance(data, dict):
+        raise ValueError("elevated course must be a JSON object")
+    if data.get("geometry_version") != 2 or not isinstance(data.get("road_id"), str) or not data["road_id"]:
+        raise ValueError("elevated course needs a road ID and geometry_version 2")
+    if data.get("distance_axis") != "horizontal_centerline_m" or data.get("interpolation") != "clamped_cubic_spline_c2":
+        raise ValueError("unsupported elevated-course distance axis or interpolation")
+    base_name = data.get("base_track")
+    if not isinstance(base_name, str) or Path(base_name).name != base_name:
+        raise ValueError("base_track must be a neighboring pace-note filename")
+    base_path = path.parent / base_name
+    base_bytes = base_path.read_bytes()
+    if hashlib.sha256(base_bytes).hexdigest() != data.get("base_track_sha256"):
+        raise ValueError("base track hash differs from elevated course declaration")
+    segments = tuple(load_track(base_path))
+    length = sum(seg.length for seg in segments)
+    if "elevation_samples" not in data:
+        raise ValueError("elevated course lacks elevation_samples")
+    profile = ElevationProfile(data["elevation_samples"],
+                               data.get("start_grade", 0.0), data.get("end_grade", 0.0))
+    if not math.isclose(profile.length, length, abs_tol=1e-6, rel_tol=0):
+        raise ValueError("elevation must end at the horizontal course length")
+    digest = hashlib.sha256(base_bytes + b"\0" + raw).hexdigest()
+    return ElevatedCourse(data["road_id"], 2, segments, profile, digest)
+
+
+@dataclass(frozen=True)
 class TrackGrid:
-    s: tuple            # m, node positions (uniform except possibly the last step)
-    curvature: tuple    # 1/m at each node, 0 on straights
-    length: float       # m
+    s: tuple            # m, horizontal plan-view positions (uniform except last step)
+    curvature: tuple    # horizontal yaw curvature, 1/m; 0 on straights
+    length: float       # horizontal plan-view length, m
     corner_id: tuple = ()   # index into `corners` at each node, -1 on straights
     corners: tuple = ()     # (pace-note text, s_start, s_end) per corner
+    path_s: tuple = ()      # 3D traveled distance at each horizontal-distance node
+    elevation: ElevationProfile | None = None
 
 
-def discretize(segments, ds):
+def discretize(segments, ds, elevation=None):
     """Nodes every ds meters. A node on a straight/corner boundary takes the
     corner's curvature (conservative: the car must already be at corner speed)."""
     length = sum(seg.length for seg in segments)
@@ -111,6 +160,14 @@ def discretize(segments, ds):
                         curv[i], cid[i] = k, len(corners)
             corners.append((seg.text, start, end))
         start = end
+    if elevation is not None:
+        if not math.isclose(elevation.length, length, abs_tol=1e-6, rel_tol=0):
+            raise ValueError("elevation and horizontal track lengths differ")
+        path_s = [0.0]
+        for a, b in zip(s, s[1:]):
+            path_s.append(path_s[-1] + elevation.path_length(a, b))
+        return TrackGrid(tuple(s), tuple(curv), length, tuple(cid), tuple(corners),
+                         tuple(path_s), elevation)
     return TrackGrid(tuple(s), tuple(curv), length, tuple(cid), tuple(corners))
 
 

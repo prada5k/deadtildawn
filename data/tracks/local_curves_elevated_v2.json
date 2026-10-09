@@ -1,0 +1,21 @@
+{
+  "road_id": "LOCAL_CURVES_ELEVATED_V2",
+  "geometry_version": 2,
+  "base_track": "local_curves.txt",
+  "base_track_sha256": "6ef6f0d8c13c0a470005c4ec58758b4048c74a630b53712345f1e6dea20ccef4",
+  "description": "Fictional engineering fixture on the unchanged LOCAL CURVES plan view; not a surveyed Southern California road.",
+  "distance_axis": "horizontal_centerline_m",
+  "interpolation": "clamped_cubic_spline_c2",
+  "start_grade": 0.0,
+  "end_grade": 0.0,
+  "elevation_samples": [
+    [0.0, 0.0],
+    [120.0, 1.0],
+    [240.0, 7.0],
+    [360.0, 14.0],
+    [460.0, 15.0],
+    [590.0, 8.0],
+    [720.0, 1.0],
+    [870.4305117127792, 0.0]
+  ]
+}

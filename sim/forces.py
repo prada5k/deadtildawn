@@ -15,6 +15,43 @@ def rolling_resistance(car):
     return car.crr * car.mass * G
 
 
+def road_normal_force(car, road, speed):
+    """Contact normal force on an unbanked 3D centerline [N]."""
+    normal = car.mass * road.normal_accel(speed)
+    if normal <= 0:
+        raise RuntimeError("road contact lost; airborne motion is not modeled")
+    return normal
+
+
+def road_rolling_resistance(car, road, speed):
+    return car.crr * road_normal_force(car, road, speed)
+
+
+def road_axle_loads(car, a_long, road, speed):
+    """Axle normals with slope gravity removed from longitudinal load transfer.
+
+    Contact force, not the car's gravity acceleration, creates pitch transfer.
+    Retaining the legacy drag/rolling approximation makes this exactly match
+    axle_loads on a flat road.
+    """
+    normal = road_normal_force(car, road, speed)
+    transfer = car.mass * (a_long + G * road.sin_angle) * car.cg_height / car.wheelbase
+    return max(normal * car.weight_front - transfer, 0.0), max(normal * (1 - car.weight_front) + transfer, 0.0)
+
+
+def road_traction_limit_fwd(car, road, speed, tol=1e-9):
+    """FWD contact-force limit including road normal and rearward pitch transfer."""
+    normal = road_normal_force(car, road, speed)
+    force = axle_grip(car, normal * car.weight_front)
+    for _ in range(200):
+        front = max(normal * car.weight_front - force * car.cg_height / car.wheelbase, 0.0)
+        new = axle_grip(car, front)
+        if abs(new - force) < tol:
+            return new
+        force = new
+    raise RuntimeError("road traction limit did not converge")
+
+
 def static_mu(car):
     """Tire mu at the static per-tire load (PHYSICS.md 3.3).
 
@@ -62,7 +99,7 @@ def axle_grip(car, axle_load):
     return 2 * tire_mu(car, fz) * fz
 
 
-def lateral_tire_loads(car, a_y):
+def lateral_tire_loads(car, a_y, normal_accel=G):
     """Normal loads [N] on (front outer, front inner, rear outer, rear inner)
     while cornering at lateral acceleration a_y [m/s^2] (PHYSICS.md 3.4).
 
@@ -71,9 +108,9 @@ def lateral_tire_loads(car, a_y):
 
     Wheel lift: an axle can transfer at most its whole inside-tire load. Once
     its inside wheel lifts, any extra roll moment goes to the other axle, so
-    the four loads always add up to the car's weight.
+    the four loads add up to the supplied road normal force.
     """
-    w = car.mass * G
+    w = car.mass * normal_accel
     front, rear = w * car.weight_front, w * (1 - car.weight_front)
     moment = car.mass * a_y * car.cg_height
     dwf = car.roll_front * moment / car.track_front
@@ -87,26 +124,26 @@ def lateral_tire_loads(car, a_y):
     return (front / 2 + dwf, front / 2 - dwf, rear / 2 + dwr, rear / 2 - dwr)
 
 
-def lateral_grip(car, a_y):
+def lateral_grip(car, a_y, normal_accel=G):
     """Total lateral friction force [N] from four load-sensitive tires."""
-    return sum(tire_mu(car, fz) * fz for fz in lateral_tire_loads(car, a_y))
+    return sum(tire_mu(car, fz) * fz for fz in lateral_tire_loads(car, a_y, normal_accel))
 
 
-def axle_lateral_caps(car, a_y):
+def axle_lateral_caps(car, a_y, normal_accel=G):
     """Lateral acceleration [m/s^2] each axle could support at a_y.
 
     In steady cornering each axle must provide lateral force in proportion to
     the mass it carries (front: m * a_y * b/L). So an axle's cap is its grip
     divided by its share of the mass. Returns (front_cap, rear_cap).
     """
-    fo, fi, ro, ri = lateral_tire_loads(car, a_y)
+    fo, fi, ro, ri = lateral_tire_loads(car, a_y, normal_accel)
     grip_f = tire_mu(car, fo) * fo + tire_mu(car, fi) * fi
     grip_r = tire_mu(car, ro) * ro + tire_mu(car, ri) * ri
     return (grip_f / (car.mass * car.weight_front),
             grip_r / (car.mass * (1 - car.weight_front)))
 
 
-def max_lateral_accel(car, tol=1e-10):
+def max_lateral_accel(car, tol=1e-10, normal_accel=G):
     """Steady-state cornering limit [m/s^2] with no aero: the skidpad number
     (PHYSICS.md 3.4).
 
@@ -115,9 +152,11 @@ def max_lateral_accel(car, tol=1e-10):
     depends on a_y, so solve a_y = min(front_cap(a_y), rear_cap(a_y)) by
     fixed-point iteration.
     """
-    a = static_mu(car) * G
+    if normal_accel <= 0:
+        return 0.0
+    a = static_mu(car) * normal_accel
     for _ in range(300):
-        a_new = min(axle_lateral_caps(car, a))
+        a_new = min(axle_lateral_caps(car, a, normal_accel))
         if abs(a_new - a) < tol:
             return a_new
         a = a_new
